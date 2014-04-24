@@ -12,9 +12,11 @@ Section LTR.
 Inductive id : Type :=
   Id : nat -> id.
 
+Hint Resolve eq_nat_dec.
+
 Theorem id_eq_dec : forall (x y : id),
 {x = y} + {x <> y}.
-Proof. decide equality. apply eq_nat_dec. Defined.
+Proof. decide equality. Defined.
 Hint Resolve id_eq_dec.
 
 Definition X : id := (Id 0).
@@ -45,7 +47,7 @@ Inductive object : Type :=
 Theorem obj_eq_dec : forall (x y: object),
 {x = y} + {x <> y}.
 Proof. decide equality. Defined.
-
+Hint Resolve obj_eq_dec. 
 Definition obj_var (v:id) : object := (obj_path nil v).
 
 (* Types *)
@@ -54,7 +56,6 @@ Inductive type : Type :=
 | t_num    : type
 | t_true   : type
 | t_false  : type 
-| t_bottom : type
 | t_union : list type -> type
 | t_fun   : id -> type -> prop -> prop -> object -> type -> type
 | t_cons  : type -> type -> type 
@@ -71,13 +72,18 @@ with prop : Type :=
 | PATH_TYPE  : type -> path -> id -> prop
 | PATH_NOT : type -> path -> id -> prop.
 
+(* Common Type Abbreviations *)
+Definition t_bool := (t_union (t_true :: t_false :: nil)).
+Definition t_bottom := (t_union nil).
+
 Fixpoint type_eq_dec (x y : type) : {x = y} + {x <> y}
 with prop_eq_dec (x y : prop) : {x = y} + {x <> y}.
 Proof.
   decide equality.
-  apply obj_eq_dec.
   decide equality.
 Defined.
+Hint Resolve type_eq_dec.
+Hint Resolve prop_eq_dec.
 
 (* Constant Operations *)
 Inductive constop : Type :=
@@ -88,19 +94,34 @@ Inductive constop : Type :=
 | op_isproc : constop
 | op_iscons : constop.
 
+Theorem constop_eq_dec : forall (x y : constop),
+{x = y} + {x <> y}.
+Proof. decide equality. Defined.
+Hint Resolve constop_eq_dec.
+
 (* Polymorphic Operations *)
 Inductive polyop : Type :=
 | op_car    : polyop
 | op_cdr    : polyop.
+
+Theorem polyop_eq_dec : forall (x y : polyop),
+{x = y} + {x <> y}.
+Proof. decide equality. Defined.
+Hint Resolve polyop_eq_dec.
 
 (* Primitive Operations *)
 Inductive primop : Type := 
 | prim_c : constop -> primop
 | prim_p : polyop -> primop.
 
+Theorem primop_eq_dec : forall (x y : primop),
+{x = y} + {x <> y}.
+Proof. decide equality. Defined.
+Hint Resolve primop_eq_dec.
+
 (* Expressions *)
 Inductive expr : Type :=
-| e_var     : id -> expr
+| e_var    : id -> expr
 | e_app    : expr -> expr -> expr
 | e_abs    : id -> type -> expr -> expr
 | e_if     : expr -> expr -> expr -> expr
@@ -110,9 +131,9 @@ Inductive expr : Type :=
 | e_num    : nat -> expr
 | e_cons   : expr -> expr -> expr.
 
-(* Common Type Abbreviations *)
-Definition t_bool := (t_union (t_true :: t_false :: nil)).
-Definition t_bottom := (t_union nil).
+Theorem expr_eq_dec : forall (x y : expr),
+{x = y} + {x <> y}.
+Proof. decide equality. Defined.
 
 (* TODO: Do we need Integers to represent numbers? Reals? *)
 

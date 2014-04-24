@@ -189,8 +189,43 @@ match c with
 end.
 
 (* Substitution *)
-Definition obj_subst (o o' : object) (x : id) : object :=
-match 
+Definition subst_o (o sub : object) (x : id) : object :=
+match o with
+| obj_nil => obj_nil
+| obj_path p z =>
+  if id_eq_dec x z
+  then match sub with
+       | obj_nil => obj_nil
+       | obj_path p' y =>
+         obj_path (p ++ p') y (* TODO verify correct *)
+       end
+  else o
+end.
+
+(* TODO - I'm unsure what the + and - mean in Figure 8 with regard to
+   substitution. I thought the + and - where merely arbitrary
+   characters used to differentiate symbols (e.g. as a subscript).
+   What does it mean next to a substitution annotation? 
+
+   ALSO TODO - What is the v? Above it's defined as a "metavariable
+   ... rang[ing] over tau and not-tau (without variables)". 
+
+   What does that mean? It is either TYPE or NOT (in this context)?
+   But then what about the "without variables" comment?*)
+
+Definition subst_p (p:prop) (sub:object) (x:id) : prop :=
+match p with
+| TYPE t z =>
+| NOT t z =>
+| IMPL P Q =>
+| OR P Q => OR (subst_p P sub x) (subst_p Q sub x)
+| AND P Q => AND (subst_p P sub x) (subst_p Q sub x)
+| FALSE => FALSE
+| TRUE => TRUE
+| PATH_TYPE t p z =>
+| PATH_NOT t p z =>
+end.
+
 
 
 (* Typing Rules *)

@@ -12,8 +12,8 @@ Inductive id : Type :=
 
 (* Objects *)
 Inductive object : Type :=
-| o_nil : object
-| o_var  : id -> object. 
+| obj_nil : object
+| obj_var  : id -> object. 
 
 (* Types *)
 Inductive type : Type :=
@@ -36,11 +36,11 @@ with prop : Type :=
 
 (* Primitive Operations *)
 Inductive primop : Type :=
-| add1   : primop
-| iszero : primop
-| isnum  : primop
-| isbool : primop
-| isproc : primop.
+| op_add1   : primop
+| op_iszero : primop
+| op_isnum  : primop
+| op_isbool : primop
+| op_isproc : primop.
 
 (* Expressions *)
 Inductive expr : Type :=

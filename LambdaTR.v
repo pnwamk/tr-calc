@@ -1,4 +1,10 @@
 
+(* Formalization of the core calculi found in
+   "Logical Types for Untyped Languages" 
+
+   -Andrew Kent *)
+
+
 Require Import LibTactics.
 Require Import List.
 Require Import Arith.
@@ -213,6 +219,8 @@ end.
    What does that mean? It is either TYPE or NOT (in this context)?
    But then what about the "without variables" comment?*)
 
+(* BOOKMARK - currently working through the substitution
+   definition on page 8, Figure 8 *)
 Definition subst_p (p:prop) (sub:object) (x:id) : prop :=
 match p with
 | TYPE t z =>
@@ -253,7 +261,8 @@ Inductive TypeOf :
      TypeOf E (e_abs x s e) (t_fun x s pT pF o t) TRUE FALSE obj_nil
 | T_App :
    forall E e x s pTf pFf t pT pF of o e' pT' pF' o',
-     TypeOf E e (t_fun x s pTf pFf of ).
+     TypeOf E e (t_fun x s pTf pFf of ). 
+  (* BOOKMARK - Left work here to go work out substitution details. *)
               
 
 End LTR.

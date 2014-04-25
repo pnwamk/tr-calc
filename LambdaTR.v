@@ -208,10 +208,11 @@ match o with
   else o
 end.
 
-(* TODO - I'm unsure what the + and - mean in Figure 8 with regard to
-   substitution. I thought the + and - where merely arbitrary
-   characters used to differentiate symbols (e.g. as a subscript).
-   What does it mean next to a substitution annotation? 
+(* TODO - I'm unsure what the + and - mean in Figure 8 (pg 8) with
+   regard to substitution. I thought the + and - where merely
+   arbitrary characters used to differentiate symbols (e.g. as a
+   convenient/intuitive subscript).  What does it mean next to a
+   substitution annotation?
 
    ALSO TODO - What is the v? Above it's defined as a "metavariable
    ... rang[ing] over tau and not-tau (without variables)". 

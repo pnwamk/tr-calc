@@ -8,6 +8,7 @@
 Require Import LibTactics.
 Require Import List.
 Require Import Arith.
+Require Import Relations.
 Import ListNotations.
 
 Open Scope list_scope.
@@ -182,20 +183,20 @@ match c with
   (t_fun X
          t_num
          TRUE
-         FALSE
+         TRUE
          obj_nil
          t_num)
 | op_iszero =>
   (t_fun X
          t_num
          TRUE
-         FALSE
+         TRUE
          obj_nil
          t_bool)
 end.
 
 (* Substitution *)
-Definition subst_o (o sub : object) (x : id) : object :=
+Definition osubst (o sub : object) (x : id) : object :=
 match o with
 | obj_nil => obj_nil
 | obj_path p z =>
@@ -219,21 +220,52 @@ end.
    What does that mean? It is either TYPE or NOT (in this context)?
    But then what about the "without variables" comment?*)
 
-(* BOOKMARK - currently working through the substitution
-   definition on page 8, Figure 8 *)
-Definition subst_p (p:prop) (sub:object) (x:id) : prop :=
+Fixpoint psubst_pos (p:prop) (sub:object) (x:id) : prop :=
+(* TODO *)
 match p with
-| TYPE t z =>
-| NOT t z =>
-| IMPL P Q =>
-| OR P Q => OR (subst_p P sub x) (subst_p Q sub x)
-| AND P Q => AND (subst_p P sub x) (subst_p Q sub x)
+| TYPE t z => p
+| NOT t z => p
+| IMPL P Q => p
+| OR P Q => OR (psubst_pos P sub x) (psubst_pos Q sub x)
+| AND P Q => AND (psubst_pos P sub x) (psubst_pos Q sub x)
 | FALSE => FALSE
 | TRUE => TRUE
-| PATH_TYPE t p z =>
-| PATH_NOT t p z =>
+| PATH_TYPE t pth z => p
+| PATH_NOT t pth z => p
 end.
 
+Fixpoint psubst_neg (p:prop) (sub:object) (x:id) : prop :=
+(* TODO *)
+match p with
+| TYPE t z => p
+| NOT t z => p
+| IMPL P Q => p
+| OR P Q => OR (psubst_neg P sub x) (psubst_neg Q sub x)
+| AND P Q => AND (psubst_neg P sub x) (psubst_neg Q sub x)
+| FALSE => FALSE
+| TRUE => TRUE
+| PATH_TYPE t pth z => p
+| PATH_NOT t pth z => p
+end.
+
+Definition tsubst (t:type) (sub:object) (x:id) : type :=
+(* TODO *)
+match t with
+| _ => t
+end.
+
+Inductive SubType : relation type :=
+(* TODO *)
+| S_TODO : forall t t', SubType t t'.
+
+
+Inductive SubObj : relation object :=
+(* TODO *)
+| SO_TODO : forall o o', SubObj o o'.
+
+Inductive Proves : env -> prop -> Prop :=
+(* TODO *)
+| P_TODO : forall E p, Proves E p.
 
 
 (* Typing Rules *)
@@ -261,8 +293,22 @@ Inductive TypeOf :
      TypeOf E (e_abs x s e) (t_fun x s pT pF o t) TRUE FALSE obj_nil
 | T_App :
    forall E e x s pTf pFf t pT pF of o e' pT' pF' o',
-     TypeOf E e (t_fun x s pTf pFf of ). 
-  (* BOOKMARK - Left work here to go work out substitution details. *)
-              
+     TypeOf E e (t_fun x s pTf pFf of t) pT pF o ->
+     TypeOf E e' s pT' pF' o' ->
+     TypeOf E (e_app e e') (tsubst t o' x) (psubst_pos pTf o' x) (psubst_pos pFf o' x) (osubst of o' x)
+| T_If :
+   forall E e1 t1 pT1 pF1 o1 e2 t pT2 pF2 o e3 pT3 pF3,
+     TypeOf E e1 t1 pT1 pF1 o1 ->
+     TypeOf (cons pT1 E) e2 t pT2 pF2 o ->
+     TypeOf (cons pF1 E) e3 t pT3 pF3 o ->
+     TypeOf E (e_if e1 e2 e3) t (OR pT2 pT3) (OR pF2 pF3) o 
+| T_Subsume :
+   forall E e t pT pF o pT' pF' t' o',
+     TypeOf E e t pT pF o ->
+     Proves (cons pT E) pT' ->
+     Proves (cons pF E) pF' ->
+     SubType t t' ->
+     SubObj o o' ->
+     TypeOf E e t' pT' pF' o'. 
 
 End LTR.

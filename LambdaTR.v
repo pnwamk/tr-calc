@@ -7,6 +7,7 @@
 
 Require Import LibTactics.
 Require Import List.
+Require Import ListSet.
 Require Import Arith.
 Import ListNotations.
 
@@ -47,7 +48,7 @@ Hint Resolve path_eq_dec.
 
 (* Objects *)
 Inductive object : Type :=
-| obj_nil : object
+| obj_nil  : object
 | obj_path : path -> id -> object. 
 
 Theorem obj_eq_dec : forall (x y: object),
@@ -59,9 +60,9 @@ Definition obj_var (v:id) : object := (obj_path nil v).
 (* Types *)
 Inductive type : Type :=
 | t_top : type
-| t_num    : type
-| t_true   : type
-| t_false  : type 
+| t_num   : type
+| t_true  : type
+| t_false : type 
 | t_union : list type -> type
 | t_fun   : id -> type -> prop -> prop -> object -> type -> type
 | t_cons  : type -> type -> type 
@@ -194,6 +195,58 @@ match c with
          t_bool)
 end.
 
+Fixpoint setU {X:Type} (dec : forall x y : X, {x=y} + {x<>y}) 
+                       (l:list (set X)) : set X :=
+match l with
+| nil => nil
+| x :: xs => set_union dec x (setU dec xs)
+end. 
+
+(* free variables in objects *)
+Definition fv_set_o (o : object) : set id :=
+match o with
+| obj_nil => nil
+| obj_path _ x => [x]
+end.
+
+(* free variables in types *)
+Fixpoint fv_set_t (t : type) : set id :=
+match t with
+| t_union l =>
+  fold_left (fun ids next => 
+               set_union id_eq_dec 
+                         ids 
+                         (fv_set_t next))
+            l
+            nil
+| t_fun x t1 p1 p2 o t2 =>
+  setU id_eq_dec
+       [[x];
+        (fv_set_t t1);
+        (fv_set_p p1);
+        (fv_set_p p2);
+        (fv_set_o o);
+        (fv_set_t t2)]
+| t_cons t1 t2 => 
+  set_union id_eq_dec
+            (fv_set_t t1) 
+            (fv_set_t t2)
+| _ => nil
+end
+
+(* free variables in propositions *)
+with fv_set_p (p: prop) : set id :=
+match p with
+| TYPE t x => set_union id_eq_dec [x] (fv_set_t t)
+| NOT t x => set_union id_eq_dec [x] (fv_set_t t)
+| IMPL p q => set_union id_eq_dec (fv_set_p p) (fv_set_p q)
+| OR p q => set_union id_eq_dec (fv_set_p p) (fv_set_p q)
+| AND p q => set_union id_eq_dec (fv_set_p p) (fv_set_p q)
+| PATH_TYPE t _ x => set_union id_eq_dec [x] (fv_set_t t)
+| PATH_NOT t _ x => set_union id_eq_dec [x] (fv_set_t t)
+| _ => nil
+end.
+
 (* Substitution *)
 Definition subst_o (o sub : object) (x : id) : object :=
 match o with
@@ -206,35 +259,34 @@ match o with
          obj_path (p ++ p') y (* TODO verify correct *)
        end
   else o
-end.
 
-(* TODO - I'm unsure what the + and - mean in Figure 8 (pg 8) with
-   regard to substitution. I thought the + and - where merely
-   arbitrary characters used to differentiate symbols (e.g. as a
-   convenient/intuitive subscript).  What does it mean next to a
-   substitution annotation?
-
-   ALSO TODO - What is the v? Above it's defined as a "metavariable
-   ... rang[ing] over tau and not-tau (without variables)". 
-
-   What does that mean? It is either TYPE or NOT (in this context)?
-   But then what about the "without variables" comment?*)
 
 (* BOOKMARK - currently working through the substitution
    definition on page 8, Figure 8 *)
-Definition subst_p (p:prop) (sub:object) (x:id) : prop :=
+
+(* subst+ for properties*)
+Fixpoint subst_p' (p:prop) (sub:object) (x:id) : prop :=
 match p with
-| TYPE t z =>
+| TYPE t z => 
 | NOT t z =>
-| IMPL P Q =>
+| IMPL P Q => IMPL (subst_p_ P sub x) (subst_p' Q sub x)
 | OR P Q => OR (subst_p P sub x) (subst_p Q sub x)
-| AND P Q => AND (subst_p P sub x) (subst_p Q sub x)
+| AND P Q => AND (subst_p' P sub x) (subst_p' Q sub x)
 | FALSE => FALSE
 | TRUE => TRUE
 | PATH_TYPE t p z =>
 | PATH_NOT t p z =>
+end
+(* subst- for properties *)
+with subst_p_ (p:prop) (sub:object) (x:id) : prop :=
+match p with
+| TYPE t z =>
+| NOT t z =>
+| IMPL P Q => IMPL (subst_p' P sub x) (subst_p_ Q sub x)
+| PATH_TYPE t p z =>
+| PATH_NOT t p z =>
+| _ => subst_p' p sub x
 end.
-
 
 
 (* Typing Rules *)

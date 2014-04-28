@@ -82,15 +82,13 @@ Inductive type : Type :=
 
 (* Propositions *)
 with prop : Type :=
-| TYPE     : type -> id -> prop
-| NOT      : type -> id -> prop
+| T        : type -> path -> id -> prop
+| NT       : type -> path -> id -> prop
 | IMPL     : prop -> prop -> prop
 | OR       : prop -> prop -> prop
 | AND      : prop -> prop -> prop
 | FALSE    : prop
-| TRUE     : prop
-| PATH_TYPE  : type -> path -> id -> prop
-| PATH_NOT : type -> path -> id -> prop.
+| TRUE     : prop.
 
 (* Common Type Abbreviations *)
 Definition t_bool := (t_union (t_true :: t_false :: nil)).
@@ -166,6 +164,15 @@ Inductive expr : Type :=
 | e_num    : nat -> expr
 | e_cons   : expr -> expr -> expr.
 
+Definition car' := (e_primop (prim_p op_car)).
+Definition cdr' := (e_primop (prim_p op_cdr)).
+Definition add1' := (e_primop (prim_c op_add1)).
+Definition iszero' := (e_primop (prim_c op_iszero)).
+Definition isnum' := (e_primop (prim_c op_isnum)).
+Definition isbool' := (e_primop (prim_c op_isbool)).
+Definition isproc' := (e_primop (prim_c op_isproc)).
+Definition iscons' := (e_primop (prim_c op_iscons)).
+
 Theorem expr_eq_dec : forall (x y : expr),
 {x = y} + {x <> y}.
 Proof. decide equality. Defined.
@@ -186,29 +193,29 @@ match c with
 | op_isnum => 
   (t_fun X 
          t_top 
-         (TYPE t_num X) 
-         (NOT t_num X) 
+         (T t_num [] X) 
+         (NT t_num [] X) 
          obj_nil 
          t_bool)
 | op_isproc =>
   (t_fun X 
          t_top 
-         (TYPE (t_fun X t_bottom TRUE FALSE obj_nil t_top) X) 
-         (NOT (t_fun X t_bottom TRUE FALSE obj_nil t_top) X) 
+         (T (t_fun X t_bottom TRUE FALSE obj_nil t_top) [] X) 
+         (NT (t_fun X t_bottom TRUE FALSE obj_nil t_top) [] X) 
          obj_nil 
          t_bool)
 | op_isbool =>
   (t_fun X
          t_top
-         (TYPE t_bool X)
-         (NOT t_bool X)
+         (T t_bool [] X)
+         (NT t_bool [] X)
          obj_nil
          t_bool)
 | op_iscons =>
   (t_fun X
          t_top
-         (TYPE (t_cons t_top t_top) X)
-         (NOT (t_cons t_top t_top) X)
+         (T (t_cons t_top t_top) [] X)
+         (NT (t_cons t_top t_top) [] X)
          obj_nil
          t_bool)
 | op_add1 =>
@@ -269,13 +276,11 @@ end
 (* free variables in propositions *)
 with fv_set_p (p: prop) : set id :=
 match p with
-| TYPE t x => set_union id_eq_dec [x] (fv_set_t t)
-| NOT t x => set_union id_eq_dec [x] (fv_set_t t)
+| T t pth x => set_union id_eq_dec [x] (fv_set_t t)
+| NT t pth x => set_union id_eq_dec [x] (fv_set_t t)
 | IMPL p q => set_union id_eq_dec (fv_set_p p) (fv_set_p q)
 | OR p q => set_union id_eq_dec (fv_set_p p) (fv_set_p q)
 | AND p q => set_union id_eq_dec (fv_set_p p) (fv_set_p q)
-| PATH_TYPE t _ x => set_union id_eq_dec [x] (fv_set_t t)
-| PATH_NOT t _ x => set_union id_eq_dec [x] (fv_set_t t)
 | _ => nil
 end.
 
@@ -292,106 +297,156 @@ match obj with
   end
 end.
 
-Inductive position : Type := pos | neg.
+Inductive sign : Type := pos | neg.
 
-Definition pos_truth (p:position) : prop :=
+Definition sign_truth (p:sign) : prop :=
 match p with
 | pos => TRUE
 | neg => FALSE
 end.
 
-Definition pos_flip (p:position) : position :=
+Definition sign_flip (p:sign) : sign :=
 match p with
 | pos => neg
 | neg => pos
 end.
 
 (* subst+ and - for properties*)
-Fixpoint subst_p (sign : position) 
+Fixpoint subst_p (s : sign) 
                  (p:prop) 
                  (o:object) 
                  (x:id) : prop :=
 match p with
-| TYPE t z =>
+| T t pth1 z =>
   match id_eq x z , set_mem id_eq_dec z (fv_set_t t) with
   | true, _ => 
     match o with
-    | obj_nil => (pos_truth sign)
-    | obj_path pth y => TYPE (subst_t sign t o x) z
+    | obj_nil => (sign_truth s)
+    | obj_path pth2 y =>
+      T (subst_t s t o x) (pth1 ++ pth2) y
     end
   | false, false => p
-  | false, true => (pos_truth sign)
-  end                   
-| NOT t z =>
-  match id_eq x z , set_mem id_eq_dec z (fv_set_t t) with
-  | true, _ => 
-    match o with
-    | obj_nil => (pos_truth sign)
-    | obj_path pth y => TYPE (subst_t sign t o x) z
-    end
-  | false, false => p
-  | false, true => (pos_truth sign)
+  | false, true => (sign_truth s)
   end
-| IMPL P Q => IMPL (subst_p (pos_flip sign) P o x) 
-                   (subst_p sign Q o x)
-| OR P Q => OR (subst_p pos P o x) (subst_p pos Q o x)
-| AND P Q => AND (subst_p pos P o x) (subst_p pos Q o x)
+| NT t pth1 z  =>
+  match id_eq x z , set_mem id_eq_dec z (fv_set_t t) with
+  | true, _ => 
+    match o with
+    | obj_nil => (sign_truth s)
+    | obj_path pth2 y =>
+      NT (subst_t s t o x) (pth1 ++ pth2) y
+    end
+  | false, false => p
+  | false, true => (sign_truth s)
+  end
+| IMPL P Q => IMPL (subst_p (sign_flip s) P o x) 
+                   (subst_p s Q o x)
+| OR P Q => OR (subst_p s P o x) (subst_p s Q o x)
+| AND P Q => AND (subst_p s P o x) (subst_p s Q o x)
 | FALSE => FALSE
 | TRUE => TRUE
-| PATH_TYPE t pth1 z =>
-  match id_eq x z , set_mem id_eq_dec z (fv_set_t t) with
-  | true, _ => 
-    match o with
-    | obj_nil => (pos_truth sign)
-    | obj_path pth2 y =>
-      PATH_TYPE (subst_t sign t o x) (pth1 ++ pth2) y
-    end
-  | false, false => p
-  | false, true => (pos_truth sign)
-  end
-| PATH_NOT t pth1 z  =>
-  match id_eq x z , set_mem id_eq_dec z (fv_set_t t) with
-  | true, _ => 
-    match o with
-    | obj_nil => (pos_truth sign)
-    | obj_path pth2 y =>
-      PATH_NOT (subst_t sign t o x) (pth1 ++ pth2) y
-    end
-  | false, false => p
-  | false, true => (pos_truth sign)
-  end
 end
 
 (* type substitution *)
-with subst_t (sign:position) 
+with subst_t (s:sign) 
              (t:type) 
              (o:object) 
              (x:id) : type :=
 match t with
-| t_union l => t_union (map (fun t' => subst_t sign t' o x) l)
+| t_union l => t_union (map (fun t' => subst_t s t' o x) l)
 | t_fun y t1 p1 p2 o2 t2 =>
   if id_eq x y
   then t
   else t_fun y
-             (subst_t sign t1 o x)
-             (subst_p sign p1 o x)
-             (subst_p sign p2 o x)
+             (subst_t s t1 o x)
+             (subst_p s p1 o x)
+             (subst_p s p2 o x)
              (subst_o o2 o x)
-             (subst_t sign t2 o x)
-| t_cons t1 t2 => t_cons (subst_t sign t1 o x) 
-                         (subst_t sign t2 o x)
+             (subst_t s t2 o x)
+| t_cons t1 t2 => t_cons (subst_t s t1 o x) 
+                         (subst_t s t2 o x)
 | _ => t
 end.
-
-Inductive Proves : env -> prop -> Prop :=
-(* TODO *)
-| P_TODO : forall E p, Proves E p.
 
 Inductive SubObj : relation object :=
 | SO_Refl : forall x, SubObj x x
 | SO_Top  : forall x, SubObj x obj_nil.
 
-Inductive SubType : relation type :=
+Definition update (s:sign)
+                  (t t':type)
+                  (pth pth':path)
+                  (x:id) : prop :=
+TRUE. (* TODO *)
+
+(* Check that update matches the above function signature *)
+
+Inductive Proves : env -> prop -> Prop :=
+| L_Atom : 
+    forall E p, 
+      In p E -> Proves E p
+| L_True :
+    forall E, 
+      Proves E TRUE
+| L_False :
+    forall E p, 
+      Proves E FALSE ->
+      Proves E p
+| L_AndI :
+    forall E p q, 
+      Proves E p ->
+      Proves E q ->
+      Proves E (AND p q)
+| L_AndE :
+    forall E p q r,
+      (or (Proves (q :: E) r)
+          (Proves (p :: E) r)) ->
+      Proves ((AND p q) :: E) r
+| L_ImpI :
+    forall E p q,
+      Proves (p :: E) q ->
+      Proves E (IMPL p q)
+| L_ImpE :
+    forall E p q,
+      Proves E p ->
+      Proves E (IMPL p q) ->
+      Proves E q
+| L_OrI :
+    forall E p q,
+      (or (Proves E p)
+          (Proves E q)) ->
+      Proves E (OR p q)
+| L_OrE :
+    forall E p q r,
+      Proves (p :: E) r ->
+      Proves (q :: E) r ->
+      Proves ((OR p q) :: E) r
+| L_Sub :
+    forall E t t' x,
+      Proves E (T t [] x) ->
+      SubType t t' ->
+      Proves E (T t' [] x)
+| L_SubNot :
+    forall E t t' x,
+      Proves E (NT t' [] x) ->
+      SubType t t' ->
+      Proves E (NT t [] x)
+| L_Bot :
+    forall E x p,
+      Proves E (T t_bottom [] x) ->
+      Proves E p
+| L_Update_T :
+    forall E t x t' pth pth',
+      Proves E (T t pth' x) ->
+      Proves E (T t' (pth ++ pth') x) ->
+      Proves E (update pos t t' pth pth' x)
+| L_Update_NT :
+    forall E t x t' pth pth',
+      Proves E (T t pth' x) ->
+      Proves E (NT t' (pth ++ pth') x) ->
+      Proves E (update neg t t' pth pth' x)
+
+(* SubType *)
+with SubType : relation type :=
 | S_Refl : forall x, SubType x x
 | S_Top : forall x, SubType x t_top
 | S_UnionSuper : 
@@ -410,7 +465,12 @@ Inductive SubType : relation type :=
       Proves  [p2] p2' ->
       SubObj  o    o'  ->
       SubType (t_fun x t1 p1 p2 o t2) 
-              (t_fun x t1' p1' p2' o' t2').
+              (t_fun x t1' p1' p2' o' t2')
+| S_Pair :
+    forall t1 t2 t1' t2',
+      SubType t1 t1' ->
+      SubType t2 t2' ->
+      SubType (t_cons t1 t2) (t_cons t1' t2').
 
 
 (* Typing Rules *)
@@ -435,16 +495,16 @@ Inductive TypeOf :
       TypeOf E e_false t_false FALSE TRUE obj_nil
 | T_Var :
     forall E x t,
-      In (TYPE t x) E ->
+      In (T t [] x) E ->
       TypeOf E 
              (e_var x) 
              t 
-             (NOT t_false x) 
-             (TYPE t_false x) 
+             (NT t_false [] x) 
+             (T t_false [] x) 
              (obj_var x)
 | T_Abs :
    forall E s x e t pT pF o,
-     TypeOf (cons (TYPE s x) E) e t pT pF o ->
+     TypeOf ((T s [] x) :: E) e t pT pF o ->
      TypeOf E 
             (e_abs x s e) 
             (t_fun x s pT pF o t) 
@@ -463,16 +523,35 @@ Inductive TypeOf :
 | T_If :
    forall E e1 t1 pT1 pF1 o1 e2 t pT2 pF2 o e3 pT3 pF3,
      TypeOf E e1 t1 pT1 pF1 o1 ->
-     TypeOf (cons pT1 E) e2 t pT2 pF2 o ->
-     TypeOf (cons pF1 E) e3 t pT3 pF3 o ->
+     TypeOf (pT1 :: E) e2 t pT2 pF2 o ->
+     TypeOf (pF1 :: E) e3 t pT3 pF3 o ->
      TypeOf E (e_if e1 e2 e3) t (OR pT2 pT3) (OR pF2 pF3) o 
 | T_Subsume :
    forall E e t pT pF o pT' pF' t' o',
      TypeOf E e t pT pF o ->
-     Proves (cons pT E) pT' ->
-     Proves (cons pF E) pF' ->
+     Proves (pT :: E) pT' ->
+     Proves (pF :: E) pF' ->
      SubType t t' ->
      SubObj o o' ->
-     TypeOf E e t' pT' pF' o'. 
+     TypeOf E e t' pT' pF' o'
+| T_Cons :
+   forall E e1 t1 p1 p1' o1 e2 t2 p2 p2' o2,
+     TypeOf E e1 t1 p1 p1' o1 ->
+     TypeOf E e2 t2 p2 p2' o2 ->
+     TypeOf E (e_cons e1 e2) (t_cons t1 t2) TRUE FALSE obj_nil
+| T_Car :
+   forall E e t1 t2 p0 p0' o o' p p' x,
+     TypeOf E e (t_cons t1 t2) p0 p0' o ->
+     p = (subst_p pos (NT t_false [car] x) o x) ->
+     p' = (subst_p pos (T t_false [car] x) o x) ->
+     o' = subst_o (obj_path [car] x) o x ->
+     TypeOf E (e_app car' e) t1 p p' o'
+| T_Cdr :
+   forall E e t1 t2 p0 p0' o o' p p' x,
+     TypeOf E e (t_cons t1 t2) p0 p0' o ->
+     p = (subst_p pos (NT t_false [cdr] x) o x) ->
+     p' = (subst_p pos (T t_false [cdr] x) o x) ->
+     o' = subst_o (obj_path [cdr] x) o x ->
+     TypeOf E (e_app cdr' e) t2 p p' o'.
 
 End LTR.

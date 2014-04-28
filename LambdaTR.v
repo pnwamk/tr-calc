@@ -383,20 +383,34 @@ match t with
 | _ => t
 end.
 
-
-
-Inductive SubType : relation type :=
-(* TODO *)
-| S_TODO : forall t t', SubType t t'.
-
-
-Inductive SubObj : relation object :=
-(* TODO *)
-| SO_TODO : forall o o', SubObj o o'.
-
 Inductive Proves : env -> prop -> Prop :=
 (* TODO *)
 | P_TODO : forall E p, Proves E p.
+
+Inductive SubObj : relation object :=
+| SO_Refl : forall x, SubObj x x
+| SO_Top  : forall x, SubObj x obj_nil.
+
+Inductive SubType : relation type :=
+| S_Refl : forall x, SubType x x
+| S_Top : forall x, SubType x t_top
+| S_UnionSuper : 
+    forall t s,
+      (exists t', set_In t' s /\ SubType t t') ->
+      SubType t (t_union s)
+| S_UnionSub :
+    forall t s,
+      (forall t', set_In t' s -> SubType t' t) ->
+      SubType (t_union s) t
+| S_Fun : 
+    forall x t1 t2 p1 p2 o t1' t2' p1' p2' o',
+      SubType t1   t1' ->
+      SubType t2   t2' ->
+      Proves  [p1] p1' ->
+      Proves  [p2] p2' ->
+      SubObj  o    o'  ->
+      SubType (t_fun x t1 p1 p2 o t2) 
+              (t_fun x t1' p1' p2' o' t2').
 
 
 (* Typing Rules *)
@@ -407,7 +421,12 @@ Inductive TypeOf :
       TypeOf E (e_num n) t_num TRUE FALSE obj_nil
 | T_Const : 
     forall E c,
-      TypeOf E (e_primop (prim_c c)) (constop_type c) TRUE FALSE obj_nil
+      TypeOf E 
+             (e_primop (prim_c c)) 
+             (constop_type c) 
+             TRUE 
+             FALSE 
+             obj_nil
 | T_True :
     forall E,
       TypeOf E e_true t_true TRUE FALSE obj_nil
@@ -417,16 +436,30 @@ Inductive TypeOf :
 | T_Var :
     forall E x t,
       In (TYPE t x) E ->
-      TypeOf E (e_var x) t (NOT t_false x) (TYPE t_false x) (obj_var x)
+      TypeOf E 
+             (e_var x) 
+             t 
+             (NOT t_false x) 
+             (TYPE t_false x) 
+             (obj_var x)
 | T_Abs :
    forall E s x e t pT pF o,
      TypeOf (cons (TYPE s x) E) e t pT pF o ->
-     TypeOf E (e_abs x s e) (t_fun x s pT pF o t) TRUE FALSE obj_nil
+     TypeOf E 
+            (e_abs x s e) 
+            (t_fun x s pT pF o t) 
+            TRUE 
+            FALSE 
+            obj_nil
 | T_App :
    forall E e x s pTf pFf t pT pF of o e' pT' pF' o',
      TypeOf E e (t_fun x s pTf pFf of t) pT pF o ->
      TypeOf E e' s pT' pF' o' ->
-     TypeOf E (e_app e e') (tsubst t o' x) (psubst_pos pTf o' x) (psubst_pos pFf o' x) (osubst of o' x)
+     TypeOf E (e_app e e') 
+            (subst_t pos t o' x) 
+            (subst_p pos pTf o' x) 
+            (subst_p pos pFf o' x) 
+            (subst_o of o' x)
 | T_If :
    forall E e1 t1 pT1 pF1 o1 e2 t pT2 pF2 o e3 pT3 pF3,
      TypeOf E e1 t1 pT1 pF1 o1 ->

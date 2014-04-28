@@ -27,6 +27,9 @@ Theorem id_eq_dec : forall (x y : id),
 Proof. decide equality. Defined.
 Hint Resolve id_eq_dec.
 
+Definition id_eq (x y : id) : bool :=
+if id_eq_dec x y then true else false.
+
 Definition X : id := (Id 0).
 
 (* Path Elements *)
@@ -39,6 +42,9 @@ Theorem pe_eq_dec : forall (x y: pe),
 Proof. decide equality. Defined.
 Hint Resolve pe_eq_dec.
 
+Definition pe_eq (x y : pe) : bool :=
+if pe_eq_dec x y then true else false.
+
 Definition path := list pe.
 
 Hint Resolve list_eq_dec.
@@ -46,6 +52,9 @@ Theorem path_eq_dec : forall (x y: path),
 {x = y} + {x <> y}.
 Proof. decide equality. Defined.
 Hint Resolve path_eq_dec.
+
+Definition path_eq (x y : path) : bool :=
+if path_eq_dec x y then true else false.
 
 (* Objects *)
 Inductive object : Type :=
@@ -57,6 +66,9 @@ Theorem obj_eq_dec : forall (x y: object),
 Proof. decide equality. Defined.
 Hint Resolve obj_eq_dec. 
 Definition obj_var (v:id) : object := (obj_path nil v).
+
+Definition obj_eq (x y : object) : bool :=
+if obj_eq_dec x y then true else false.
 
 (* Types *)
 Inductive type : Type :=
@@ -93,6 +105,12 @@ Defined.
 Hint Resolve type_eq_dec.
 Hint Resolve prop_eq_dec.
 
+Definition type_eq (x y : type) : bool :=
+if type_eq_dec x y then true else false.
+
+Definition prop_eq (x y : prop) : bool :=
+if prop_eq_dec x y then true else false.
+
 (* Constant Operations *)
 Inductive constop : Type :=
 | op_add1   : constop
@@ -107,6 +125,9 @@ Theorem constop_eq_dec : forall (x y : constop),
 Proof. decide equality. Defined.
 Hint Resolve constop_eq_dec.
 
+Definition constop_eq (x y : constop) : bool :=
+if constop_eq_dec x y then true else false.
+
 (* Polymorphic Operations *)
 Inductive polyop : Type :=
 | op_car    : polyop
@@ -117,6 +138,9 @@ Theorem polyop_eq_dec : forall (x y : polyop),
 Proof. decide equality. Defined.
 Hint Resolve polyop_eq_dec.
 
+Definition polyop_eq (x y : polyop) : bool :=
+if polyop_eq_dec x y then true else false.
+
 (* Primitive Operations *)
 Inductive primop : Type := 
 | prim_c : constop -> primop
@@ -126,6 +150,9 @@ Theorem primop_eq_dec : forall (x y : primop),
 {x = y} + {x <> y}.
 Proof. decide equality. Defined.
 Hint Resolve primop_eq_dec.
+
+Definition primop_eq (x y : primop) : bool :=
+if primop_eq_dec x y then true else false.
 
 (* Expressions *)
 Inductive expr : Type :=
@@ -143,12 +170,16 @@ Theorem expr_eq_dec : forall (x y : expr),
 {x = y} + {x <> y}.
 Proof. decide equality. Defined.
 
+Definition expr_eq (x y : expr) : bool :=
+if expr_eq_dec x y then true else false.
+
 (* TODO: Do we need Integers to represent numbers? Reals? *)
 
 (* Environments *)
 Definition env := list prop.
 
-(* In figure 10 ( pg 8 http://www.ccs.northeastern.edu/racket/pubs/icfp10-thf.pdf ) there are arrows without any propositions or objects accompanying them. Is this merely a type function arrow excluding tt|ff and the null object for brevity? *)
+Definition env_eq (x y : env) : bool :=
+if list_eq_dec prop_eq_dec x y then true else false.
 
 Definition constop_type (c : constop) : type :=
 match c with
@@ -248,58 +279,81 @@ match p with
 | _ => nil
 end.
 
-(* Substitution *)
-Definition subst_o (o sub : object) (x : id) : object :=
-match o with
-| obj_nil => obj_nil
-| obj_path p z =>
-  if id_eq_dec x z
-  then match sub with
-       | obj_nil => obj_nil
-       | obj_path p' y =>
-         obj_path (p ++ p') y (* TODO verify correct *)
-       end
-  else o
+(* TODO fv tests *)
+
+Fixpoint subst_t (t:type) (o:object) (x:id) : type :=
+t.
+
+Inductive position : Type := pos | neg.
+
+Definition pos_truth (p:position) : prop :=
+match p with
+| pos => TRUE
+| neg => FALSE
 end.
 
-(* TODO - I'm unsure what the + and - mean in Figure 8 (pg 8) with
-   regard to substitution. I thought the + and - where merely
-   arbitrary characters used to differentiate symbols (e.g. as a
-   convenient/intuitive subscript).  What does it mean next to a
-   substitution annotation?
-
-   ALSO TODO - What is the v? Above it's defined as a "metavariable
-   ... rang[ing] over tau and not-tau (without variables)". 
-
-   What does that mean? It is either TYPE or NOT (in this context)?
-   But then what about the "without variables" comment?*)
-
-(* BOOKMARK - currently working through the substitution
-   definition on page 8, Figure 8 *)
+Definition pos_flip (p:position) : position :=
+match p with
+| pos => neg
+| neg => pos
+end.
 
 (* subst+ for properties*)
-Fixpoint subst_p' (p:prop) (sub:object) (x:id) : prop :=
-match p with
-| TYPE t z => 
-| NOT t z =>
-| IMPL P Q => IMPL (subst_p_ P sub x) (subst_p' Q sub x)
-| OR P Q => OR (subst_p P sub x) (subst_p Q sub x)
-| AND P Q => AND (subst_p' P sub x) (subst_p' Q sub x)
-| FALSE => FALSE
-| TRUE => TRUE
-| PATH_TYPE t p z =>
-| PATH_NOT t p z =>
-end
-(* subst- for properties *)
-with subst_p_ (p:prop) (sub:object) (x:id) : prop :=
+Fixpoint subst_p (sign : position) 
+                 (p:prop) 
+                 (o:object) 
+                 (x:id) : prop :=
 match p with
 | TYPE t z =>
+  match id_eq x z , set_mem id_eq_dec z (fv_set_t t) with
+  | true, _ => 
+    match o with
+    | obj_nil => (pos_truth sign)
+    | obj_path pth y => TYPE (subst_t t o x) z
+    end
+  | false, false => p
+  | false, true => (pos_truth sign)
+  end                   
 | NOT t z =>
-| IMPL P Q => IMPL (subst_p' P sub x) (subst_p_ Q sub x)
-| PATH_TYPE t p z =>
-| PATH_NOT t p z =>
-| _ => subst_p' p sub x
+  match id_eq x z , set_mem id_eq_dec z (fv_set_t t) with
+  | true, _ => 
+    match o with
+    | obj_nil => (pos_truth sign)
+    | obj_path pth y => TYPE (subst_t t o x) z
+    end
+  | false, false => p
+  | false, true => (pos_truth sign)
+  end
+| IMPL P Q => IMPL (subst_p (pos_flip sign) P o x) 
+                   (subst_p sign Q o x)
+| OR P Q => OR (subst_p pos P o x) (subst_p pos Q o x)
+| AND P Q => AND (subst_p pos P o x) (subst_p pos Q o x)
+| FALSE => FALSE
+| TRUE => TRUE
+| PATH_TYPE t pth1 z =>
+  match id_eq x z , set_mem id_eq_dec z (fv_set_t t) with
+  | true, _ => 
+    match o with
+    | obj_nil => (pos_truth sign)
+    | obj_path pth2 y =>
+      PATH_TYPE (subst_t t o x) (pth1 ++ pth2) y
+    end
+  | false, false => p
+  | false, true => (pos_truth sign)
+  end
+| PATH_NOT t pth1 z  =>
+  match id_eq x z , set_mem id_eq_dec z (fv_set_t t) with
+  | true, _ => 
+    match o with
+    | obj_nil => (pos_truth sign)
+    | obj_path pth2 y =>
+      PATH_NOT (subst_t t o x) (pth1 ++ pth2) y
+    end
+  | false, false => p
+  | false, true => (pos_truth sign)
+  end
 end.
+
 
 Inductive SubType : relation type :=
 (* TODO *)

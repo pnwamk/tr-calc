@@ -281,8 +281,16 @@ end.
 
 (* TODO fv tests *)
 
-Fixpoint subst_t (t:type) (o:object) (x:id) : type :=
-t.
+Definition subst_o (obj:object) (o:object) (x:id) : object :=
+match obj with
+| obj_nil => obj_nil
+| obj_path pth1 z =>
+  match id_eq x z, o with
+  | true, obj_nil => obj_nil
+  | true, obj_path pth2 y => obj_path (pth1 ++ pth2) y
+  | false, _ => obj
+  end
+end.
 
 Inductive position : Type := pos | neg.
 
@@ -298,7 +306,7 @@ match p with
 | neg => pos
 end.
 
-(* subst+ for properties*)
+(* subst+ and - for properties*)
 Fixpoint subst_p (sign : position) 
                  (p:prop) 
                  (o:object) 
@@ -309,7 +317,7 @@ match p with
   | true, _ => 
     match o with
     | obj_nil => (pos_truth sign)
-    | obj_path pth y => TYPE (subst_t t o x) z
+    | obj_path pth y => TYPE (subst_t sign t o x) z
     end
   | false, false => p
   | false, true => (pos_truth sign)
@@ -319,7 +327,7 @@ match p with
   | true, _ => 
     match o with
     | obj_nil => (pos_truth sign)
-    | obj_path pth y => TYPE (subst_t t o x) z
+    | obj_path pth y => TYPE (subst_t sign t o x) z
     end
   | false, false => p
   | false, true => (pos_truth sign)
@@ -336,7 +344,7 @@ match p with
     match o with
     | obj_nil => (pos_truth sign)
     | obj_path pth2 y =>
-      PATH_TYPE (subst_t t o x) (pth1 ++ pth2) y
+      PATH_TYPE (subst_t sign t o x) (pth1 ++ pth2) y
     end
   | false, false => p
   | false, true => (pos_truth sign)
@@ -347,12 +355,34 @@ match p with
     match o with
     | obj_nil => (pos_truth sign)
     | obj_path pth2 y =>
-      PATH_NOT (subst_t t o x) (pth1 ++ pth2) y
+      PATH_NOT (subst_t sign t o x) (pth1 ++ pth2) y
     end
   | false, false => p
   | false, true => (pos_truth sign)
   end
+end
+
+(* type substitution *)
+with subst_t (sign:position) 
+             (t:type) 
+             (o:object) 
+             (x:id) : type :=
+match t with
+| t_union l => t_union (map (fun t' => subst_t sign t' o x) l)
+| t_fun y t1 p1 p2 o2 t2 =>
+  if id_eq x y
+  then t
+  else t_fun y
+             (subst_t sign t1 o x)
+             (subst_p sign p1 o x)
+             (subst_p sign p2 o x)
+             (subst_o o2 o x)
+             (subst_t sign t2 o x)
+| t_cons t1 t2 => t_cons (subst_t sign t1 o x) 
+                         (subst_t sign t2 o x)
+| _ => t
 end.
+
 
 
 Inductive SubType : relation type :=

@@ -162,7 +162,8 @@ Inductive expr : Type :=
 | e_true   : expr
 | e_false  : expr
 | e_num    : nat -> expr
-| e_cons   : expr -> expr -> expr.
+| e_cons   : expr -> expr -> expr
+| e_let    : id -> expr -> expr -> expr.
 
 Definition car' := (e_primop (prim_p op_car)).
 Definition cdr' := (e_primop (prim_p op_cdr)).
@@ -552,6 +553,25 @@ Inductive TypeOf :
      p = (subst_p pos (NT t_false [cdr] x) o x) ->
      p' = (subst_p pos (T t_false [cdr] x) o x) ->
      o' = subst_o (obj_path [cdr] x) o x ->
-     TypeOf E (e_app cdr' e) t2 p p' o'.
+     TypeOf E (e_app cdr' e) t2 p p' o'
+| T_Let :
+   forall E e0 t p0 p0' o0 e1 t' p1 p1' o1 x,
+   TypeOf E e0 t p0 p0' o0 ->
+   TypeOf ((T t [] x) ::
+           (IMPL (NT t_false [] x) p0) ::
+           (IMPL (T t_false [] x) p0') :: 
+           E)
+          e1 
+          t' 
+          p1 
+          p1' 
+          o1 ->
+   TypeOf E 
+          (e_let x e0 e1) 
+          (subst_t pos t' o0 x)
+          (subst_p pos p1 o0 x)
+          (subst_p pos p1' o0 x)
+          (subst_o o1 o0 x).
+
 
 End LTR.

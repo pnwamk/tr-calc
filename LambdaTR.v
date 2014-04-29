@@ -4,12 +4,15 @@
 
    -Andrew Kent *)
 
+Set Implicit Arguments.
 
 Require Import LibTactics.
 Require Import List.
 Require Import ListSet.
 Require Import Arith.
 Require Import Relations.
+Require Import Bool.
+
 Import ListNotations.
 
 Open Scope list_scope.
@@ -33,9 +36,7 @@ if id_eq_dec x y then true else false.
 Definition X : id := (Id 0).
 
 (* Path Elements *)
-Inductive pe : Type :=
-| car : pe
-| cdr : pe.
+Inductive pe : Type := car | cdr.
 
 Theorem pe_eq_dec : forall (x y: pe),
 {x = y} + {x <> y}.
@@ -80,34 +81,60 @@ Inductive type : Type :=
 | t_fun   : id -> type -> prop -> prop -> object -> type -> type
 | t_cons  : type -> type -> type 
 
-(* Propositions *)
+(* Propositions *) (* just use T and add a bool, or take a bool/type pair *)
 with prop : Type :=
-| T        : type -> path -> id -> prop
-| NT       : type -> path -> id -> prop
+| TYPE     : bool -> type -> path -> id -> prop
 | IMPL     : prop -> prop -> prop
 | OR       : prop -> prop -> prop
 | AND      : prop -> prop -> prop
 | FALSE    : prop
 | TRUE     : prop.
 
+Hint Constructors type prop.
+
+Notation " (t_U) " := (t_union nil).
+Notation " (t_U x ) " := (t_union [x]).
+Notation " (t_U x , .. , y ) " := (t_union (cons x .. (cons y nil) ..)).
+
+
+Scheme type_mut_ind := Induction for type Sort Prop
+with prop_mut_ind := Induction for prop Sort Prop.
+
+Check type_mut_ind.
+
+Scheme type_mut_rec := Induction for type Sort Set
+with prop_mut_rec := Induction for prop Sort Set.
+
+
 (* Common Type Abbreviations *)
-Definition t_bool := (t_union (t_true :: t_false :: nil)).
-Definition t_bottom := (t_union nil).
+Notation t_bool := (t_U t_true , t_false).
+Notation t_bottom := (t_U).
 
 Fixpoint type_eq_dec (x y : type) : {x = y} + {x <> y}
 with prop_eq_dec (x y : prop) : {x = y} + {x <> y}.
 Proof.
   decide equality.
   decide equality.
+  apply bool_dec.
 Defined.
 Hint Resolve type_eq_dec.
 Hint Resolve prop_eq_dec.
+
+Print type_eq_dec.
 
 Definition type_eq (x y : type) : bool :=
 if type_eq_dec x y then true else false.
 
 Definition prop_eq (x y : prop) : bool :=
 if prop_eq_dec x y then true else false.
+
+Fixpoint prop_depth (p:prop) : nat :=
+match p with
+| IMPL P Q => 1 + (prop_depth P) + (prop_depth Q)
+| OR P Q => 1 + (prop_depth P) + (prop_depth Q)
+| AND P Q => 1 + (prop_depth P) + (prop_depth Q)
+| _ => 1
+end.
 
 (* Constant Operations *)
 Inductive constop : Type :=
@@ -165,14 +192,14 @@ Inductive expr : Type :=
 | e_cons   : expr -> expr -> expr
 | e_let    : id -> expr -> expr -> expr.
 
-Definition car' := (e_primop (prim_p op_car)).
-Definition cdr' := (e_primop (prim_p op_cdr)).
-Definition add1' := (e_primop (prim_c op_add1)).
-Definition iszero' := (e_primop (prim_c op_iszero)).
-Definition isnum' := (e_primop (prim_c op_isnum)).
-Definition isbool' := (e_primop (prim_c op_isbool)).
-Definition isproc' := (e_primop (prim_c op_isproc)).
-Definition iscons' := (e_primop (prim_c op_iscons)).
+Notation car' := (e_primop (prim_p op_car)).
+Notation cdr' := (e_primop (prim_p op_cdr)).
+Notation add1' := (e_primop (prim_c op_add1)).
+Notation iszero' := (e_primop (prim_c op_iszero)).
+Notation isnum' := (e_primop (prim_c op_isnum)).
+Notation isbool' := (e_primop (prim_c op_isbool)).
+Notation isproc' := (e_primop (prim_c op_isproc)).
+Notation iscons' := (e_primop (prim_c op_iscons)).
 
 Theorem expr_eq_dec : forall (x y : expr),
 {x = y} + {x <> y}.
@@ -194,29 +221,29 @@ match c with
 | op_isnum => 
   (t_fun X 
          t_top 
-         (T t_num [] X) 
-         (NT t_num [] X) 
+         (TYPE true t_num [] X) 
+         (TYPE false t_num [] X) 
          obj_nil 
          t_bool)
 | op_isproc =>
   (t_fun X 
          t_top 
-         (T (t_fun X t_bottom TRUE FALSE obj_nil t_top) [] X) 
-         (NT (t_fun X t_bottom TRUE FALSE obj_nil t_top) [] X) 
+         (TYPE true (t_fun X t_bottom TRUE FALSE obj_nil t_top) [] X) 
+         (TYPE false (t_fun X t_bottom TRUE FALSE obj_nil t_top) [] X) 
          obj_nil 
          t_bool)
 | op_isbool =>
   (t_fun X
          t_top
-         (T t_bool [] X)
-         (NT t_bool [] X)
+         (TYPE true t_bool [] X)
+         (TYPE false t_bool [] X)
          obj_nil
          t_bool)
 | op_iscons =>
   (t_fun X
          t_top
-         (T (t_cons t_top t_top) [] X)
-         (NT (t_cons t_top t_top) [] X)
+         (TYPE true (t_cons t_top t_top) [] X)
+         (TYPE false (t_cons t_top t_top) [] X)
          obj_nil
          t_bool)
 | op_add1 =>
@@ -277,8 +304,7 @@ end
 (* free variables in propositions *)
 with fv_set_p (p: prop) : set id :=
 match p with
-| T t pth x => set_union id_eq_dec [x] (fv_set_t t)
-| NT t pth x => set_union id_eq_dec [x] (fv_set_t t)
+| TYPE b t pth x => set_union id_eq_dec [x] (fv_set_t t)
 | IMPL p q => set_union id_eq_dec (fv_set_p p) (fv_set_p q)
 | OR p q => set_union id_eq_dec (fv_set_p p) (fv_set_p q)
 | AND p q => set_union id_eq_dec (fv_set_p p) (fv_set_p q)
@@ -318,24 +344,13 @@ Fixpoint subst_p (s : sign)
                  (o:object) 
                  (x:id) : prop :=
 match p with
-| T t pth1 z =>
+| TYPE b t pth1 z =>
   match id_eq x z , set_mem id_eq_dec z (fv_set_t t) with
   | true, _ => 
     match o with
     | obj_nil => (sign_truth s)
     | obj_path pth2 y =>
-      T (subst_t s t o x) (pth1 ++ pth2) y
-    end
-  | false, false => p
-  | false, true => (sign_truth s)
-  end
-| NT t pth1 z  =>
-  match id_eq x z , set_mem id_eq_dec z (fv_set_t t) with
-  | true, _ => 
-    match o with
-    | obj_nil => (sign_truth s)
-    | obj_path pth2 y =>
-      NT (subst_t s t o x) (pth1 ++ pth2) y
+      TYPE b (subst_t s t o x) (pth1 ++ pth2) y
     end
   | false, false => p
   | false, true => (sign_truth s)
@@ -372,14 +387,101 @@ end.
 Inductive SubObj : relation object :=
 | SO_Refl : forall x, SubObj x x
 | SO_Top  : forall x, SubObj x obj_nil.
+Hint Constructors SubObj.
 
-Definition update (s:sign)
-                  (t t':type)
-                  (pth pth':path)
-                  (x:id) : prop :=
-TRUE. (* TODO *)
+Theorem sub_obj : forall x y,
+{SubObj x y} + {~ SubObj x y}.
+Proof.
+  intros x y.
+  destruct (obj_eq_dec x y) as [Heq | Hneq].
+  left; crush.
+  destruct y. auto.
+  right; intro contra.
+  inversion contra; crush.
+Defined.
 
-(* Check that update matches the above function signature *)
+(*
+Fixpoint contains_bottom (E:env) : bool :=
+match E with
+| nil => false
+| p :: ps => 
+  match p with
+  | T t pth y => if (type_eq t t_bottom)
+                 then true
+                 else contains_bottom ps
+  | _ => contains_bottom ps
+  end
+end.
+
+Definition in_env (p:prop) (E:env) := in_dec prop_eq_dec p E.
+Definition ext_env (p:prop) (E:env) := set_add prop_eq_dec p E.
+
+(* Creates a set of all properties which imply Q in the environment. *)
+Fixpoint implicators (E:env) (Q:prop) : set prop :=
+match E with
+| nil => []
+| p :: ps => 
+  match p with
+  | IMPL P Q' => if prop_eq Q Q' 
+                 then ext_env P (implicators ps Q)
+                 else implicators ps Q
+  | _ => implicators ps Q
+  end
+end.
+
+
+Program Fixpoint proves (E:env) (p:prop) {measure (prop_depth p)} : bool :=
+(* L-ATOM *)
+if in_env p E then true else
+(* L-TRUE *)
+if prop_eq TRUE p then true else
+(* L-FALSE *)
+if in_env FALSE E then true else
+(* L-BOT *)
+if contains_bottom E then true else
+(* L-IMPE *)
+if prove_any (implicators E p) then true else
+(* L-ORE *)
+if disj_proves 
+(* L-ANDE *)
+
+(* 
+   OrE
+   check all disjuctions, test if adding either side to E proves the prop,
+   if both prove the prop, then it's proven because that disjunction is in there
+
+   AndE
+   check all conjuctions, test if adding either side to E proves the prop,
+   if either prove the prop, then it's proven because that conjunction is in there
+
+*)
+
+with disj_proves (E:env) (p:prop) : bool :=
+match E with
+| nil => false
+| q :: qs
+  match q with
+  | OR r s => if (andb (proves (r :: qs)) (proves (s :: qs)))
+              then true
+              else disj
+
+with prove_any (E:env) (s:set prop) : bool :=
+match s with
+| nil => false
+| p :: ps => if proves E p 
+             then true
+             else proves_any E ps
+end
+
+with subtype (x y: type) : bool := false
+
+with update (x: type) (s:sign) (y:type) (p:path) : type := t_bottom
+
+with restrict (x y: type) : type := t_bottom
+
+with remove (x y: type) : type := t_bottom.
+*)
+
 
 Inductive Proves : env -> prop -> Prop :=
 | L_Atom : 
@@ -397,10 +499,13 @@ Inductive Proves : env -> prop -> Prop :=
       Proves E p ->
       Proves E q ->
       Proves E (AND p q)
-| L_AndE :
+| L_AndE_l :
     forall E p q r,
-      (or (Proves (q :: E) r)
-          (Proves (p :: E) r)) ->
+      (Proves (p :: E) r) ->
+      Proves ((AND p q) :: E) r
+| L_AndE_r :
+    forall E p q r,
+      (Proves (q :: E) r) ->
       Proves ((AND p q) :: E) r
 | L_ImpI :
     forall E p q,
@@ -411,11 +516,15 @@ Inductive Proves : env -> prop -> Prop :=
       Proves E p ->
       Proves E (IMPL p q) ->
       Proves E q
-| L_OrI :
+| L_OrI_l :
     forall E p q,
-      (or (Proves E p)
-          (Proves E q)) ->
+      (Proves E p) ->
       Proves E (OR p q)
+| L_OrI_r :
+    forall E p q,
+      (Proves E q) ->
+      Proves E (OR p q)
+
 | L_OrE :
     forall E p q r,
       Proves (p :: E) r ->
@@ -423,28 +532,30 @@ Inductive Proves : env -> prop -> Prop :=
       Proves ((OR p q) :: E) r
 | L_Sub :
     forall E t t' x,
-      Proves E (T t [] x) ->
+      Proves E (TYPE true t [] x) ->
       SubType t t' ->
-      Proves E (T t' [] x)
+      Proves E (TYPE true t' [] x)
 | L_SubNot :
     forall E t t' x,
-      Proves E (NT t' [] x) ->
+      Proves E (TYPE false t' [] x) ->
       SubType t t' ->
-      Proves E (NT t [] x)
+      Proves E (TYPE false t [] x)
 | L_Bot :
     forall E x p,
-      Proves E (T t_bottom [] x) ->
+      Proves E (TYPE true t_bottom [] x) ->
       Proves E p
 | L_Update_T :
-    forall E t x t' pth pth',
-      Proves E (T t pth' x) ->
-      Proves E (T t' (pth ++ pth') x) ->
-      Proves E (update pos t t' pth pth' x)
+    forall E t x t' pth pth' t_update,
+      Proves E (TYPE true t pth' x) ->
+      Proves E (TYPE true t' (pth ++ pth') x) ->
+      Update t (true, t') pth t_update ->
+      Proves E (TYPE true t_update pth' x)
 | L_Update_NT :
-    forall E t x t' pth pth',
-      Proves E (T t pth' x) ->
-      Proves E (NT t' (pth ++ pth') x) ->
-      Proves E (update neg t t' pth pth' x)
+    forall E t x t' pth pth' t_update,
+      Proves E (TYPE true t pth' x) ->
+      Proves E (TYPE false t' (pth ++ pth') x) ->
+      Update t (false, t') pth t_update ->
+      Proves E (TYPE true t_update pth' x)
 
 (* SubType *)
 with SubType : relation type :=
@@ -471,7 +582,81 @@ with SubType : relation type :=
     forall t1 t2 t1' t2',
       SubType t1 t1' ->
       SubType t2 t2' ->
-      SubType (t_cons t1 t2) (t_cons t1' t2').
+      SubType (t_cons t1 t2) (t_cons t1' t2')
+
+with Update : type -> (bool * type) -> path -> type -> Prop :=
+| UP_Car : 
+    forall τ ν pth σ updated,
+      Update τ ν pth updated ->
+      Update (t_cons τ σ) ν (pth ++ [car]) (t_cons updated σ).
+| UP_Cdr :
+    forall t1 b t2 pth t3 σ,
+      Update σ ( b , t2 ) pth t3 ->
+      Update (t_cons t1 σ) (b, t2) (pth ++ [car]) (t_cons t3 σ).
+
+| UP_T
+| UP_NT
+
+with Restrict : type -> type -> type -> Prop :=
+| res_triv : forall t1 t2 t3, Restrict t1 t2 t3
+
+with Remove : type -> type -> type -> Prop :=
+| rem_triv : forall t1 t2 t3, Remove t1 t2 t3.
+
+Scheme proves_mut := Induction for Proves Sort Prop
+with subtype_mut := Induction for SubType Sort Prop.
+
+Theorem false_dec : forall E,
+{Proves E FALSE} + {~Proves E FALSE}.
+Proof.
+  intros E; induction E.
+  right; intros contra.
+  inversion contra; subst. tryfalse.
+
+
+Fixpoint proves_dec (E: env) (p : prop) : {Proves E p} + {~Proves E p}
+with subtype_dec (x y: type) : {SubType x y} + {~SubType x y}.
+Proof.
+  clear provse_d
+  eauto.
+  
+  Check proves_mut.
+  eapply proves_mut.
+  generalize dependent E.
+  
+  apply proves_mut.
+  induction p; crush.
+  generalize dependent y.
+  induction x; crush.
+Defined.
+
+
+Theorem proves : forall E p,
+{Proves E p} + {~Proves E p}.
+Proof.
+  intros E. induction E as [| q E'].
+  intro p. destruct p.
+
+  (* (T t p i) *)
+  left. apply L_False.
+  right; intros contra. inversion contra; subst.
+  tryfalse. 
+
+  Lemma proves_nil_false_false :
+    ~ Proves [] FALSE.
+    Proof.
+      intros contra.
+      inversion contra; crush.
+
+inversion H; subst. tryfalse.
+
+  right. intros contra. inversion contra; subst. tryfalse.
+  right; intros contra.
+  inversion contra; subst. tryfalse.
+  inversion H. subst. tryfalse. subst.
+ inversion contra; crush.
+  eauto.
+
 
 
 (* Typing Rules *)

@@ -588,14 +588,21 @@ with Update : type -> (bool * type) -> path -> type -> Prop :=
 | UP_Car : 
     forall τ ν pth σ updated,
       Update τ ν pth updated ->
-      Update (t_cons τ σ) ν (pth ++ [car]) (t_cons updated σ).
+      Update (t_cons τ σ) ν (pth ++ [car]) (t_cons updated σ)
 | UP_Cdr :
     forall t1 b t2 pth t3 σ,
       Update σ ( b , t2 ) pth t3 ->
-      Update (t_cons t1 σ) (b, t2) (pth ++ [car]) (t_cons t3 σ).
+      Update (t_cons t1 σ) (b, t2) (pth ++ [car]) (t_cons t3 σ)
 
-| UP_T
-| UP_NT
+| UP_T :
+    forall τ σ ε restricted,
+      Restrict τ σ restricted ->
+      Update τ (true, σ) ε restricted
+| UP_NT :
+    forall τ σ ε restricted,
+      Remove τ σ restricted ->
+      Update τ (false, σ) ε restricted
+
 
 with Restrict : type -> type -> type -> Prop :=
 | res_triv : forall t1 t2 t3, Restrict t1 t2 t3

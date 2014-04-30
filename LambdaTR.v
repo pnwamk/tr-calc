@@ -605,7 +605,11 @@ with Update : type -> (bool * type) -> path -> type -> Prop :=
 
 
 with Restrict : type -> type -> type -> Prop :=
-| res_triv : forall t1 t2 t3, Restrict t1 t2 t3
+| RES_Bot : 
+    forall τ σ υ ψ1 ψ2
+| RES_U
+| RES_Tsub
+| RES_Tnsub
 
 with Remove : type -> type -> type -> Prop :=
 | rem_triv : forall t1 t2 t3, Remove t1 t2 t3.

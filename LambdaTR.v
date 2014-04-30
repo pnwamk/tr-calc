@@ -120,8 +120,6 @@ Defined.
 Hint Resolve type_eq_dec.
 Hint Resolve prop_eq_dec.
 
-Print type_eq_dec.
-
 Definition type_eq (x y : type) : bool :=
 if type_eq_dec x y then true else false.
 
@@ -603,10 +601,30 @@ with Update : type -> (bool * type) -> path -> type -> Prop :=
       Remove τ σ restricted ->
       Update τ (false, σ) ε restricted
 
-
 with Restrict : type -> type -> type -> Prop :=
 | RES_Bot : 
-    forall τ σ υ ψ1 ψ2
+    forall τ σ v ψ1 ψ1' ψ2 ψ2',
+      ~(exists v, (TypeOf [] v τ ψ1 ψ1' o1) /\ 
+                   TypeOf [] v σ ψ2 ψ2' o2) ->
+      Restrict τ σ t_bottom. 
+       
+(*
+
+Deep embedding
+All of the details (save minimal stuff) are implemented for
+the new language
+
+shallow embedding
+reusing features of metalanguage in language, i.e. just directly turning
+functions into Coq/Racket functions or something
+
+Could try props just directly go into Coq props instead of having a separate
+prop system defined.
+
+OTT - turns semantics into Coq code
+
+*)
+      Restrict τ σ t_bottom
 | RES_U
 | RES_Tsub
 | RES_Tnsub
@@ -628,17 +646,7 @@ Proof.
 Fixpoint proves_dec (E: env) (p : prop) : {Proves E p} + {~Proves E p}
 with subtype_dec (x y: type) : {SubType x y} + {~SubType x y}.
 Proof.
-  clear provse_d
-  eauto.
-  
-  Check proves_mut.
-  eapply proves_mut.
-  generalize dependent E.
-  
-  apply proves_mut.
-  induction p; crush.
-  generalize dependent y.
-  induction x; crush.
+decide equality.
 Defined.
 
 

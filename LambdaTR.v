@@ -35,141 +35,131 @@ if id_eq_dec x y then true else false.
 
 Definition X : id := (Id 0).
 
-(* Path Elements *)
-Inductive pe : Type := car | cdr.
+(* Path Elements (accessors) *)
+Inductive acc : Type := car | cdr.
 
-Theorem pe_eq_dec : forall (x y: pe),
+Theorem acc_eq_dec : forall (x y: acc),
 {x = y} + {x <> y}.
 Proof. decide equality. Defined.
-Hint Resolve pe_eq_dec.
+Hint Resolve acc_eq_dec.
 
-Definition pe_eq (x y : pe) : bool :=
-if pe_eq_dec x y then true else false.
+Definition acc_eq (x y : acc) : bool :=
+if acc_eq_dec x y then true else false.
 
-Definition path := list pe.
+Definition π := list acc.
 
 Hint Resolve list_eq_dec.
-Theorem path_eq_dec : forall (x y: path),
+Theorem π_eq_dec : forall (x y: π),
 {x = y} + {x <> y}.
 Proof. decide equality. Defined.
-Hint Resolve path_eq_dec.
+Hint Resolve π_eq_dec.
 
-Definition path_eq (x y : path) : bool :=
-if path_eq_dec x y then true else false.
+Definition π_eq (x y : π) : bool :=
+if π_eq_dec x y then true else false.
 
 (* Objects *)
 Inductive object : Type :=
-| obj_nil  : object
-| obj_path : path -> id -> object. 
+| obj_nil : object
+| obj_p   : π -> id -> object. 
 
 Theorem obj_eq_dec : forall (x y: object),
 {x = y} + {x <> y}.
 Proof. decide equality. Defined.
 Hint Resolve obj_eq_dec. 
-Definition obj_var (v:id) : object := (obj_path nil v).
 
 Definition obj_eq (x y : object) : bool :=
 if obj_eq_dec x y then true else false.
 
 (* Types *)
-Inductive type : Type :=
-| t_top : type
-| t_num   : type
-| t_true  : type
-| t_false : type 
-| t_union : list type -> type
-| t_fun   : id -> type -> prop -> prop -> object -> type -> type
-| t_cons  : type -> type -> type 
+Inductive τ : Type :=
+| τT    : τ    (* Top *)
+| τN    : τ    (* Numbers *)
+| τt    : τ (* True *)
+| τf    : τ  (* False *)
+| τU    : list τ -> τ (* union *)
+| τλ    : id -> τ -> ψ -> ψ -> object -> τ -> τ (* function *)
+| τcons : τ -> τ -> τ (* cons *)
 
 (* Propositions *) (* just use T and add a bool, or take a bool/type pair *)
-with prop : Type :=
-| TYPE     : bool -> type -> path -> id -> prop
-| IMPL     : prop -> prop -> prop
-| OR       : prop -> prop -> prop
-| AND      : prop -> prop -> prop
-| FALSE    : prop
-| TRUE     : prop.
+with ψ : Type :=
+| ψτ    : bool -> τ -> π -> id -> ψ
+| ψimp  : ψ -> ψ -> ψ
+| ψor   : ψ -> ψ -> ψ
+| ψand  : ψ -> ψ -> ψ
+| ψF    : ψ
+| ψT    : ψ.
 
-Hint Constructors type prop.
+Hint Constructors τ ψ.
 
-Notation " (t_U) " := (t_union nil).
-Notation " (t_U x ) " := (t_union [x]).
-Notation " (t_U x , .. , y ) " := (t_union (cons x .. (cons y nil) ..)).
+Scheme τ_mut_ind := Induction for τ Sort Prop
+with ψ_mut_ind := Induction for ψ Sort Prop.
 
-
-Scheme type_mut_ind := Induction for type Sort Prop
-with prop_mut_ind := Induction for prop Sort Prop.
-
-Check type_mut_ind.
-
-Scheme type_mut_rec := Induction for type Sort Set
-with prop_mut_rec := Induction for prop Sort Set.
+Scheme τ_mut_rec := Induction for τ Sort Set
+with ψ_mut_rec := Induction for ψ Sort Set.
 
 
 (* Common Type Abbreviations *)
-Notation t_bool := (t_U t_true , t_false).
-Notation t_bottom := (t_U).
+Notation τB := (τU [τt ; τf]).
+Notation τ_ := (τU nil).
 
-Fixpoint type_eq_dec (x y : type) : {x = y} + {x <> y}
-with prop_eq_dec (x y : prop) : {x = y} + {x <> y}.
+Fixpoint τ_eq_dec (x y : τ) : {x = y} + {x <> y}
+with ψ_eq_dec (x y : ψ) : {x = y} + {x <> y}.
 Proof.
   decide equality.
   decide equality.
   apply bool_dec.
 Defined.
+<<<<<<< HEAD
+Hint Resolve τ_eq_dec.
+Hint Resolve ψ_eq_dec.
+
+Definition τ_eq (x y : τ) : bool :=
+if τ_eq_dec x y then true else false.
+=======
 Hint Resolve type_eq_dec.
 Hint Resolve prop_eq_dec.
 
-Print type_eq_dec.
-
 Definition type_eq (x y : type) : bool :=
 if type_eq_dec x y then true else false.
+>>>>>>> FETCH_HEAD
 
-Definition prop_eq (x y : prop) : bool :=
-if prop_eq_dec x y then true else false.
-
-Fixpoint prop_depth (p:prop) : nat :=
-match p with
-| IMPL P Q => 1 + (prop_depth P) + (prop_depth Q)
-| OR P Q => 1 + (prop_depth P) + (prop_depth Q)
-| AND P Q => 1 + (prop_depth P) + (prop_depth Q)
-| _ => 1
-end.
+Definition ψ_eq (x y : ψ) : bool :=
+if ψ_eq_dec x y then true else false.
 
 (* Constant Operations *)
-Inductive constop : Type :=
-| op_add1   : constop
-| op_iszero : constop
-| op_isnum  : constop
-| op_isbool : constop
-| op_isproc : constop
-| op_iscons : constop.
+Inductive c_op : Type :=
+| op_add1   : c_op
+| op_iszero : c_op
+| op_isnum  : c_op
+| op_isbool : c_op
+| op_isproc : c_op
+| op_iscons : c_op.
 
-Theorem constop_eq_dec : forall (x y : constop),
+Theorem c_op_eq_dec : forall (x y : c_op),
 {x = y} + {x <> y}.
 Proof. decide equality. Defined.
-Hint Resolve constop_eq_dec.
+Hint Resolve c_op_eq_dec.
 
-Definition constop_eq (x y : constop) : bool :=
-if constop_eq_dec x y then true else false.
+Definition c_op_eq (x y : c_op) : bool :=
+if c_op_eq_dec x y then true else false.
 
 (* Polymorphic Operations *)
-Inductive polyop : Type :=
-| op_car    : polyop
-| op_cdr    : polyop.
+Inductive p_op : Type :=
+| op_car : p_op
+| op_cdr : p_op.
 
-Theorem polyop_eq_dec : forall (x y : polyop),
+Theorem p_op_eq_dec : forall (x y : p_op),
 {x = y} + {x <> y}.
 Proof. decide equality. Defined.
-Hint Resolve polyop_eq_dec.
+Hint Resolve p_op_eq_dec.
 
-Definition polyop_eq (x y : polyop) : bool :=
-if polyop_eq_dec x y then true else false.
+Definition p_op_eq (x y : p_op) : bool :=
+if p_op_eq_dec x y then true else false.
 
 (* Primitive Operations *)
 Inductive primop : Type := 
-| prim_c : constop -> primop
-| prim_p : polyop -> primop.
+| prim_c : c_op -> primop
+| prim_p : p_op -> primop.
 
 Theorem primop_eq_dec : forall (x y : primop),
 {x = y} + {x <> y}.
@@ -180,17 +170,17 @@ Definition primop_eq (x y : primop) : bool :=
 if primop_eq_dec x y then true else false.
 
 (* Expressions *)
-Inductive expr : Type :=
-| e_var    : id -> expr
-| e_app    : expr -> expr -> expr
-| e_abs    : id -> type -> expr -> expr
-| e_if     : expr -> expr -> expr -> expr
-| e_primop : primop -> expr
-| e_true   : expr
-| e_false  : expr
-| e_num    : nat -> expr
-| e_cons   : expr -> expr -> expr
-| e_let    : id -> expr -> expr -> expr.
+Inductive e : Type :=
+| e_var    : id -> e
+| e_app    : e -> e -> e
+| e_abs    : id -> τ -> e -> e
+| e_if     : e -> e -> e -> e
+| e_primop : primop -> e
+| e_true   : e
+| e_false  : e
+| e_num    : nat -> e
+| e_cons   : e -> e -> e
+| e_let    : id -> e -> e -> e.
 
 Notation car' := (e_primop (prim_p op_car)).
 Notation cdr' := (e_primop (prim_p op_cdr)).
@@ -201,65 +191,66 @@ Notation isbool' := (e_primop (prim_c op_isbool)).
 Notation isproc' := (e_primop (prim_c op_isproc)).
 Notation iscons' := (e_primop (prim_c op_iscons)).
 
-Theorem expr_eq_dec : forall (x y : expr),
+Theorem e_eq_dec : forall (x y : e),
 {x = y} + {x <> y}.
 Proof. decide equality. Defined.
 
-Definition expr_eq (x y : expr) : bool :=
-if expr_eq_dec x y then true else false.
+Definition e_eq (x y : e) : bool :=
+if e_eq_dec x y then true else false.
 
 (* TODO: Do we need Integers to represent numbers? Reals? *)
 
 (* Environments *)
-Definition env := list prop.
+Definition Γ := list ψ.
 
-Definition env_eq (x y : env) : bool :=
-if list_eq_dec prop_eq_dec x y then true else false.
 
-Definition constop_type (c : constop) : type :=
+Definition Γ_eq (x y : Γ) : bool :=
+if list_eq_dec ψ_eq_dec x y then true else false.
+(* Bookmark *)
+Definition c_op_type (c : c_op) : τ :=
 match c with
 | op_isnum => 
-  (t_fun X 
-         t_top 
-         (TYPE true t_num [] X) 
-         (TYPE false t_num [] X) 
+  (τλ X 
+         τT 
+         (ψτ true τN [] X) 
+         (ψτ false τN [] X) 
          obj_nil 
-         t_bool)
+         τB)
 | op_isproc =>
-  (t_fun X 
-         t_top 
-         (TYPE true (t_fun X t_bottom TRUE FALSE obj_nil t_top) [] X) 
-         (TYPE false (t_fun X t_bottom TRUE FALSE obj_nil t_top) [] X) 
+  (τλ X 
+         τT 
+         (ψτ true (τλ X τ_ ψT ψF obj_nil τT) [] X) 
+         (ψτ false (τλ X τ_ ψT ψF obj_nil τT) [] X) 
          obj_nil 
-         t_bool)
+         τB)
 | op_isbool =>
-  (t_fun X
-         t_top
-         (TYPE true t_bool [] X)
-         (TYPE false t_bool [] X)
+  (τλ X
+         τT
+         (ψτ true τB [] X)
+         (ψτ false τB [] X)
          obj_nil
-         t_bool)
+         τB)
 | op_iscons =>
-  (t_fun X
-         t_top
-         (TYPE true (t_cons t_top t_top) [] X)
-         (TYPE false (t_cons t_top t_top) [] X)
+  (τλ X
+         τT
+         (ψτ true (τcons τT τT) [] X)
+         (ψτ false (τcons τT τT) [] X)
          obj_nil
-         t_bool)
+         τB)
 | op_add1 =>
-  (t_fun X
-         t_num
-         TRUE
-         TRUE
+  (τλ X
+         τN
+         ψT
+         ψT
          obj_nil
-         t_num)
+         τN)
 | op_iszero =>
-  (t_fun X
-         t_num
-         TRUE
-         TRUE
+  (τλ X
+         τN
+         ψT
+         ψT
          obj_nil
-         t_bool)
+         τB)
 end.
 
 Fixpoint setU {X:Type} (dec : forall x y : X, {x=y} + {x<>y}) 
@@ -273,20 +264,20 @@ end.
 Definition fv_set_o (o : object) : set id :=
 match o with
 | obj_nil => nil
-| obj_path _ x => [x]
+| obj_p _ x => [x]
 end.
 
 (* free variables in types *)
-Fixpoint fv_set_t (t : type) : set id :=
+Fixpoint fv_set_t (t : τ) : set id :=
 match t with
-| t_union l =>
+| τU l =>
   fold_left (fun ids next => 
                set_union id_eq_dec 
                          ids 
                          (fv_set_t next))
             l
             nil
-| t_fun x t1 p1 p2 o t2 =>
+| τλ x t1 p1 p2 o t2 =>
   setU id_eq_dec
        [[x];
         (fv_set_t t1);
@@ -294,7 +285,7 @@ match t with
         (fv_set_p p2);
         (fv_set_o o);
         (fv_set_t t2)]
-| t_cons t1 t2 => 
+| τcons t1 t2 => 
   set_union id_eq_dec
             (fv_set_t t1) 
             (fv_set_t t2)
@@ -302,12 +293,12 @@ match t with
 end
 
 (* free variables in propositions *)
-with fv_set_p (p: prop) : set id :=
+with fv_set_p (p: ψ) : set id :=
 match p with
-| TYPE b t pth x => set_union id_eq_dec [x] (fv_set_t t)
-| IMPL p q => set_union id_eq_dec (fv_set_p p) (fv_set_p q)
-| OR p q => set_union id_eq_dec (fv_set_p p) (fv_set_p q)
-| AND p q => set_union id_eq_dec (fv_set_p p) (fv_set_p q)
+| ψτ b t pth x => set_union id_eq_dec [x] (fv_set_t t)
+| ψimp p q => set_union id_eq_dec (fv_set_p p) (fv_set_p q)
+| ψor p q => set_union id_eq_dec (fv_set_p p) (fv_set_p q)
+| ψand p q => set_union id_eq_dec (fv_set_p p) (fv_set_p q)
 | _ => nil
 end.
 
@@ -316,20 +307,20 @@ end.
 Definition subst_o (obj:object) (o:object) (x:id) : object :=
 match obj with
 | obj_nil => obj_nil
-| obj_path pth1 z =>
+| obj_p pth1 z =>
   match id_eq x z, o with
   | true, obj_nil => obj_nil
-  | true, obj_path pth2 y => obj_path (pth1 ++ pth2) y
+  | true, obj_p pth2 y => obj_p (pth1 ++ pth2) y
   | false, _ => obj
   end
 end.
 
 Inductive sign : Type := pos | neg.
 
-Definition sign_truth (p:sign) : prop :=
+Definition sign_truth (p:sign) : ψ :=
 match p with
-| pos => TRUE
-| neg => FALSE
+| pos => ψT
+| neg => ψF
 end.
 
 Definition sign_flip (p:sign) : sign :=
@@ -340,46 +331,45 @@ end.
 
 (* subst+ and - for properties*)
 Fixpoint subst_p (s : sign) 
-                 (p:prop) 
+                 (p:ψ) 
                  (o:object) 
-                 (x:id) : prop :=
+                 (x:id) : ψ :=
 match p with
-| TYPE b t pth1 z =>
+| ψτ b t pth1 z =>
   match id_eq x z , set_mem id_eq_dec z (fv_set_t t) with
   | true, _ => 
     match o with
     | obj_nil => (sign_truth s)
-    | obj_path pth2 y =>
-      TYPE b (subst_t s t o x) (pth1 ++ pth2) y
+    | obj_p pth2 y =>
+      ψτ b (subst_t s t o x) (pth1 ++ pth2) y
     end
   | false, false => p
   | false, true => (sign_truth s)
   end
-| IMPL P Q => IMPL (subst_p (sign_flip s) P o x) 
+| ψimp P Q => ψimp (subst_p (sign_flip s) P o x) 
                    (subst_p s Q o x)
-| OR P Q => OR (subst_p s P o x) (subst_p s Q o x)
-| AND P Q => AND (subst_p s P o x) (subst_p s Q o x)
-| FALSE => FALSE
-| TRUE => TRUE
+| ψor P Q => ψor (subst_p s P o x) (subst_p s Q o x)
+| ψand P Q => ψand (subst_p s P o x) (subst_p s Q o x)
+| _ => p
 end
 
 (* type substitution *)
 with subst_t (s:sign) 
-             (t:type) 
+             (t:τ) 
              (o:object) 
-             (x:id) : type :=
+             (x:id) : τ :=
 match t with
-| t_union l => t_union (map (fun t' => subst_t s t' o x) l)
-| t_fun y t1 p1 p2 o2 t2 =>
+| τU l => τU (map (fun t' => subst_t s t' o x) l)
+| τλ y t1 p1 p2 o2 t2 =>
   if id_eq x y
   then t
-  else t_fun y
+  else τλ y
              (subst_t s t1 o x)
              (subst_p s p1 o x)
              (subst_p s p2 o x)
              (subst_o o2 o x)
              (subst_t s t2 o x)
-| t_cons t1 t2 => t_cons (subst_t s t1 o x) 
+| τcons t1 t2 => τcons (subst_t s t1 o x) 
                          (subst_t s t2 o x)
 | _ => t
 end.
@@ -401,42 +391,42 @@ Proof.
 Defined.
 
 (*
-Fixpoint contains_bottom (E:env) : bool :=
+Fixpoint contains_bottom (E:Γ) : bool :=
 match E with
 | nil => false
 | p :: ps => 
   match p with
-  | T t pth y => if (type_eq t t_bottom)
+  | T t pth y => if (type_eq t τ_)
                  then true
                  else contains_bottom ps
   | _ => contains_bottom ps
   end
 end.
 
-Definition in_env (p:prop) (E:env) := in_dec prop_eq_dec p E.
-Definition ext_env (p:prop) (E:env) := set_add prop_eq_dec p E.
+Definition in_Γ (p:prop) (E:Γ) := in_dec prop_eq_dec p E.
+Definition ext_Γ (p:prop) (E:Γ) := set_add prop_eq_dec p E.
 
 (* Creates a set of all properties which imply Q in the environment. *)
-Fixpoint implicators (E:env) (Q:prop) : set prop :=
+Fixpoint implicators (E:Γ) (Q:prop) : set prop :=
 match E with
 | nil => []
 | p :: ps => 
   match p with
-  | IMPL P Q' => if prop_eq Q Q' 
-                 then ext_env P (implicators ps Q)
+  | ψimp P Q' => if prop_eq Q Q' 
+                 then ext_Γ P (implicators ps Q)
                  else implicators ps Q
   | _ => implicators ps Q
   end
 end.
 
 
-Program Fixpoint proves (E:env) (p:prop) {measure (prop_depth p)} : bool :=
+Program Fixpoint proves (E:Γ) (p:prop) {measure (prop_depth p)} : bool :=
 (* L-ATOM *)
-if in_env p E then true else
-(* L-TRUE *)
-if prop_eq TRUE p then true else
-(* L-FALSE *)
-if in_env FALSE E then true else
+if in_Γ p E then true else
+(* L-τt *)
+if prop_eq τt p then true else
+(* L-τf *)
+if in_Γ τf E then true else
 (* L-BOT *)
 if contains_bottom E then true else
 (* L-IMPE *)
@@ -456,7 +446,7 @@ if disj_proves
 
 *)
 
-with disj_proves (E:env) (p:prop) : bool :=
+with disj_proves (E:Γ) (p:prop) : bool :=
 match E with
 | nil => false
 | q :: qs
@@ -465,7 +455,7 @@ match E with
               then true
               else disj
 
-with prove_any (E:env) (s:set prop) : bool :=
+with prove_any (E:Γ) (s:set prop) : bool :=
 match s with
 | nil => false
 | p :: ps => if proves E p 
@@ -475,100 +465,107 @@ end
 
 with subtype (x y: type) : bool := false
 
-with update (x: type) (s:sign) (y:type) (p:path) : type := t_bottom
+with update (x: type) (s:sign) (y:type) (p:path) : type := τ_
 
-with restrict (x y: type) : type := t_bottom
+with restrict (x y: type) : type := τ_
 
-with remove (x y: type) : type := t_bottom.
+with remove (x y: type) : type := τ_.
 *)
 
+Definition isU (t:τ) : bool :=
+match t with
+| τU _ => true
+| _ => false
+end.
 
-Inductive Proves : env -> prop -> Prop :=
+Definition share_types (t1 t2:τ) : bool := true.
+
+Inductive Proves : Γ -> ψ -> Prop :=
 | L_Atom : 
     forall E p, 
       In p E -> Proves E p
 | L_True :
     forall E, 
-      Proves E TRUE
+      Proves E ψT
 | L_False :
     forall E p, 
-      Proves E FALSE ->
+      Proves E ψF ->
       Proves E p
 | L_AndI :
     forall E p q, 
       Proves E p ->
       Proves E q ->
-      Proves E (AND p q)
+      Proves E (ψand p q)
 | L_AndE_l :
     forall E p q r,
       (Proves (p :: E) r) ->
-      Proves ((AND p q) :: E) r
+      Proves ((ψand p q) :: E) r
 | L_AndE_r :
     forall E p q r,
       (Proves (q :: E) r) ->
-      Proves ((AND p q) :: E) r
+      Proves ((ψand p q) :: E) r
 | L_ImpI :
     forall E p q,
       Proves (p :: E) q ->
-      Proves E (IMPL p q)
+      Proves E (ψimp p q)
 | L_ImpE :
     forall E p q,
       Proves E p ->
-      Proves E (IMPL p q) ->
+      Proves E (ψimp p q) ->
       Proves E q
 | L_OrI_l :
     forall E p q,
       (Proves E p) ->
-      Proves E (OR p q)
+      Proves E (ψor p q)
 | L_OrI_r :
     forall E p q,
       (Proves E q) ->
-      Proves E (OR p q)
+      Proves E (ψor p q)
 
 | L_OrE :
     forall E p q r,
       Proves (p :: E) r ->
       Proves (q :: E) r ->
-      Proves ((OR p q) :: E) r
+      Proves ((ψor p q) :: E) r
 | L_Sub :
     forall E t t' x,
-      Proves E (TYPE true t [] x) ->
+      Proves E (ψτ true t [] x) ->
       SubType t t' ->
-      Proves E (TYPE true t' [] x)
+      Proves E (ψτ true t' [] x)
 | L_SubNot :
     forall E t t' x,
-      Proves E (TYPE false t' [] x) ->
+      Proves E (ψτ false t' [] x) ->
       SubType t t' ->
-      Proves E (TYPE false t [] x)
+      Proves E (ψτ false t [] x)
 | L_Bot :
     forall E x p,
-      Proves E (TYPE true t_bottom [] x) ->
+      Proves E (ψτ true τ_ [] x) ->
       Proves E p
 | L_Update_T :
     forall E t x t' pth pth' t_update,
-      Proves E (TYPE true t pth' x) ->
-      Proves E (TYPE true t' (pth ++ pth') x) ->
+      Proves E (ψτ true t pth' x) ->
+      Proves E (ψτ true t' (pth ++ pth') x) ->
       Update t (true, t') pth t_update ->
-      Proves E (TYPE true t_update pth' x)
+      Proves E (ψτ true t_update pth' x)
 | L_Update_NT :
     forall E t x t' pth pth' t_update,
-      Proves E (TYPE true t pth' x) ->
-      Proves E (TYPE false t' (pth ++ pth') x) ->
+      Proves E (ψτ true t pth' x) ->
+      Proves E (ψτ false t' (pth ++ pth') x) ->
       Update t (false, t') pth t_update ->
-      Proves E (TYPE true t_update pth' x)
+      Proves E (ψτ true t_update pth' x)
 
 (* SubType *)
-with SubType : relation type :=
+with SubType : relation τ :=
 | S_Refl : forall x, SubType x x
-| S_Top : forall x, SubType x t_top
+| S_Top : forall x, SubType x τT
 | S_UnionSuper : 
     forall t s,
       (exists t', set_In t' s /\ SubType t t') ->
-      SubType t (t_union s)
+      SubType t (τU s)
 | S_UnionSub :
     forall t s,
       (forall t', set_In t' s -> SubType t' t) ->
-      SubType (t_union s) t
+      SubType (τU s) t
 | S_Fun : 
     forall x t1 t2 p1 p2 o t1' t2' p1' p2' o',
       SubType t1   t1' ->
@@ -576,37 +573,106 @@ with SubType : relation type :=
       Proves  [p1] p1' ->
       Proves  [p2] p2' ->
       SubObj  o    o'  ->
-      SubType (t_fun x t1 p1 p2 o t2) 
-              (t_fun x t1' p1' p2' o' t2')
+      SubType (τλ x t1 p1 p2 o t2) 
+              (τλ x t1' p1' p2' o' t2')
 | S_Pair :
     forall t1 t2 t1' t2',
       SubType t1 t1' ->
       SubType t2 t2' ->
-      SubType (t_cons t1 t2) (t_cons t1' t2')
+      SubType (τcons t1 t2) (τcons t1' t2')
 
-with Update : type -> (bool * type) -> path -> type -> Prop :=
+with Update : τ -> (bool * τ) -> π -> τ -> Prop :=
 | UP_Car : 
-    forall τ ν pth σ updated,
-      Update τ ν pth updated ->
-      Update (t_cons τ σ) ν (pth ++ [car]) (t_cons updated σ)
+    forall τ1 v pth σ1 updated,
+      Update τ1 v pth updated ->
+      Update (τcons τ1 σ1) v (pth ++ [car]) (τcons updated σ1)
 | UP_Cdr :
     forall t1 b t2 pth t3 σ,
       Update σ ( b , t2 ) pth t3 ->
-      Update (t_cons t1 σ) (b, t2) (pth ++ [car]) (t_cons t3 σ)
+      Update (τcons t1 σ) (b, t2) (pth ++ [car]) (τcons t3 σ)
 
 | UP_T :
-    forall τ σ ε restricted,
-      Restrict τ σ restricted ->
-      Update τ (true, σ) ε restricted
+    forall τ σ ε r,
+      Restrict τ σ r ->
+      Update τ (true, σ) ε r
 | UP_NT :
-    forall τ σ ε restricted,
-      Remove τ σ restricted ->
-      Update τ (false, σ) ε restricted
+    forall τ σ ε r,
+      Remove τ σ r ->
+      Update τ (false, σ) ε r
 
+<<<<<<< HEAD
 
+with Restrict : τ -> τ -> τ -> Prop :=
+| RES_Bot : 
+      forall τ1 σ1,
+        share_types τ1 σ1 = false ->
+(*    forall τ1 ψ1 ψ1' o1 σ1 ψ2 ψ2' o2,
+      ~(exists v, (and (TypeOf [] v τ1 ψ1 ψ1' o1) 
+                       (TypeOf [] v σ1 ψ2 ψ2' o2))) -> 
+  This is a non positive usage of TypeOf.... *)
+
+      Restrict τ1 σ1 τ_
+| RES_U_nil :
+    forall σ1,
+      Restrict τ_ σ1 τ_
+| RES_U_cons :
+    forall τ1 τs σ1 r rs,
+      Restrict (τU τs) σ1 (τU rs) ->
+      Restrict τ1 σ1 r ->
+      Restrict (τU (τ1 :: τs)) σ1 (τU (r :: rs))
+| RES_Tsub :
+    forall τ1 σ1,
+      SubType τ1 σ1 ->
+      Restrict τ1 σ1 τ1
+| RES_other :
+    forall τ1 ψ1 ψ1' o1 σ1 ψ2 ψ2' o2,
+      share_types t1 σ1 = true ->
+      ~SubType τ1 σ1 ->
+      isU τ1 = false ->
+      Restrict τ1 σ1 σ1
+with Remove : τ -> τ -> τ -> Prop :=
+| REM_Bot :
+    forall τ1 σ1,
+      SubType τ1 σ1 ->
+      Remove τ1 σ1 τ_
+| REM_U_nil :
+    forall σ1,
+      Remove τ_ σ1 τ_
+| REM_U_cons :
+    forall τ1 τs σ1 r rs,
+      Remove (τU τs) σ1 (τU rs) ->
+      Remove τ1 σ1 r ->
+      Remove (τU (τ1 :: τs)) σ1 (τU (r :: rs))
+| REM_other :
+    forall σ1 τ1,
+      ~SubType τ1 σ1 ->
+      isU τ1 = false ->
+      Remove τ1 σ1 τ1
+=======
 with Restrict : type -> type -> type -> Prop :=
 | RES_Bot : 
-    forall τ σ υ ψ1 ψ2
+    forall τ σ v ψ1 ψ1' ψ2 ψ2',
+      ~(exists v, (TypeOf [] v τ ψ1 ψ1' o1) /\ 
+                   TypeOf [] v σ ψ2 ψ2' o2) ->
+      Restrict τ σ t_bottom. 
+       
+(*
+
+Deep embedding
+All of the details (save minimal stuff) are implemented for
+the new language
+
+shallow embedding
+reusing features of metalanguage in language, i.e. just directly turning
+functions into Coq/Racket functions or something
+
+Could try props just directly go into Coq props instead of having a separate
+prop system defined.
+
+OTT - turns semantics into Coq code
+
+*)
+      Restrict τ σ t_bottom
 | RES_U
 | RES_Tsub
 | RES_Tnsub
@@ -628,17 +694,7 @@ Proof.
 Fixpoint proves_dec (E: env) (p : prop) : {Proves E p} + {~Proves E p}
 with subtype_dec (x y: type) : {SubType x y} + {~SubType x y}.
 Proof.
-  clear provse_d
-  eauto.
-  
-  Check proves_mut.
-  eapply proves_mut.
-  generalize dependent E.
-  
-  apply proves_mut.
-  induction p; crush.
-  generalize dependent y.
-  induction x; crush.
+decide equality.
 Defined.
 
 
@@ -669,48 +725,49 @@ inversion H; subst. tryfalse.
   eauto.
 
 
+>>>>>>> FETCH_HEAD
 
 (* Typing Rules *)
-Inductive TypeOf : 
-  env -> expr -> type -> prop -> prop -> object -> Prop :=
-| T_Num : 
+with TypeOf : 
+  Γ -> e -> τ -> ψ -> ψ -> object -> Prop :=
+| Τ_Num : 
     forall E n, 
-      TypeOf E (e_num n) t_num TRUE FALSE obj_nil
+      TypeOf E (e_num n) τN ψT ψF obj_nil
 | T_Const : 
     forall E c,
       TypeOf E 
              (e_primop (prim_c c)) 
-             (constop_type c) 
-             TRUE 
-             FALSE 
+             (c_op_type c) 
+             ψT 
+             ψF 
              obj_nil
 | T_True :
     forall E,
-      TypeOf E e_true t_true TRUE FALSE obj_nil
+      TypeOf E e_true τt ψT ψF obj_nil
 | T_False :
     forall E,
-      TypeOf E e_false t_false FALSE TRUE obj_nil
+      TypeOf E e_false τf ψF ψT obj_nil
 | T_Var :
     forall E x t,
-      In (T t [] x) E ->
+      In (ψτ true t [] x) E ->
       TypeOf E 
              (e_var x) 
-             t 
-             (NT t_false [] x) 
-             (T t_false [] x) 
-             (obj_var x)
+             t
+             (ψτ false τf [] x)
+             (ψτ true τf [] x)
+             (obj_p [] x)
 | T_Abs :
    forall E s x e t pT pF o,
-     TypeOf ((T s [] x) :: E) e t pT pF o ->
+     TypeOf ((ψτ true s [] x) :: E) e t pT pF o ->
      TypeOf E 
             (e_abs x s e) 
-            (t_fun x s pT pF o t) 
-            TRUE 
-            FALSE 
+            (τλ x s pT pF o t) 
+            ψT 
+            ψF 
             obj_nil
 | T_App :
    forall E e x s pTf pFf t pT pF of o e' pT' pF' o',
-     TypeOf E e (t_fun x s pTf pFf of t) pT pF o ->
+     TypeOf E e (τλ x s pTf pFf of t) pT pF o ->
      TypeOf E e' s pT' pF' o' ->
      TypeOf E (e_app e e') 
             (subst_t pos t o' x) 
@@ -722,7 +779,7 @@ Inductive TypeOf :
      TypeOf E e1 t1 pT1 pF1 o1 ->
      TypeOf (pT1 :: E) e2 t pT2 pF2 o ->
      TypeOf (pF1 :: E) e3 t pT3 pF3 o ->
-     TypeOf E (e_if e1 e2 e3) t (OR pT2 pT3) (OR pF2 pF3) o 
+     TypeOf E (e_if e1 e2 e3) t (ψor pT2 pT3) (ψor pF2 pF3) o 
 | T_Subsume :
    forall E e t pT pF o pT' pF' t' o',
      TypeOf E e t pT pF o ->
@@ -735,27 +792,27 @@ Inductive TypeOf :
    forall E e1 t1 p1 p1' o1 e2 t2 p2 p2' o2,
      TypeOf E e1 t1 p1 p1' o1 ->
      TypeOf E e2 t2 p2 p2' o2 ->
-     TypeOf E (e_cons e1 e2) (t_cons t1 t2) TRUE FALSE obj_nil
+     TypeOf E (e_cons e1 e2) (τcons t1 t2) ψT ψF obj_nil
 | T_Car :
    forall E e t1 t2 p0 p0' o o' p p' x,
-     TypeOf E e (t_cons t1 t2) p0 p0' o ->
-     p = (subst_p pos (NT t_false [car] x) o x) ->
-     p' = (subst_p pos (T t_false [car] x) o x) ->
-     o' = subst_o (obj_path [car] x) o x ->
+     TypeOf E e (τcons t1 t2) p0 p0' o ->
+     p = (subst_p pos (ψτ false τf [car] x) o x) ->
+     p' = (subst_p pos (ψτ true τf [car] x) o x) ->
+     o' = subst_o (obj_p [car] x) o x ->
      TypeOf E (e_app car' e) t1 p p' o'
 | T_Cdr :
    forall E e t1 t2 p0 p0' o o' p p' x,
-     TypeOf E e (t_cons t1 t2) p0 p0' o ->
-     p = (subst_p pos (NT t_false [cdr] x) o x) ->
-     p' = (subst_p pos (T t_false [cdr] x) o x) ->
-     o' = subst_o (obj_path [cdr] x) o x ->
+     TypeOf E e (τcons t1 t2) p0 p0' o ->
+     p = (subst_p pos (ψτ false τf [cdr] x) o x) ->
+     p' = (subst_p pos (ψτ true τf [cdr] x) o x) ->
+     o' = subst_o (obj_p [cdr] x) o x ->
      TypeOf E (e_app cdr' e) t2 p p' o'
 | T_Let :
    forall E e0 t p0 p0' o0 e1 t' p1 p1' o1 x,
    TypeOf E e0 t p0 p0' o0 ->
-   TypeOf ((T t [] x) ::
-           (IMPL (NT t_false [] x) p0) ::
-           (IMPL (T t_false [] x) p0') :: 
+   TypeOf ((ψτ true t [] x) ::
+           (ψimp (ψτ false τf [] x) p0) ::
+           (ψimp (ψτ true τf [] x) p0') :: 
            E)
           e1 
           t' 
@@ -768,6 +825,64 @@ Inductive TypeOf :
           (subst_p pos p1 o0 x)
           (subst_p pos p1' o0 x)
           (subst_o o1 o0 x).
+
+
+Scheme proves_mut := Induction for Proves Sort Prop
+with subtype_mut := Induction for SubType Sort Prop.
+
+Theorem false_dec : forall E,
+{Proves E τf} + {~Proves E τf}.
+Proof.
+  intros E; induction E.
+  right; intros contra.
+  inversion contra; subst. tryfalse.
+
+
+Fixpoint proves_dec (E: Γ) (p : prop) : {Proves E p} + {~Proves E p}
+with subtype_dec (x y: type) : {SubType x y} + {~SubType x y}.
+Proof.
+  clear provse_d
+  eauto.
+  
+  Check proves_mut.
+  eapply proves_mut.
+  generalize dependent E.
+  
+  apply proves_mut.
+  induction p; crush.
+  generalize dependent y.
+  induction x; crush.
+Defined.
+
+
+Theorem proves : forall E p,
+{Proves E p} + {~Proves E p}.
+Proof.
+  intros E. induction E as [| q E'].
+  intro p. destruct p.
+
+  (* (T t p i) *)
+  left. apply L_False.
+  right; intros contra. inversion contra; subst.
+  tryfalse. 
+
+  Lemma proves_nil_false_false :
+    ~ Proves [] τf.
+    Proof.
+      intros contra.
+      inversion contra; crush.
+
+inversion H; subst. tryfalse.
+
+  right. intros contra. inversion contra; subst. tryfalse.
+  right; intros contra.
+  inversion contra; subst. tryfalse.
+  inversion H. subst. tryfalse. subst.
+ inversion contra; crush.
+  eauto.
+
+
+
 
 
 End LTR.

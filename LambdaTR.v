@@ -109,19 +109,13 @@ Proof.
   decide equality.
   apply bool_dec.
 Defined.
-<<<<<<< HEAD
+
 Hint Resolve τ_eq_dec.
 Hint Resolve ψ_eq_dec.
 
 Definition τ_eq (x y : τ) : bool :=
 if τ_eq_dec x y then true else false.
-=======
-Hint Resolve type_eq_dec.
-Hint Resolve prop_eq_dec.
 
-Definition type_eq (x y : type) : bool :=
-if type_eq_dec x y then true else false.
->>>>>>> FETCH_HEAD
 
 Definition ψ_eq (x y : ψ) : bool :=
 if ψ_eq_dec x y then true else false.
@@ -600,7 +594,6 @@ with Update : τ -> (bool * τ) -> π -> τ -> Prop :=
       Remove τ σ r ->
       Update τ (false, σ) ε r
 
-<<<<<<< HEAD
 
 with Restrict : τ -> τ -> τ -> Prop :=
 | RES_Bot : 
@@ -648,84 +641,7 @@ with Remove : τ -> τ -> τ -> Prop :=
       ~SubType τ1 σ1 ->
       isU τ1 = false ->
       Remove τ1 σ1 τ1
-=======
-with Restrict : type -> type -> type -> Prop :=
-| RES_Bot : 
-    forall τ σ v ψ1 ψ1' ψ2 ψ2',
-      ~(exists v, (TypeOf [] v τ ψ1 ψ1' o1) /\ 
-                   TypeOf [] v σ ψ2 ψ2' o2) ->
-      Restrict τ σ t_bottom. 
-       
-(*
 
-Deep embedding
-All of the details (save minimal stuff) are implemented for
-the new language
-
-shallow embedding
-reusing features of metalanguage in language, i.e. just directly turning
-functions into Coq/Racket functions or something
-
-Could try props just directly go into Coq props instead of having a separate
-prop system defined.
-
-OTT - turns semantics into Coq code
-
-*)
-      Restrict τ σ t_bottom
-| RES_U
-| RES_Tsub
-| RES_Tnsub
-
-with Remove : type -> type -> type -> Prop :=
-| rem_triv : forall t1 t2 t3, Remove t1 t2 t3.
-
-Scheme proves_mut := Induction for Proves Sort Prop
-with subtype_mut := Induction for SubType Sort Prop.
-
-Theorem false_dec : forall E,
-{Proves E FALSE} + {~Proves E FALSE}.
-Proof.
-  intros E; induction E.
-  right; intros contra.
-  inversion contra; subst. tryfalse.
-
-
-Fixpoint proves_dec (E: env) (p : prop) : {Proves E p} + {~Proves E p}
-with subtype_dec (x y: type) : {SubType x y} + {~SubType x y}.
-Proof.
-decide equality.
-Defined.
-
-
-Theorem proves : forall E p,
-{Proves E p} + {~Proves E p}.
-Proof.
-  intros E. induction E as [| q E'].
-  intro p. destruct p.
-
-  (* (T t p i) *)
-  left. apply L_False.
-  right; intros contra. inversion contra; subst.
-  tryfalse. 
-
-  Lemma proves_nil_false_false :
-    ~ Proves [] FALSE.
-    Proof.
-      intros contra.
-      inversion contra; crush.
-
-inversion H; subst. tryfalse.
-
-  right. intros contra. inversion contra; subst. tryfalse.
-  right; intros contra.
-  inversion contra; subst. tryfalse.
-  inversion H. subst. tryfalse. subst.
- inversion contra; crush.
-  eauto.
-
-
->>>>>>> FETCH_HEAD
 
 (* Typing Rules *)
 with TypeOf : 

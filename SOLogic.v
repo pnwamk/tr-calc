@@ -12,31 +12,200 @@ Set Implicit Arguments.
 
 Require Import Relations.
 Require Import List.
+Require Import ListSet.
+Require Import Program.Wf.
+Require Import LibTactics.
 
+Open Scope list_scope.
 
 Variable id : Type.
 Hypothesis id_eqdec : forall x y : id, 
                        {x=y}+{x<>y}.
+Hint Resolve id_eqdec.
+
 Variable X : Type.
 Hypothesis X_eqdec : forall x y : X, 
                        {x=y}+{x<>y}.
+Hint Resolve X_eqdec.
 
+Record fact : Type := mkFact {
+  var : id;
+  prop : X
+}.
+
+Theorem fact_eqdec : forall x y : fact,
+{x=y}+{x<>y}.
+Proof.
+  decide equality.
+Defined.
+Hint Resolve fact_eqdec.
+
+(*
 Variable Merge : X -> X -> X.
 
 Variable Sub : relation X.
 Hypothesis Sub_dec : forall (x y : X), 
                      {Sub x y} + {~Sub x y}.
-
+*)
 Inductive P : Type :=
-| Valid   : X -> id -> P
-| Invalid : X -> id -> P
+| Valid   : fact -> P
+| Invalid : fact -> P
 | Implies : P -> P -> P
 | Or      : P -> P -> P
 | And     : P -> P -> P
 | Absurd  : P
 | Trivial : P.
 
-Definition Env := list P.
+Theorem P_eqdec : forall p1 p2 : P,
+{p1 = p2}+{p1 <> p2}.
+Proof.
+  decide equality.
+Defined.
+Hint Resolve P_eqdec.
+
+Theorem Ppair_eqdec : forall x y : (P*P),
+{x=y}+{x<>y}.
+Proof.
+  decide equality.
+Defined.
+Hint Resolve P_eqdec.
+
+Record Env : Type := mkEnv {
+  ff_proven : bool;
+  TFacts : list P;
+  FFacts : list P;
+  Implications : list P;
+  Implied : list P;
+  Disjunctions : list P
+}.
+
+Definition nil_Env := mkEnv false nil nil nil nil nil.
+
+Definition set_false (E:Env) : Env :=
+mkEnv true 
+      (TFacts E) 
+      (FFacts E) 
+      (Implications E)
+      (Implied E)
+      (Disjunctions E).
+
+Definition add2TFacts (p:P) (E:Env) : Env :=
+mkEnv (ff_proven E)
+      (set_add P_eqdec p (TFacts E))
+      (FFacts E) 
+      (Implications E)
+      (Implied E)
+      (Disjunctions E).
+
+Definition add2FFacts (p:P) (E:Env) : Env :=
+mkEnv (ff_proven E)
+      (TFacts E) 
+      (set_add P_eqdec p (FFacts E))
+      (Implications E)
+      (Implied E)
+      (Disjunctions E).
+
+Definition add2Impls (p:P) (E:Env) : Env :=
+mkEnv (ff_proven E)
+      (TFacts E) 
+      (FFacts E) 
+      (set_add P_eqdec p (Implications E))
+      (Implied E)
+      (Disjunctions E).
+
+Definition add2Implied (p:P) (E:Env) : Env :=
+mkEnv (ff_proven E)
+      (TFacts E) 
+      (FFacts E) 
+      (Implications E)
+      (set_add P_eqdec p (Implied E))
+      (Disjunctions E).
+
+Definition add2Disjs (p:P) (E:Env) : Env :=
+mkEnv (ff_proven E)
+      (TFacts E) 
+      (FFacts E) 
+      (Implications E)
+      (Implied E)
+      (set_add P_eqdec p (Disjunctions E)).
+
+Definition inb {X:Type} (Xeqdec : forall x y : X, {x=y}+{x<>y}) (x:X) (l:list X) := if in_dec Xeqdec x l then true else false.
+
+Fixpoint inEnv (prop:P) (E:Env) : bool :=
+match prop with
+| Valid f => inb P_eqdec prop (TFacts E)
+| Invalid f => inb P_eqdec prop (FFacts E)
+| Implies p q => (orb (inb P_eqdec prop (Implications E)) 
+                      (inb P_eqdec prop (Implied E)))
+| Or p q => inb P_eqdec prop (Disjunctions E)
+| And p q => andb (inEnv p E) (inEnv q E)
+| Absurd => (ff_proven E)
+| Trivial => false
+end.
+
+Definition removeImpls (E:Env) : Env :=
+mkEnv (ff_proven E)
+      (TFacts E) 
+      (FFacts E) 
+      nil
+      (Implied E)
+      (Disjunctions E).
+
+Fixpoint Psize (p:P) : nat :=
+match p with
+| Valid f => 1
+| Invalid f => 1
+| Implies p q => 1 + Psize p + Psize q
+| Or p q => 1 + Psize p + Psize q
+| And p q => 1 + Psize p + Psize q
+| Absurd => 0
+| Trivial => 0
+end.
+
+Definition Plistsize (props:list P) : nat :=
+fold_left (fun acc p => acc + Psize p) props 0.
+
+Definition Envsize (E:Env) : nat :=
+Plistsize (TFacts E) +
+Plistsize (FFacts E) +
+Plistsize (Implications E) +
+Plistsize (Implied E) +
+Plistsize (Disjunctions E).
+
+Program Fixpoint add2Env (props: list P) 
+                         (E:Env) 
+                         {measure (Plistsize props +
+                                   Envsize E)} : Env :=
+match props, (ff_proven E) with
+| nil     , _    => E
+| _       , true => E 
+| prop :: ps , _    => add2Env ps 
+  match prop with
+  | Valid f => 
+    (add2Env (Implications E)
+             (add2TFacts prop 
+                         (removeImpls E)))
+  | Invalid f =>
+    (add2Env (Implications E)
+             (add2FFacts prop 
+                         (removeImpls E)))
+  | Implies p q =>
+    if (inEnv p E)
+    then (add2Env (q :: nil) (add2Implied prop E))
+    else (add2Impls prop E)
+  | Or p q =>
+    add2Disjs prop E
+  | And p q =>
+    add2Env (p :: q :: nil) E
+  | Absurd => set_false E
+  | Trivial => E
+  end
+end.
+Next Obligation.
+Proof.
+  unfold Envsize. destruct E. simpl.
+  (* Bookmark *)
+
 
 Inductive Proves : Env -> P -> Prop :=
 | L_Atom : 

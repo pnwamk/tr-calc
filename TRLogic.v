@@ -2,6 +2,7 @@
 
 Set Implicit Arguments.
 
+Require Import LibTactics.
 Require Import Bool.
 Require Import List.
 
@@ -69,8 +70,79 @@ match prop with
 | ψtt       => θff
 end.
 
+Definition ψstoθs (ps:list ψ) : list θ :=
+map ψtoθ ps.
+
 Inductive Γ : Type :=
 | Γempty : Γ
 | Γfalse : Γ -> Γ
 | Γfact  : fact -> Γ -> Γ
 | Γor    : Γ -> Γ -> Γ.
+
+Fixpoint Γapp (Γ1 Γ2:Γ) : Γ :=
+match Γ1 with
+| Γempty => Γ2
+| Γfalse rest => Γfalse (Γapp rest Γ2)
+| Γfact f rest => Γfact f (Γapp rest Γ2)
+| Γor lhs rhs => Γor (Γapp lhs Γ2) (Γapp rhs Γ2)
+end.
+
+Fixpoint θtoΓ (prop:θ) : Γ :=
+match prop with
+| θfact f  => Γfact f Γempty
+| θor p q  => Γor (θtoΓ p) (θtoΓ q)
+| θand p q => Γapp (θtoΓ p) (θtoΓ q)
+| θff      => Γfalse Γempty
+| θtt      => Γempty
+end.
+
+Fixpoint buildΓ' (props:list θ) : Γ :=
+match props with
+| nil => Γempty
+| p :: ps => Γapp (θtoΓ p) (buildΓ' ps)
+end.
+
+Definition buildΓ (ps:list ψ) := buildΓ' (ψstoθs ps).
+
+Inductive Proves : Γ -> fact -> Prop :=
+| P_Atom :
+    forall f E,
+      Proves (Γfact f E) f
+| P_False :
+    forall f E,
+      Proves (Γfalse E) f
+| P_Rest : 
+    forall f f' E,
+      Proves E f' ->
+      Proves (Γfact f E) f'
+| P_Or :
+    forall E1 E2 f,
+      Proves E1 f ->
+      Proves E2 f ->
+      Proves (Γor E1 E2) f.
+Hint Constructors Proves.
+
+Theorem Proves_dec : forall E f,
+{Proves E f} + {~Proves E f}.
+Proof.
+  induction E.
+  intros f. right.
+  intros contra; inversion contra.
+
+  intros f. left. apply P_False.
+
+  intros f'.
+  destruct (fact_eqdec f f'); subst.
+  left. apply P_Atom.
+  destruct (IHE f') as [Htrue | Hfalse].
+  left. apply P_Rest. assumption.
+  right. intros contra. inversion contra; subst. tryfalse. 
+  tryfalse. 
+
+  intros f.
+  destruct (IHE1 f); destruct (IHE2 f).
+  left. apply P_Or; auto.
+  right. intros contra; inversion contra; subst. tryfalse.
+  right. intros contra; inversion contra; subst. tryfalse.
+  right. intros contra; inversion contra; subst. tryfalse.
+Qed.

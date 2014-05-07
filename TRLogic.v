@@ -1,43 +1,18 @@
 
-
-Set Implicit Arguments.
-
 Require Import LibTactics.
 Require Import Bool.
 Require Import List.
 
 Open Scope list_scope.
 
-Module TRLogic.
+Section Logic.
 
-Variable id : Type.
-Hypothesis id_eqdec : forall x y : id,
-                       {x=y}+{x<>y}.
-Hint Resolve id_eqdec.
-
-Variable X : Type.
-Hypothesis X_eqdec : forall x y : X,
-                       {x=y}+{x<>y}.
-Hint Resolve X_eqdec.
+Variable fact : Type.
+Hypothesis fact_eqdec : forall x y : fact,
+{x=y}+{x<>y}.
+Variable negate_fact : fact -> fact.
 
 Hint Resolve bool_dec.
-
-Record fact : Type := mkfact {
-  fbool : bool;
-  fobj : id;
-  ftype : X
-}.
-
-
-Definition fact_neg (f:fact) : fact :=
-mkfact (negb (fbool f)) (fobj f) (ftype f).
-
-Theorem fact_eqdec : forall x y : fact,
-{x=y}+{x<>y}.
-Proof.
-  decide equality.
-Defined.
-Hint Resolve fact_eqdec.
 
 Inductive ψ : Type :=
 | ψfact : fact -> ψ
@@ -46,6 +21,13 @@ Inductive ψ : Type :=
 | ψand  : ψ -> ψ -> ψ
 | ψff   : ψ
 | ψtt   : ψ.
+
+Theorem ψ_eqdec : forall (p1 p2 : ψ),
+{p1 = p2}+{p1<>p2}.
+Proof.
+  decide equality.
+Defined.
+Hint Resolve ψ_eqdec.
 
 Inductive θ : Type :=
 | θfact : fact -> θ
@@ -66,7 +48,7 @@ end
 
 with notψtoθ (prop:ψ) : θ :=
 match prop with
-| ψfact f   => θfact (fact_neg f)
+| ψfact f   => θfact (negate_fact f)
 | ψimpl p q => θand (ψtoθ p) (notψtoθ q)
 | ψor   p q => θand (notψtoθ p) (notψtoθ q)
 | ψand  p q => θor (notψtoθ p) (notψtoθ q)
@@ -151,6 +133,16 @@ Proof.
   right. intros contra; inversion contra; subst. tryfalse.
 Qed.
 
+(* 
+Proves Note!
+
+Although negation is included in this logic in some sense - deriving
+contradictions via the negation of facts is not.
+
+This behavior can be specifically included in expandΓ if desired.
+
+*)
+
 (* Option used so None can represent a false environment (i.e. ff is proven) *)
 Variable expandΓ : list fact -> option (list fact).
 Definition fact_in (f : fact) (fs : option (list fact)) : bool := 
@@ -171,6 +163,4 @@ end.
 Definition expProves (f:fact) (E:Γ) : bool :=
 expProves' f nil E.
 
-End TRLogic.
-
-Export TRLogic.
+End Logic.

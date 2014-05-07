@@ -8,6 +8,8 @@ Require Import List.
 
 Open Scope list_scope.
 
+Module TRLogic.
+
 Variable id : Type.
 Hypothesis id_eqdec : forall x y : id,
                        {x=y}+{x<>y}.
@@ -17,6 +19,7 @@ Variable X : Type.
 Hypothesis X_eqdec : forall x y : X,
                        {x=y}+{x<>y}.
 Hint Resolve X_eqdec.
+
 Hint Resolve bool_dec.
 
 Record fact : Type := mkfact {
@@ -24,6 +27,7 @@ Record fact : Type := mkfact {
   fobj : id;
   ftype : X
 }.
+
 
 Definition fact_neg (f:fact) : fact :=
 mkfact (negb (fbool f)) (fobj f) (ftype f).
@@ -146,3 +150,27 @@ Proof.
   right. intros contra; inversion contra; subst. tryfalse.
   right. intros contra; inversion contra; subst. tryfalse.
 Qed.
+
+(* Option used so None can represent a false environment (i.e. ff is proven) *)
+Variable expandΓ : list fact -> option (list fact).
+Definition fact_in (f : fact) (fs : option (list fact)) : bool := 
+match fs with
+| None => true
+| Some facts =>
+  if in_dec fact_eqdec f facts then true else false
+end.
+
+Fixpoint expProves' (f:fact) (facts:list fact) (E:Γ) : bool :=
+match E with
+| Γempty => fact_in f (expandΓ facts)
+| Γfalse rest => true
+| Γfact f rest => expProves' f (f :: facts) rest
+| Γor lhs rhs => andb (expProves' f facts lhs) (expProves' f facts rhs)
+end.
+
+Definition expProves (f:fact) (E:Γ) : bool :=
+expProves' f nil E.
+
+End TRLogic.
+
+Export TRLogic.

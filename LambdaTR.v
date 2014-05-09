@@ -80,9 +80,13 @@ with fact : Type :=
 | tfact : bool -> type -> obj -> fact.
 Hint Constructors type fact.
 
+Notation tB := (tUnion tTrue tFalse).
+Notation t_ := (tUnion nil).
+
 Hint Resolve bool_dec.
 
 Notation env := (set (set fact)).
+Definition nilenv := [[]]
 
 Fixpoint type_eqdec (x y : type) : {x=y}+{x<>y}
 with fact_eqdec (x y : fact) : {x=y}+{x<>y}.
@@ -240,31 +244,32 @@ with UpdatedType : type -> (bool * type) -> path -> type -> Prop :=
       UpdatedType t (false, σ) nil removed
 
 with Restricted : type -> type -> type -> Prop :=
-| RES_sdf : forall t1 t2 t3, Restricted t1 t2 t3
-
+| RES_Bottom :
+    forall t σ,
+      (forall e t' p1 p2 e, 
+         TypeOf nilenv e t' p1 p2 o ->
+         ((t <> t') \/ (t <> σ))) ->
+      Restricted t σ t_
+| RES_U_nil :
+    forall σ,
+      Restricted τ_ σ τ_
+| RES_U_cons :
+    forall t ts σ restricted rs,
+      Restricted (tUnion ts) σ (tUnion rs) ->
+      Restricted t σ restricted ->
+      Restricted (tUnion (t :: ts)) σ (tUnion (restricted :: rs))
+| RES_Sub :
+    forall t σ,
+      SubType t σ ->
+      Restrict t σ t
+| RES_NonSub :
+    forall t σ,
+      NonSubType t σ ->
+      Restrict t σ σ
+(* bookmark - finished Restricted, moving on to Removed *)
 with Removed : type -> type -> type -> Prop :=
 | REM_sdf : forall t1 t2 t3, Removed t1 t2 t3.
 
-      Restrict τ1 σ1 τ_
-| RES_U_nil :
-    forall σ1,
-      Restrict τ_ σ1 τ_
-| RES_U_cons :
-    forall τ1 τs σ1 r rs,
-      Restrict (τU τs) σ1 (τU rs) ->
-      Restrict τ1 σ1 r ->
-      Restrict (τU (τ1 :: τs)) σ1 (τU (r :: rs))
-| RES_Tsub :
-    forall τ1 σ1,
-      SubType τ1 σ1 ->
-      Restrict τ1 σ1 τ1
-| RES_other :
-    forall τ1 ψ1 ψ1' o1 σ1 ψ2 ψ2' o2,
-      share_types t1 σ1 = true ->
-      ~SubType τ1 σ1 ->
-      isU τ1 = false ->
-      Restrict τ1 σ1 σ1
-with Remove : τ -> τ -> τ -> Prop :=
 | REM_Bot :
     forall τ1 σ1,
       SubType τ1 σ1 ->

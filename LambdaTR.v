@@ -222,26 +222,28 @@ with UpdatedSubEnv : set fact -> typelookup -> Prop :=
                   (extend_lookup (objπ pth' x) updated tl)
 
 with UpdatedType : type -> (bool * type) -> path -> type -> Prop :=
-| UPT : forall t b t' pth t'', UpdatedType t (b, t') pth t''.
-
 | UpT_Car :
-    forall τ1 v pth σ1 updated,
-      Update τ1 v pth updated ->
-      Update (τcons τ1 σ1) v (pth ++ [car]) (τcons updated σ1)
+    forall t v pth σ updated,
+      UpdatedType t v pth updated ->
+      UpdatedType (tPair t σ) v (pth ++ [car]) (tPair updated σ)
 | UpT_Cdr :
-    forall t1 b t2 pth t3 σ,
-      Update σ ( b , t2 ) pth t3 ->
-      Update (τcons t1 σ) (b, t2) (pth ++ [car]) (τcons t3 σ)
-
+    forall t v pth σ updated,
+      UpdatedType σ v pth updated ->
+      UpdatedType (tPair t σ) v (pth ++ [cdr]) (tPair t updated)
 | UpT_T :
-    forall τ σ ε r,
-      Restrict τ σ r ->
-      Update τ (true, σ) ε r
+    forall t σ restricted,
+      Restricted t σ restricted ->
+      UpdatedType t (true, σ) nil restricted
 | UpT_NT :
-    forall τ σ ε r,
-      Remove τ σ r ->
-      Update τ (false, σ) ε r
+    forall t σ removed,
+      Removed t σ removed ->
+      UpdatedType t (false, σ) nil removed
 
+with Restricted : type -> type -> type -> Prop :=
+| RES_sdf : forall t1 t2 t3, Restricted t1 t2 t3
+
+with Removed : type -> type -> type -> Prop :=
+| REM_sdf : forall t1 t2 t3, Removed t1 t2 t3.
 
       Restrict τ1 σ1 τ_
 | RES_U_nil :

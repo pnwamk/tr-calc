@@ -68,39 +68,29 @@ Inductive type : Type :=
 | tTrue : type (* True *)
 | tFalse : type (* False *)
 | tUnion : list type -> type (* union *)
-| tλ : id -> type -> env -> env -> obj -> type -> type (* function *)
+| tλ : id -> 
+       type -> 
+       (set (set fact)) -> 
+       (set (set fact)) -> 
+       obj -> 
+       type -> type (* function *)
 | tPair :  type -> type -> type (* cons pair *)
 
-with env : Type :=
-| envNil   : env
-| envFalse : env -> env
-| envFact  : evidence -> env -> env
-| envOr    : env -> env -> env
-
-with evidence : Type :=
-| fact : bool -> type -> obj -> evidence.
-Hint Constructors type env evidence.
+with fact : Type :=
+| tfact : bool -> type -> obj -> fact.
+Hint Constructors type fact.
 
 Hint Resolve bool_dec.
 
+Notation env := (set (set fact)).
+
 Fixpoint type_eqdec (x y : type) : {x=y}+{x<>y}
-with env_eqdec (x y : env) : {x=y}+{x<>y}
-with evidence_eqdec (x y : evidence) : {x=y}+{x<>y}.
+with fact_eqdec (x y : fact) : {x=y}+{x<>y}.
 Proof.
   decide equality.
   decide equality.
-  decide equality.
 Defined.
-Hint Resolve type_eqdec env_eqdec evidence_eqdec.
-
-Fixpoint env_app (Γ1 Γ2: env) : env :=
-match Γ1 with
-| envNil => Γ2
-| envFalse rest => envFalse (env_app rest Γ2)
-| envFact f rest => envFact f (env_app rest Γ2)
-| envOr lhs rhs => envOr (env_app lhs Γ2) (env_app rhs Γ2)
-end.
-
+Hint Resolve type_eqdec fact_eqdec.
 
 (* Constant Operations *)
 Inductive c_op : Type :=
@@ -181,106 +171,6 @@ match l with
 | x :: xs => set_union dec x (setU dec xs)
 end.
 
-(* free variables in objects *)
-Definition fv_set_o (o : obj) : set id :=
-match o with
-| objnil => nil
-| objπ _ x => [x]
-end.
-
-(* free variables in types *)
-
-Fixpoint fv_set_t (t : type) : set id :=
-match t with
-| tUnion l =>
-  fold_left (fun ids next =>
-               set_union id_eqdec
-                         ids
-                         (fv_set_t next))
-            l
-            nil
-| tλ x t1 p1 p2 o t2 =>
-  setU id_eqdec
-       [[x];
-        (fv_set_t t1);
-        (fv_set_env p1);
-        (fv_set_env p2);
-        (fv_set_o o);
-        (fv_set_t t2)]
-| tPair t1 t2 =>
-  set_union id_eqdec
-            (fv_set_t t1)
-            (fv_set_t t2)
-| _ => nil
-end
-
-with fv_set_f (f:evidence) : set id :=
-match f with
-| fact b t o => set_union id_eqdec (fv_set_t t) (fv_set_o o)
-end
-
-(* free variables in the proposition environment*)
-with fv_set_env (E : env) : set id :=
-match E with
-| envNil => nil
-| envFalse rest => fv_set_env rest
-| envFact f rest => set_union id_eqdec  (fv_set_f f) (fv_set_env rest)
-| envOr lhs rhs => set_union id_eqdec (fv_set_env lhs) (fv_set_env rhs)
-end.
-
-Definition subst_o (o1 o2:obj) (x:id) : obj :=
-match o1 with
-| objnil => objnil
-| objπ pth1 z =>
-  match id_eq x z, o2 with
-  | true, objnil => objnil
-  | true, objπ pth2 y => objπ (pth1 ++ pth2) y
-  | false, _ => o1
-  end
-end.
-
-(* subst+ and - for properties*)
-Fixpoint subst_env (E:env)
-                   (o:obj)
-                   (x:id) : env :=
-match E with
-| envNil => envNil
-| envFalse rest => envFalse (subst_env rest o x)
-| envFact (fact fb ft (objπ pth1 z)) rest => 
-  match id_eq x z, set_mem id_eqdec z (fv_set_t ft) with
-  | true, _ =>
-    match o with
-    | objnil => subst_env rest o x (* tt  - ignore *)
-    | objπ pth2 y  => 
-      envFact (fact fb (subst_t ft o x) (objπ (pth1 ++ pth2) y)) (subst_env rest o x)
-    end
-  | false, false => envFact (fact fb ft (objπ pth1 z)) (subst_env rest o x)
-  | false, true => subst_env rest o x (* tt  - ignore *)
-  end 
-| envFact (fact fb ft objnil) rest => envFact (fact fb ft objnil) (subst_env rest o x)
-| envOr lhs rhs => envOr (subst_env lhs o x) (subst_env rhs o x)
-end
-
-(* type substitution *)
-with subst_t (t:type)
-             (o:obj)
-             (x:id) : type :=
-match t with
-| tUnion l => tUnion (map (fun t' => subst_t t' o x) l)
-| tλ y t1 p1 p2 o2 t2 =>
-  if id_eq x y
-  then t
-  else tλ y
-          (subst_t t1 o x)
-          (subst_env p1 o x)
-          (subst_env p2 o x)
-          (subst_o o2 o x)
-          (subst_t t2 o x)
-| tPair t1 t2 => tPair (subst_t t1 o x)
-                       (subst_t t2 o x)
-| _ => t
-end.
-
 Inductive SubObj : relation obj :=
 | SO_Refl : forall x, SubObj x x
 | SO_Top : forall x, SubObj x objnil.
@@ -297,14 +187,203 @@ Proof.
   inversion contra; crush.
 Defined.
 
-Definition fact_symbol (f:evidence) : option id :=
+Definition fact_symbol (f:fact) : option id :=
 match f with
-| fact b t (objπ pth x) => Some x
+| tfact b t (objπ pth x) => Some x
 | _ => None
 end.
 
-Fixpoint contains_false (E:env) : bool := false. (* TODO *)
+Definition typelookup := obj -> option type.
+Definition emptylookup : typelookup := fun o => None.
+Definition extend_lookup (o:obj) (t:type) (tl:typelookup) : typelookup :=
+(fun o' => if obj_eq o o'
+           then Some t
+           else tl o').
 
+
+Inductive UpdatedEnv : env -> set typelookup -> Prop :=
+| UpEnv_Nil :
+    UpdatedEnv nil nil
+| UpEnv_Cons :
+    forall E senv tlset tl,
+      UpdatedEnv E tlset ->
+      UpdatedSubEnv senv tl ->
+      UpdatedEnv (senv :: E) (tl :: tlset)
+
+with UpdatedSubEnv : set fact -> typelookup -> Prop :=
+| UpSEnv_Nil :
+    UpdatedSubEnv nil emptylookup
+| UpSEnv_Cons :
+    forall sE tl x t b t' pth pth' updated,
+    UpdatedSubEnv sE tl ->
+    tl (objπ pth' x) = Some t' ->
+    UpdatedType t' (b, t) pth updated ->
+    UpdatedSubEnv ((tfact b t (objπ (pth ++ pth') x)) :: sE) 
+                  (extend_lookup (objπ pth' x) updated tl)
+
+with UpdatedType : type -> (bool * type) -> path -> type -> Prop :=
+| UPT : forall t b t' pth t'', UpdatedType t (b, t') pth t''.
+
+| UpT_Car :
+    forall τ1 v pth σ1 updated,
+      Update τ1 v pth updated ->
+      Update (τcons τ1 σ1) v (pth ++ [car]) (τcons updated σ1)
+| UpT_Cdr :
+    forall t1 b t2 pth t3 σ,
+      Update σ ( b , t2 ) pth t3 ->
+      Update (τcons t1 σ) (b, t2) (pth ++ [car]) (τcons t3 σ)
+
+| UpT_T :
+    forall τ σ ε r,
+      Restrict τ σ r ->
+      Update τ (true, σ) ε r
+| UpT_NT :
+    forall τ σ ε r,
+      Remove τ σ r ->
+      Update τ (false, σ) ε r
+
+
+      Restrict τ1 σ1 τ_
+| RES_U_nil :
+    forall σ1,
+      Restrict τ_ σ1 τ_
+| RES_U_cons :
+    forall τ1 τs σ1 r rs,
+      Restrict (τU τs) σ1 (τU rs) ->
+      Restrict τ1 σ1 r ->
+      Restrict (τU (τ1 :: τs)) σ1 (τU (r :: rs))
+| RES_Tsub :
+    forall τ1 σ1,
+      SubType τ1 σ1 ->
+      Restrict τ1 σ1 τ1
+| RES_other :
+    forall τ1 ψ1 ψ1' o1 σ1 ψ2 ψ2' o2,
+      share_types t1 σ1 = true ->
+      ~SubType τ1 σ1 ->
+      isU τ1 = false ->
+      Restrict τ1 σ1 σ1
+with Remove : τ -> τ -> τ -> Prop :=
+| REM_Bot :
+    forall τ1 σ1,
+      SubType τ1 σ1 ->
+      Remove τ1 σ1 τ_
+| REM_U_nil :
+    forall σ1,
+      Remove τ_ σ1 τ_
+| REM_U_cons :
+    forall τ1 τs σ1 r rs,
+      Remove (τU τs) σ1 (τU rs) ->
+      Remove τ1 σ1 r ->
+      Remove (τU (τ1 :: τs)) σ1 (τU (r :: rs))
+| REM_other :
+    forall σ1 τ1,
+      ~SubType τ1 σ1 ->
+      isU τ1 = false ->
+      Remove τ1 σ1 τ1
+
+
+(* Typing Rules *)
+with TypeOf :
+  Γ -> e -> τ -> ψ -> ψ -> obj -> Prop :=
+| Τ_Num :
+    forall E n,
+      TypeOf E (e_num n) τN ψT ψF obj_nil
+| T_Const :
+    forall E c,
+      TypeOf E
+             (e_primop (prim_c c))
+             (c_op_type c)
+             ψT
+             ψF
+             obj_nil
+| T_True :
+    forall E,
+      TypeOf E e_true τt ψT ψF obj_nil
+| T_False :
+    forall E,
+      TypeOf E e_false τf ψF ψT obj_nil
+| T_Var :
+    forall E x t,
+      In (ψτ true t [] x) E ->
+      TypeOf E
+             (e_var x)
+             t
+             (ψτ false τf [] x)
+             (ψτ true τf [] x)
+             (obj_p [] x)
+| T_Abs :
+   forall E s x e t pT pF o,
+     TypeOf ((ψτ true s [] x) :: E) e t pT pF o ->
+     TypeOf E
+            (e_abs x s e)
+            (τλ x s pT pF o t)
+            ψT
+            ψF
+            obj_nil
+| T_App :
+   forall E e x s pTf pFf t pT pF of o e' pT' pF' o',
+     TypeOf E e (τλ x s pTf pFf of t) pT pF o ->
+     TypeOf E e' s pT' pF' o' ->
+     TypeOf E (e_app e e')
+            (subst_t pos t o' x)
+            (subst_p pos pTf o' x)
+            (subst_p pos pFf o' x)
+            (subst_o of o' x)
+| T_If :
+   forall E e1 t1 pT1 pF1 o1 e2 t pT2 pF2 o e3 pT3 pF3,
+     TypeOf E e1 t1 pT1 pF1 o1 ->
+     TypeOf (pT1 :: E) e2 t pT2 pF2 o ->
+     TypeOf (pF1 :: E) e3 t pT3 pF3 o ->
+     TypeOf E (e_if e1 e2 e3) t (ψor pT2 pT3) (ψor pF2 pF3) o
+| T_Subsume :
+   forall E e t pT pF o pT' pF' t' o',
+     TypeOf E e t pT pF o ->
+     Proves (pT :: E) pT' ->
+     Proves (pF :: E) pF' ->
+     SubType t t' ->
+     SubObj o o' ->
+     TypeOf E e t' pT' pF' o'
+| T_Cons :
+   forall E e1 t1 p1 p1' o1 e2 t2 p2 p2' o2,
+     TypeOf E e1 t1 p1 p1' o1 ->
+     TypeOf E e2 t2 p2 p2' o2 ->
+     TypeOf E (e_cons e1 e2) (τcons t1 t2) ψT ψF obj_nil
+| T_Car :
+   forall E e t1 t2 p0 p0' o o' p p' x,
+     TypeOf E e (τcons t1 t2) p0 p0' o ->
+     p = (subst_p pos (ψτ false τf [car] x) o x) ->
+     p' = (subst_p pos (ψτ true τf [car] x) o x) ->
+     o' = subst_o (obj_p [car] x) o x ->
+     TypeOf E (e_app car' e) t1 p p' o'
+| T_Cdr :
+   forall E e t1 t2 p0 p0' o o' p p' x,
+     TypeOf E e (τcons t1 t2) p0 p0' o ->
+     p = (subst_p pos (ψτ false τf [cdr] x) o x) ->
+     p' = (subst_p pos (ψτ true τf [cdr] x) o x) ->
+     o' = subst_o (obj_p [cdr] x) o x ->
+     TypeOf E (e_app cdr' e) t2 p p' o'
+| T_Let :
+   forall E e0 t p0 p0' o0 e1 t' p1 p1' o1 x,
+   TypeOf E e0 t p0 p0' o0 ->
+   TypeOf ((ψτ true t [] x) ::
+           (ψimp (ψτ false τf [] x) p0) ::
+           (ψimp (ψτ true τf [] x) p0') ::
+           E)
+          e1
+          t'
+          p1
+          p1'
+          o1 ->
+   TypeOf E
+          (e_let x e0 e1)
+          (subst_t pos t' o0 x)
+          (subst_p pos p1 o0 x)
+          (subst_p pos p1' o0 x)
+          (subst_o o1 o0 x).
+(* forall τ1 ψ1 ψ1' o1 σ1 ψ2 ψ2' o2,
+~(exists v, (and (TypeOf [] v τ1 ψ1 ψ1' o1)
+(TypeOf [] v σ1 ψ2 ψ2' o2))) ->
+This is a non positive usage of TypeOf.... *)
 
 Inductive Proves : env -> fact -> Prop
 | P_Atom :

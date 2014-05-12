@@ -345,22 +345,6 @@ with NoSharedValues : type -> type -> Prop :=
     NoSharedValues σ (tUnion ts) ->
     NoSharedValues σ t ->
     NoSharedValues σ (tUnion (t :: ts))
-| NSV_λλ_argT :
-    forall x t1 p1s p2s o1 t2 y t3 p3s p4s o2 t4,
-      NoSharedValues t1 t3 ->
-      NoSharedValues (tλ x t1 p1s p2s o1 t2) (tλ y t3 p3s p4s o2 t4)
-| NSV_λλ_resultT :
-    forall x t1 p1s p2s o1 t2 y t3 p3s p4s o2 t4,
-      NoSharedValues t2 t4 ->
-      NoSharedValues (tλ x t1 p1s p2s o1 t2) (tλ y t3 p3s p4s o2 t4)
-| NSV_λλ_false_tps :
-    forall x t1 p1s p2s o1 t2 y t3 p3s p4s o2 t4,
-      ProvesFalse (join_envs p1s p3s) ->
-      NoSharedValues (tλ x t1 p1s p2s o1 t2) (tλ y t3 p3s p4s o2 t4)
-| NSV_λλ_false_fps :
-    forall x t1 p1s p2s o1 t2 y t3 p3s p4s o2 t4,
-      ProvesFalse (join_envs p2s p4s) ->
-      NoSharedValues (tλ x t1 p1s p2s o1 t2) (tλ y t3 p3s p4s o2 t4)
 
 with Restricted : type -> type -> type -> Prop :=
 | RES_Bottom :
@@ -379,8 +363,6 @@ with Restricted : type -> type -> type -> Prop :=
       Restricted (tUnion (t :: ts)) σ (tUnion (restricted :: rs))
 | RES_Sub :
     forall t σ o1 p1t p1f p2t p2f o2,
-      (exists e, TypeOf nilenv e t p1t p1f o1 /\
-                 TypeOf nilenv e σ p2t p2f o2) ->
       (~isUnion t) ->
       Subtype t σ ->
       Restricted t σ t
@@ -418,7 +400,99 @@ with TypeOf :
 | Τ_Num :
     forall E n,
       TypeOf E (expNum n) tNum tt ff objnil
-
+| T_Const :
+    forall E c,
+      TypeOf E
+             (e_primop (prim_c c))
+             (c_op_type c)
+             tt
+             ff
+             objnil
+| T_True :
+    forall E,
+      TypeOf E expTrue tTrue tt ff objnil
+| T_False :
+    forall E,
+      TypeOf E expFalse tFalse ff tt objnil
+| T_Var :
+    forall E x t,
+      Proves E (fact true t (objπ [] x)) ->
+      TypeOf E
+             (expVar x)
+             t
+             [[(fact false tFalse (objπ [] x))]]
+             [[(fact true tFalse (objπ [] x))]]
+             (obj_p [] x)
+(* BOOKMARK *)
+| T_Abs :
+   forall E s x e t pT pF o,
+     TypeOf ((ψτ true s [] x) :: E) e t pT pF o ->
+     TypeOf E
+            (e_abs x s e)
+            (τλ x s pT pF o t)
+            ψT
+            ψF
+            obj_nil
+| T_App :
+   forall E e x s pTf pFf t pT pF of o e' pT' pF' o',
+     TypeOf E e (τλ x s pTf pFf of t) pT pF o ->
+     TypeOf E e' s pT' pF' o' ->
+     TypeOf E (e_app e e')
+            (subst_t pos t o' x)
+            (subst_p pos pTf o' x)
+            (subst_p pos pFf o' x)
+            (subst_o of o' x)
+| T_If :
+   forall E e1 t1 pT1 pF1 o1 e2 t pT2 pF2 o e3 pT3 pF3,
+     TypeOf E e1 t1 pT1 pF1 o1 ->
+     TypeOf (pT1 :: E) e2 t pT2 pF2 o ->
+     TypeOf (pF1 :: E) e3 t pT3 pF3 o ->
+     TypeOf E (e_if e1 e2 e3) t (ψor pT2 pT3) (ψor pF2 pF3) o
+| T_Subsume :
+   forall E e t pT pF o pT' pF' t' o',
+     TypeOf E e t pT pF o ->
+     Proves (pT :: E) pT' ->
+     Proves (pF :: E) pF' ->
+     SubType t t' ->
+     SubObj o o' ->
+     TypeOf E e t' pT' pF' o'
+| T_Cons :
+   forall E e1 t1 p1 p1' o1 e2 t2 p2 p2' o2,
+     TypeOf E e1 t1 p1 p1' o1 ->
+     TypeOf E e2 t2 p2 p2' o2 ->
+     TypeOf E (e_cons e1 e2) (τcons t1 t2) ψT ψF obj_nil
+| T_Car :
+   forall E e t1 t2 p0 p0' o o' p p' x,
+     TypeOf E e (τcons t1 t2) p0 p0' o ->
+     p = (subst_p pos (ψτ false τf [car] x) o x) ->
+     p' = (subst_p pos (ψτ true τf [car] x) o x) ->
+     o' = subst_o (obj_p [car] x) o x ->
+     TypeOf E (e_app car' e) t1 p p' o'
+| T_Cdr :
+   forall E e t1 t2 p0 p0' o o' p p' x,
+     TypeOf E e (τcons t1 t2) p0 p0' o ->
+     p = (subst_p pos (ψτ false τf [cdr] x) o x) ->
+     p' = (subst_p pos (ψτ true τf [cdr] x) o x) ->
+     o' = subst_o (obj_p [cdr] x) o x ->
+     TypeOf E (e_app cdr' e) t2 p p' o'
+| T_Let :
+   forall E e0 t p0 p0' o0 e1 t' p1 p1' o1 x,
+   TypeOf E e0 t p0 p0' o0 ->
+   TypeOf ((ψτ true t [] x) ::
+           (ψimp (ψτ false τf [] x) p0) ::
+           (ψimp (ψτ true τf [] x) p0') ::
+           E)
+          e1
+          t'
+          p1
+          p1'
+          o1 ->
+   TypeOf E
+          (e_let x e0 e1)
+          (subst_t pos t' o0 x)
+          (subst_p pos p1 o0 x)
+          (subst_p pos p1' o0 x)
+          (subst_o o1 o0 x)
 
 (* subtyping *)
 with Subtype : type -> type -> Prop :=
@@ -427,6 +501,10 @@ with Subtype : type -> type -> Prop :=
 (* subtype negation *)
 with NonSubtype : type -> type -> Prop :=
 | NST_temp : forall t1 t2, NonSubtype t1 t2.
+
+
+
+
 
 (* Typing Rules *)
 with TypeOf :

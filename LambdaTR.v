@@ -86,7 +86,7 @@ Notation t_ := (tUnion nil).
 Hint Resolve bool_dec.
 
 Notation env := (set (set fact)).
-Definition nilenv := [[]]
+Definition nilenv := [ (@nil fact) ].
 
 Fixpoint type_eqdec (x y : type) : {x=y}+{x<>y}
 with fact_eqdec (x y : fact) : {x=y}+{x<>y}.
@@ -191,11 +191,22 @@ Proof.
   inversion contra; crush.
 Defined.
 
+
+Inductive SubstitutedProp : obj -> id -> obj -> obj -> Prop :=
+| SubProp :
+    forall p x o' psubtd,
+    SubstitutedProp p x o' psubtd.
+
+
+
 Definition fact_symbol (f:fact) : option id :=
 match f with
 | tfact b t (objπ pth x) => Some x
 | _ => None
 end.
+
+Inductive isUnion : type -> Prop :=
+| isU : forall ts, isUnion (tUnion ts).
 
 Definition typelookup := obj -> option type.
 Definition emptylookup : typelookup := fun o => None.
@@ -203,6 +214,12 @@ Definition extend_lookup (o:obj) (t:type) (tl:typelookup) : typelookup :=
 (fun o' => if obj_eq o o'
            then Some t
            else tl o').
+
+Definition tt := nilenv.
+Definition ff := (@nil (list fact)).
+
+Definition join_envs (e1 e2: env) : env := e1. (* TODO *)
+Definition or_envs (e1 e2: env) : env := e1. (* TODO *)
 
 
 Inductive UpdatedEnv : env -> set typelookup -> Prop :=
@@ -243,51 +260,173 @@ with UpdatedType : type -> (bool * type) -> path -> type -> Prop :=
       Removed t σ removed ->
       UpdatedType t (false, σ) nil removed
 
+with ProvesFalse : env -> Prop :=
+| FalseProven : 
+    forall E, ProvesFalse E
+
+
+with NoSharedValues : type -> type -> Prop :=
+| NSV_NumTrue :
+    NoSharedValues tNum tTrue
+| NSV_NumFalse : 
+    NoSharedValues tNum tFalse
+| NSV_NumBottom :
+    NoSharedValues tNum t_
+| NSV_Numλ :
+    forall x t1 p1s p2s o t2,
+    NoSharedValues tNum (tλ x t1 p1s p2s o t2)
+| NSV_NumPair : 
+    forall t1 t2,
+      NoSharedValues tNum (tPair t1 t2)
+| NSV_TrueNum :
+    NoSharedValues tTrue tNum
+| NSV_TrueFalse : 
+    NoSharedValues tTrue tFalse
+| NSV_TrueBottom :
+    NoSharedValues tTrue t_
+| NSV_Trueλ :
+    forall x t1 p1s p2s o t2,
+    NoSharedValues tTrue (tλ x t1 p1s p2s o t2)
+| NSV_TruePair : 
+    forall t1 t2,
+      NoSharedValues tTrue (tPair t1 t2)
+| NSV_FalseNum :
+    NoSharedValues tFalse tNum
+| NSV_FalseTrue : 
+    NoSharedValues tFalse tTrue
+| NSV_FalseBottom :
+    NoSharedValues tFalse t_
+| NSV_Falseλ :
+    forall x t1 p1s p2s o t2,
+    NoSharedValues tFalse (tλ x t1 p1s p2s o t2)
+| NSV_FalsePair : 
+    forall t1 t2,
+      NoSharedValues tFalse (tPair t1 t2)
+| NSV_λNum :
+    forall x t1 p1s p2s o t2,
+    NoSharedValues (tλ x t1 p1s p2s o t2) tNum
+| NSV_λTrue :
+    forall x t1 p1s p2s o t2,
+    NoSharedValues (tλ x t1 p1s p2s o t2) tTrue
+| NSV_λFalse : 
+    forall x t1 p1s p2s o t2,
+    NoSharedValues (tλ x t1 p1s p2s o t2) tFalse
+| NSV_λBottom :
+    forall x t1 p1s p2s o t2,
+    NoSharedValues (tλ x t1 p1s p2s o t2) t_
+| NSV_λPair : 
+    forall x t1 p1s p2s o t2 t3 t4,
+    NoSharedValues (tλ x t1 p1s p2s o t2) (tPair t3 t4)
+| NSV_PairNum :
+    forall t1 t2,
+    NoSharedValues (tPair t1 t2) tNum
+| NSV_PairTrue :
+    forall t1 t2,
+    NoSharedValues (tPair t1 t2) tTrue
+| NSV_PairFalse : 
+    forall t1 t2,
+    NoSharedValues (tPair t1 t2) tFalse
+| NSV_PairBottom :
+    forall t1 t2,
+    NoSharedValues (tPair t1 t2) t_
+| NSV_Pairλ :
+    forall x t1 p1s p2s o t2 t3 t4,
+    NoSharedValues (tPair t3 t4) (tλ x t1 p1s p2s o t2)
+| NSV_BottomAll :
+    forall t,
+      NoSharedValues t_ t
+| NSV_UnionAll :
+    forall σ t ts,
+    NoSharedValues (tUnion ts) σ ->
+    NoSharedValues σ t ->
+    NoSharedValues (tUnion (t :: ts)) σ
+| NSV_AllUnion :
+    forall σ t ts,
+    NoSharedValues σ (tUnion ts) ->
+    NoSharedValues σ t ->
+    NoSharedValues σ (tUnion (t :: ts))
+| NSV_λλ_argT :
+    forall x t1 p1s p2s o1 t2 y t3 p3s p4s o2 t4,
+      NoSharedValues t1 t3 ->
+      NoSharedValues (tλ x t1 p1s p2s o1 t2) (tλ y t3 p3s p4s o2 t4)
+| NSV_λλ_resultT :
+    forall x t1 p1s p2s o1 t2 y t3 p3s p4s o2 t4,
+      NoSharedValues t2 t4 ->
+      NoSharedValues (tλ x t1 p1s p2s o1 t2) (tλ y t3 p3s p4s o2 t4)
+| NSV_λλ_false_tps :
+    forall x t1 p1s p2s o1 t2 y t3 p3s p4s o2 t4,
+      ProvesFalse (join_envs p1s p3s) ->
+      NoSharedValues (tλ x t1 p1s p2s o1 t2) (tλ y t3 p3s p4s o2 t4)
+| NSV_λλ_false_fps :
+    forall x t1 p1s p2s o1 t2 y t3 p3s p4s o2 t4,
+      ProvesFalse (join_envs p2s p4s) ->
+      NoSharedValues (tλ x t1 p1s p2s o1 t2) (tλ y t3 p3s p4s o2 t4)
+
 with Restricted : type -> type -> type -> Prop :=
 | RES_Bottom :
     forall t σ,
-      (forall e t' p1 p2 e, 
-         TypeOf nilenv e t' p1 p2 o ->
-         ((t <> t') \/ (t <> σ))) ->
+      NoSharedValues t σ ->
       Restricted t σ t_
 | RES_U_nil :
     forall σ,
-      Restricted τ_ σ τ_
+      Restricted t_ σ t_
 | RES_U_cons :
-    forall t ts σ restricted rs,
+    forall t ts σ restricted rs p1t p1f p2t p2f o1 o2,
+      (exists e, TypeOf nilenv e (tUnion (t :: ts)) p1t p1f o1 /\
+                 TypeOf nilenv e σ p2t p2f o2) ->
       Restricted (tUnion ts) σ (tUnion rs) ->
       Restricted t σ restricted ->
       Restricted (tUnion (t :: ts)) σ (tUnion (restricted :: rs))
 | RES_Sub :
-    forall t σ,
-      SubType t σ ->
-      Restrict t σ t
+    forall t σ o1 p1t p1f p2t p2f o2,
+      (exists e, TypeOf nilenv e t p1t p1f o1 /\
+                 TypeOf nilenv e σ p2t p2f o2) ->
+      (~isUnion t) ->
+      Subtype t σ ->
+      Restricted t σ t
 | RES_NonSub :
-    forall t σ,
-      NonSubType t σ ->
-      Restrict t σ σ
+    forall t σ p1t p1f p2t p2f o1 o2,
+      (exists e, TypeOf nilenv e t p1t p1f o1 /\
+                 TypeOf nilenv e σ p2t p2f o2) ->
+      (~isUnion t) ->
+      NonSubtype t σ ->
+      Restricted t σ σ
+
 (* bookmark - finished Restricted, moving on to Removed *)
 with Removed : type -> type -> type -> Prop :=
-| REM_sdf : forall t1 t2 t3, Removed t1 t2 t3.
-
 | REM_Bot :
-    forall τ1 σ1,
-      SubType τ1 σ1 ->
-      Remove τ1 σ1 τ_
+    forall t σ,
+      Subtype t σ ->
+      Removed t σ t_
 | REM_U_nil :
-    forall σ1,
-      Remove τ_ σ1 τ_
+    forall σ,
+      Removed t_ σ t_
 | REM_U_cons :
-    forall τ1 τs σ1 r rs,
-      Remove (τU τs) σ1 (τU rs) ->
-      Remove τ1 σ1 r ->
-      Remove (τU (τ1 :: τs)) σ1 (τU (r :: rs))
-| REM_other :
-    forall σ1 τ1,
-      ~SubType τ1 σ1 ->
-      isU τ1 = false ->
-      Remove τ1 σ1 τ1
+    forall t ts σ r rs,
+      Removed (tUnion ts) σ (tUnion rs) ->
+      Removed t σ r ->
+      Removed (tUnion (t :: ts)) σ (tUnion (r :: rs))
+| REM_nop :
+    forall t σ,
+      NonSubtype t σ -> 
+      (~isUnion t) ->
+      Removed t σ t
 
+(* Typing Rules *)
+with TypeOf :
+  env -> exp -> type -> env -> env -> obj -> Prop :=
+| Τ_Num :
+    forall E n,
+      TypeOf E (expNum n) tNum tt ff objnil
+
+
+(* subtyping *)
+with Subtype : type -> type -> Prop :=
+| ST_temp : forall t1 t2, Subtype t1 t2
+
+(* subtype negation *)
+with NonSubtype : type -> type -> Prop :=
+| NST_temp : forall t1 t2, NonSubtype t1 t2.
 
 (* Typing Rules *)
 with TypeOf :

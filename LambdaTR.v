@@ -652,8 +652,34 @@ with NonSubtype : type -> type -> Prop :=
 
 (* subtype negation *)
 with Proves : env -> env -> Prop :=
-| P_all : forall E1 E2, Proves E1 E2.
+| P_all : forall E1 E2, Proves E1 E2
 
+with ProvesTyping : lookupset -> bool -> type -> obj -> Prop :=
+| PT_Atom :
+    forall (tl:typelookup) t o t',
+      (tl o) = Some t' ->
+      Subtype t t' ->
+      ProvesTyping (tls_atom tl) true t o
+| PT_Cons :
+    forall tl tls t' t o,
+      (tl o) = Some t' ->
+      Subtype t t' ->
+      ProvesTyping tls true t o ->
+      ProvesTyping (tls_cons tl tls) true t o
+| PF_Atom :
+    forall tl t o t',
+      (tl o) = Some t' ->
+      NonSubtype t t' ->
+      ProvesTyping (tls_atom tl) false t o
+| PF_Cons_prev :
+    forall tl tls t o,
+      ProvesTyping tls false t o ->
+      ProvesTyping (tls_cons tl tls) false t o
+| PF_Cons_new :
+    forall tl tls t' t o,
+      (tl o) = Some t' ->
+      NonSubtype t t' ->
+      ProvesTyping (tls_cons tl tls) false t o.
 
 
 
@@ -662,10 +688,10 @@ with Proves : env -> env -> Prop :=
 (TypeOf [] v σ1 ψ2 ψ2' o2))) ->
 This is a non positive usage of TypeOf.... *)
 
-Inductive Proves : env -> fact -> Prop
+Inductive Proves : env -> bool -> type -> obj -> Prop
 | P_Atom :
     forall f E,
-      Proves (Γfact f E) f
+      Proves (envfact f E) f
 | P_False :
     forall f E,
       Proves (Γfalse E) f

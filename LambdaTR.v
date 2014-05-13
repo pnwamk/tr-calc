@@ -367,6 +367,21 @@ match l1 with
 | tls_cons tl tls => (tls_cons tl (tls_app tls l2))
 end.
 
+Inductive FalseEnv : env -> Prop :=
+| FE_False :
+    forall E,
+          FalseEnv (envFalse E)
+| FE_Fact : 
+    forall E b t o,
+      FalseEnv E ->
+      FalseEnv (envFact b t o E)
+| FE_Or : 
+    forall E1 E2,
+      FalseEnv E1 ->
+      FalseEnv E2 ->
+      FalseEnv (envOr E1 E2).
+           
+
 Inductive UpdatedEnv : env -> lookupset -> Prop :=
 | UpEnv_Empty :
     UpdatedEnv envEmpty (tls_atom emptylookup)
@@ -643,15 +658,44 @@ with TypeOf : env -> exp -> type -> env -> env -> obj -> Prop :=
             (subst_o o1 o0 x)
 
 (* subtyping *)
-with Subtype : type -> type -> Prop :=
-| ST_temp : forall t1 t2, Subtype t1 t2
+with Subtype : relation type :=
+| S_Refl : forall x, Subtype x x
+| S_Top : forall x, Subtype x tTop
+| S_UnionSuper_l :
+    forall t t1 t2,
+      Subtype t t1 ->
+      Subtype t (tUnion t1 t2)
+| S_UnionSuper_r :
+    forall t t1 t2,
+      Subtype t t2 ->
+      Subtype t (tUnion t1 t2)
+| S_UnionSub :
+    forall t t1 t2,
+      Subtype t1 t ->
+      Subtype t2 t ->
+      Subtype (tUnion t1 t2) t
+| S_Fun :
+    forall x t t' σ σ' tE tE' fE fE' o o',
+      Subtype t t' ->
+      Subtype σ' σ ->
+      Proves tE tE' ->
+      Proves fE fE' ->
+      SubObj o o' ->
+      Subtype (tλ x σ tE fE o t)
+              (tλ x σ' tE' fE' o' t')
+| S_Pair :
+    forall t1 t2 t1' t2',
+      Subtype t1 t1' ->
+      Subtype t2 t2' ->
+      Subtype (tPair t1 t2) (tPair t1' t2')
+
 
 (* subtype negation *)
 with NonSubtype : type -> type -> Prop :=
 | NST_temp : forall t1 t2, NonSubtype t1 t2
 
 (* subtype negation *)
-with Proves : env -> env -> Prop :=
+with Proves : relation env  :=
 | PAll_empty :
     forall E,
       Proves E envEmpty
@@ -661,11 +705,11 @@ with Proves : env -> env -> Prop :=
       UpdatedEnv E1 tls ->
       ProvesTyping tls b f o ->
       Proves E1 (envFact b f o E2)
-| PΓ_Or_l :
+| P_Or_l :
     forall E E1 E2,
       Proves E E1 ->
       Proves E (envOr E1 E2)
-| PΓ_Or_r :
+| P_Or_r :
     forall E E1 E2,
       Proves E E2 ->
       Proves E (envOr E1 E2)

@@ -699,43 +699,4 @@ with ProvesTyping : lookupset -> bool -> type -> obj -> Prop :=
 
 
 
-(* forall τ1 ψ1 ψ1' o1 σ1 ψ2 ψ2' o2,
-~(exists v, (and (TypeOf [] v τ1 ψ1 ψ1' o1)
-(TypeOf [] v σ1 ψ2 ψ2' o2))) ->
-This is a non positive usage of TypeOf.... *)
-
-Inductive Proves : env -> bool -> type -> obj -> Prop
-| P_Atom :
-    forall f E,
-      Proves (envfact f E) f
-| P_False :
-    forall f E,
-      Proves (Γfalse E) f
-| P_Cons :
-    forall f f' E,
-      Proves E f' ->
-      Proves (Γfact f E) f'
-| P_Or :
-    forall E1 E2 f,
-      Proves E1 f ->
-      Proves E2 f ->
-      Proves (Γor E1 E2) f
-| P_Sub :
-    forall t σ E pth x,
-      Subtype t σ ->
-      Proves E (fτ true t (objπ pth x)) ->
-      Proves E (fτ true σ (objπ pth x))
-| P_SubNeg :
-    forall E t σ pth x,
-      Subtype t σ ->
-      Proves E (fτ false σ (objπ pth x)) ->
-      Proves E (fτ false t (objπ pth x))
-| P_Update :
-    forall E t1 pth1 x b σ pth2 t2,
-      Proves E (fτ true t1 (objπ pth1 x)) ->
-      Proves E (fτ b σ (objπ (pth2 ++ pth1) x)) ->
-      Update t1 (b, σ) pth2 t2 ->
-      Proves E (fτ b t2 (objπ pth1 x))
-
-
 End LTR.

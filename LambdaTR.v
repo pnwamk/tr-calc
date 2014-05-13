@@ -6,6 +6,7 @@ Require Import ListSet.
 Require Import Arith.
 Require Import Relations.
 Require Import Bool.
+Require Import Coq.Program.Wf.
 
 Import ListNotations.
 Open Scope list_scope.
@@ -67,34 +68,143 @@ Inductive type : Type :=
 | tNum : type (* Numbers *)
 | tTrue : type (* True *)
 | tFalse : type (* False *)
-| tUnion : list type -> type (* union *)
+| tBottom : type
+| tUnion : type -> type -> type (* union *)
 | tλ : id -> 
        type -> 
-       (set (set fact)) -> 
-       (set (set fact)) -> 
+       env -> 
+       env -> 
        obj -> 
        type -> type (* function *)
 | tPair :  type -> type -> type (* cons pair *)
+with env : Type :=
+| envEmpty : env
+| envFalse : env -> env
+| envFact  : bool -> type -> obj -> env -> env
+| envOr    : env -> env -> env.
+Hint Constructors type env.
 
-with fact : Type :=
-| tfact : bool -> type -> obj -> fact.
-Hint Constructors type fact.
-
-Notation tB := (tUnion tTrue tFalse).
-Notation t_ := (tUnion nil).
+Notation tBool := (tUnion tTrue tFalse).
 
 Hint Resolve bool_dec.
 
-Notation env := (set (set fact)).
-Definition nilenv := [ (@nil fact) ].
-
 Fixpoint type_eqdec (x y : type) : {x=y}+{x<>y}
-with fact_eqdec (x y : fact) : {x=y}+{x<>y}.
+with env_eqdec (x y : env) : {x=y}+{x<>y}.
 Proof.
   decide equality.
   decide equality.
 Defined.
-Hint Resolve type_eqdec fact_eqdec.
+Hint Resolve type_eqdec env_eqdec.
+
+Fixpoint env_app (Γ1 Γ2: env) : env :=
+match Γ1 with
+| envEmpty => Γ2
+| envFalse rest => envFalse (env_app rest Γ2)
+| envFact b t o rest => envFact b t o (env_app rest Γ2)
+| envOr lhs rhs => envOr (env_app lhs Γ2) (env_app rhs Γ2)
+end.
+
+
+Fixpoint setU {X:Type} (dec : forall x y : X, {x=y} + {x<>y})
+                       (l:list (set X)) : set X :=
+match l with
+| nil => nil
+| x :: xs => set_union dec x (setU dec xs)
+end.
+
+
+(* free variables in objects *)
+Definition fv_set_o (o : obj) : set id :=
+match o with
+| objnil => nil
+| objπ _ x => [x]
+end.
+
+(* free variables in types *)
+
+Fixpoint fv_set_t (t : type) : set id :=
+match t with
+| tUnion t1 t2 =>
+  set_union id_eqdec (fv_set_t t1) (fv_set_t t2)
+| tλ x t1 p1 p2 o t2 =>
+  setU id_eqdec
+       [[x];
+        (fv_set_t t1);
+        (fv_set_env p1);
+        (fv_set_env p2);
+        (fv_set_o o);
+        (fv_set_t t2)]
+| tPair t1 t2 =>
+  set_union id_eqdec
+            (fv_set_t t1)
+            (fv_set_t t2)
+| _ => nil
+end
+
+(* free variables in the proposition environment*)
+with fv_set_env (E : env) : set id :=
+match E with
+| envEmpty => nil
+| envFalse rest => fv_set_env rest
+| envFact b t o rest => setU id_eqdec 
+                             [(fv_set_t t);
+                              (fv_set_o o);
+                              (fv_set_env rest)]
+| envOr lhs rhs => set_union id_eqdec (fv_set_env lhs) (fv_set_env rhs)
+end.
+
+Definition subst_o (o1 o2:obj) (x:id) : obj :=
+match o1 with
+| objnil => objnil
+| objπ pth1 z =>
+  match id_eq x z, o2 with
+  | true, objnil => objnil
+  | true, objπ pth2 y => objπ (pth1 ++ pth2) y
+  | false, _ => o1
+  end
+end.
+
+(* subst+ and - for properties*)
+Fixpoint subst_env (E:env)
+                   (o:obj)
+                   (x:id) : env :=
+match E with
+| envEmpty => envEmpty
+| envFalse rest => envFalse (subst_env rest o x)
+| envFact fb ft (objπ pth1 z) rest =>
+  match id_eq x z, set_mem id_eqdec z (fv_set_t ft) with
+  | true, _ =>
+    match o with
+    | objnil => subst_env rest o x (* tt - ignore *)
+    | objπ pth2 y =>
+      envFact fb (subst_t ft o x) (objπ (pth1 ++ pth2) y) (subst_env rest o x)
+    end
+  | false, false => envFact fb ft (objπ pth1 z) (subst_env rest o x)
+  | false, true => subst_env rest o x (* tt - ignore *)
+  end
+| envFact fb ft objnil rest => envFact fb ft objnil (subst_env rest o x)
+| envOr lhs rhs => envOr (subst_env lhs o x) (subst_env rhs o x)
+end
+
+(* type substitution *)
+with subst_t (t:type)
+             (o:obj)
+             (x:id) : type :=
+match t with
+| tUnion t1 t2 => tUnion (subst_t t1 o x) (subst_t t2 o x)
+| tλ y t1 p1 p2 o2 t2 =>
+  if id_eq x y
+  then t
+  else tλ y
+          (subst_t t1 o x)
+          (subst_env p1 o x)
+          (subst_env p2 o x)
+          (subst_o o2 o x)
+          (subst_t t2 o x)
+| tPair t1 t2 => tPair (subst_t t1 o x)
+                       (subst_t t2 o x)
+| _ => t
+end.
 
 (* Constant Operations *)
 Inductive c_op : Type :=
@@ -168,13 +278,6 @@ Proof. decide equality. Defined.
 Definition exp_eq (x y : exp) : bool :=
 if exp_eqdec x y then true else false.
 
-Fixpoint setU {X:Type} (dec : forall x y : X, {x=y} + {x<>y})
-                       (l:list (set X)) : set X :=
-match l with
-| nil => nil
-| x :: xs => set_union dec x (setU dec xs)
-end.
-
 Inductive SubObj : relation obj :=
 | SO_Refl : forall x, SubObj x x
 | SO_Top : forall x, SubObj x objnil.
@@ -191,56 +294,113 @@ Proof.
   inversion contra; crush.
 Defined.
 
-
-Inductive SubstitutedProp : obj -> id -> obj -> obj -> Prop :=
-| SubProp :
-    forall p x o' psubtd,
-    SubstitutedProp p x o' psubtd.
+Inductive isUnion : type -> Prop :=
+| isU : forall t1 t2, isUnion (tUnion t1 t2).
 
 
-
-Definition fact_symbol (f:fact) : option id :=
-match f with
-| tfact b t (objπ pth x) => Some x
-| _ => None
+Fixpoint typestructuralsize (t:type) : nat :=
+match t with
+| tTop => 1
+| tBottom => 1
+| tNum => 1
+| tTrue => 1
+| tFalse => 1
+| tUnion t1 t2 => 
+  1 + (typestructuralsize t1) + (typestructuralsize t2)
+| tλ x t1 e1 e2 o t2 => 1
+| tPair t1 t2 => 1 + (typestructuralsize t1) + (typestructuralsize t2)
 end.
 
-Inductive isUnion : type -> Prop :=
-| isU : forall ts, isUnion (tUnion ts).
+Program Fixpoint common_subtype (type1 type2:type) 
+        {measure ((typestructuralsize type1) + (typestructuralsize type2))} : bool := 
+match type1, type2 with
+| tTop , _ => true
+| _, tTop => true
+| tBottom, _ => false
+| _, tBottom => false
+| tNum,  tNum => true
+| tNum, _ => false
+| tTrue,  tTrue => true
+| tTrue, _ => false 
+| tFalse,  tFalse => true
+| tFalse, _ => false 
+| tUnion t1 t2, tUnion t3 t4 =>
+  orb (common_subtype t1 t3)
+      (orb (common_subtype t1 t4)
+           (orb (common_subtype t2 t3)
+                (common_subtype t2 t4)))           
+| tUnion t1 t2, _ => orb (common_subtype t1 type2) (common_subtype t2 type2)
+| _, tUnion t1 t2 => orb (common_subtype t1 type1) (common_subtype t2 type1)
+| tλ _ _ _ _ _ _, tλ _ _ _ _ _ _  => true
+| tλ _ _ _ _ _ _, _ => false
+| tPair t1 t2, tPair t3 t4 => andb (common_subtype t1 t3) 
+                                   (common_subtype t2 t4)
+| tPair _ _, _ => false
+end.
+Solve Obligations using crush.
+(* 
+TODO - We must prove all types have a principal type
+   if we're going to use this for Removed *)
 
 Definition typelookup := obj -> option type.
 Definition emptylookup : typelookup := fun o => None.
+
+Definition falselookup : typelookup := (fun o : obj => Some tBottom).
+
 Definition extend_lookup (o:obj) (t:type) (tl:typelookup) : typelookup :=
 (fun o' => if obj_eq o o'
            then Some t
            else tl o').
 
-Definition tt := nilenv.
-Definition ff := (@nil (list fact)).
+Definition tt := envEmpty.
+Definition ff := envFalse envEmpty.
 
-Definition join_envs (e1 e2: env) : env := e1. (* TODO *)
-Definition or_envs (e1 e2: env) : env := e1. (* TODO *)
+Notation "(var x )" := (objπ [] x).
 
+Inductive lookupset : Type :=
+| tls_atom : typelookup -> lookupset
+| tls_cons : typelookup -> lookupset -> lookupset.
 
-Inductive UpdatedEnv : env -> set typelookup -> Prop :=
-| UpEnv_Nil :
-    UpdatedEnv nil nil
-| UpEnv_Cons :
-    forall E senv tlset tl,
-      UpdatedEnv E tlset ->
-      UpdatedSubEnv senv tl ->
-      UpdatedEnv (senv :: E) (tl :: tlset)
+Fixpoint tls_app (l1 l2:lookupset) : lookupset :=
+match l1 with
+| tls_atom tl => (tls_cons tl l2)
+| tls_cons tl tls => (tls_cons tl (tls_app tls l2))
+end.
 
-with UpdatedSubEnv : set fact -> typelookup -> Prop :=
-| UpSEnv_Nil :
-    UpdatedSubEnv nil emptylookup
-| UpSEnv_Cons :
-    forall sE tl x t b t' pth pth' updated,
-    UpdatedSubEnv sE tl ->
-    tl (objπ pth' x) = Some t' ->
-    UpdatedType t' (b, t) pth updated ->
-    UpdatedSubEnv ((tfact b t (objπ (pth ++ pth') x)) :: sE) 
-                  (extend_lookup (objπ pth' x) updated tl)
+Inductive UpdatedEnv : env -> lookupset -> Prop :=
+| UpEnv_Empty :
+    UpdatedEnv envEmpty (tls_atom emptylookup)
+| UpEnv_False :
+    forall E,
+      UpdatedEnv (envFalse E) (tls_atom falselookup)
+| UpEnv_Fact :
+    forall E tlset b t o tlset',
+    UpdatedEnv E tlset ->
+    UpdatedLookupSet b t o tlset tlset' ->
+    UpdatedEnv (envFact b t o E) tlset' 
+| UpEnv_Or :
+    forall E1 E2 tlset1 tlset2, 
+    UpdatedEnv E1 tlset1 ->
+    UpdatedEnv E2 tlset2 ->
+    UpdatedEnv (envOr E1 E2) (tls_app tlset1 tlset2) 
+
+with UpdatedLookupSet : bool -> type -> obj -> lookupset -> lookupset -> Prop :=
+| UpLUS_Atom :
+    forall b t o tl tl',
+      UpdatedLookup b t o tl tl' ->
+      UpdatedLookupSet b t o (tls_atom tl) (tls_atom tl')                    
+| UpLUS_cons :
+    forall b t o tl tl' tls tls',
+      UpdatedLookupSet b t o tls tls' ->
+      UpdatedLookup b t o tl tl' ->
+      UpdatedLookupSet b t o (tls_cons tl tls) (tls_cons tl' tls')                    
+
+with UpdatedLookup : bool -> type -> obj -> typelookup -> typelookup -> Prop :=
+| UpLU :
+    forall b t t' pth pth' x tl updated,
+      tl (objπ pth' x) = Some t' ->
+      UpdatedType t' (b, t) pth updated ->
+      UpdatedLookup b t (objπ (pth ++ pth') x) tl (extend_lookup (objπ pth' x) updated tl)
 
 with UpdatedType : type -> (bool * type) -> path -> type -> Prop :=
 | UpT_Car :
@@ -260,134 +420,53 @@ with UpdatedType : type -> (bool * type) -> path -> type -> Prop :=
       Removed t σ removed ->
       UpdatedType t (false, σ) nil removed
 
-with ProvesFalse : env -> Prop :=
-| FalseProven : 
-    forall E, ProvesFalse E
 
-
-with NoSharedValues : type -> type -> Prop :=
-| NSV_NumTrue :
-    NoSharedValues tNum tTrue
-| NSV_NumFalse : 
-    NoSharedValues tNum tFalse
-| NSV_NumBottom :
-    NoSharedValues tNum t_
-| NSV_Numλ :
-    forall x t1 p1s p2s o t2,
-    NoSharedValues tNum (tλ x t1 p1s p2s o t2)
-| NSV_NumPair : 
-    forall t1 t2,
-      NoSharedValues tNum (tPair t1 t2)
-| NSV_TrueNum :
-    NoSharedValues tTrue tNum
-| NSV_TrueFalse : 
-    NoSharedValues tTrue tFalse
-| NSV_TrueBottom :
-    NoSharedValues tTrue t_
-| NSV_Trueλ :
-    forall x t1 p1s p2s o t2,
-    NoSharedValues tTrue (tλ x t1 p1s p2s o t2)
-| NSV_TruePair : 
-    forall t1 t2,
-      NoSharedValues tTrue (tPair t1 t2)
-| NSV_FalseNum :
-    NoSharedValues tFalse tNum
-| NSV_FalseTrue : 
-    NoSharedValues tFalse tTrue
-| NSV_FalseBottom :
-    NoSharedValues tFalse t_
-| NSV_Falseλ :
-    forall x t1 p1s p2s o t2,
-    NoSharedValues tFalse (tλ x t1 p1s p2s o t2)
-| NSV_FalsePair : 
-    forall t1 t2,
-      NoSharedValues tFalse (tPair t1 t2)
-| NSV_λNum :
-    forall x t1 p1s p2s o t2,
-    NoSharedValues (tλ x t1 p1s p2s o t2) tNum
-| NSV_λTrue :
-    forall x t1 p1s p2s o t2,
-    NoSharedValues (tλ x t1 p1s p2s o t2) tTrue
-| NSV_λFalse : 
-    forall x t1 p1s p2s o t2,
-    NoSharedValues (tλ x t1 p1s p2s o t2) tFalse
-| NSV_λBottom :
-    forall x t1 p1s p2s o t2,
-    NoSharedValues (tλ x t1 p1s p2s o t2) t_
-| NSV_λPair : 
-    forall x t1 p1s p2s o t2 t3 t4,
-    NoSharedValues (tλ x t1 p1s p2s o t2) (tPair t3 t4)
-| NSV_PairNum :
-    forall t1 t2,
-    NoSharedValues (tPair t1 t2) tNum
-| NSV_PairTrue :
-    forall t1 t2,
-    NoSharedValues (tPair t1 t2) tTrue
-| NSV_PairFalse : 
-    forall t1 t2,
-    NoSharedValues (tPair t1 t2) tFalse
-| NSV_PairBottom :
-    forall t1 t2,
-    NoSharedValues (tPair t1 t2) t_
-| NSV_Pairλ :
-    forall x t1 p1s p2s o t2 t3 t4,
-    NoSharedValues (tPair t3 t4) (tλ x t1 p1s p2s o t2)
-| NSV_BottomAll :
-    forall t,
-      NoSharedValues t_ t
-| NSV_UnionAll :
-    forall σ t ts,
-    NoSharedValues (tUnion ts) σ ->
-    NoSharedValues σ t ->
-    NoSharedValues (tUnion (t :: ts)) σ
-| NSV_AllUnion :
-    forall σ t ts,
-    NoSharedValues σ (tUnion ts) ->
-    NoSharedValues σ t ->
-    NoSharedValues σ (tUnion (t :: ts))
-
+(* TODO: update restricted/removed w/ new Union def *)
 with Restricted : type -> type -> type -> Prop :=
 | RES_Bottom :
     forall t σ,
-      NoSharedValues t σ ->
-      Restricted t σ t_
-| RES_U_nil :
+      common_subtype t σ = false ->
+      Restricted t σ tBottom
+| RES_Bottom_Left :
     forall σ,
-      Restricted t_ σ t_
-| RES_U_cons :
-    forall t ts σ restricted rs p1t p1f p2t p2f o1 o2,
-      (exists e, TypeOf nilenv e (tUnion (t :: ts)) p1t p1f o1 /\
-                 TypeOf nilenv e σ p2t p2f o2) ->
-      Restricted (tUnion ts) σ (tUnion rs) ->
-      Restricted t σ restricted ->
-      Restricted (tUnion (t :: ts)) σ (tUnion (restricted :: rs))
+      Restricted tBottom σ tBottom
+| RES_Bottom_Right :
+    forall σ,
+      Restricted σ tBottom tBottom
+| RES_U :
+    forall t1 t2 σ t1' t2',
+      common_subtype (tUnion t1 t2) σ = true ->
+      Restricted t1 σ t1' ->
+      Restricted t2 σ t2' ->
+      Restricted (tUnion t1 t2) σ (tUnion t1' t2')
 | RES_Sub :
-    forall t σ o1 p1t p1f p2t p2f o2,
+    forall t σ,
       (~isUnion t) ->
       Subtype t σ ->
       Restricted t σ t
 | RES_NonSub :
-    forall t σ p1t p1f p2t p2f o1 o2,
-      (exists e, TypeOf nilenv e t p1t p1f o1 /\
-                 TypeOf nilenv e σ p2t p2f o2) ->
+    forall t σ,
+      common_subtype t σ = true ->      
       (~isUnion t) ->
       NonSubtype t σ ->
       Restricted t σ σ
 
-(* bookmark - finished Restricted, moving on to Removed *)
 with Removed : type -> type -> type -> Prop :=
 | REM_Bot :
     forall t σ,
       Subtype t σ ->
-      Removed t σ t_
-| REM_U_nil :
+      Removed t σ tBottom
+| REM_Bottom_Left :
     forall σ,
-      Removed t_ σ t_
-| REM_U_cons :
-    forall t ts σ r rs,
-      Removed (tUnion ts) σ (tUnion rs) ->
-      Removed t σ r ->
-      Removed (tUnion (t :: ts)) σ (tUnion (r :: rs))
+      Removed tBottom σ tBottom
+| REM_Bottom_Right :
+    forall t,
+      Removed t tBottom t
+| REM_Union :
+    forall t1 t2 t1' t2' σ,
+      Removed t1 σ t1' ->
+      Removed t2 σ t2' ->
+      Removed (tUnion t1 t2) σ (tUnion t1' t2')
 | REM_nop :
     forall t σ,
       NonSubtype t σ -> 
@@ -395,104 +474,173 @@ with Removed : type -> type -> type -> Prop :=
       Removed t σ t
 
 (* Typing Rules *)
-with TypeOf :
-  env -> exp -> type -> env -> env -> obj -> Prop :=
+with TypeOf : env -> exp -> type -> env -> env -> obj -> Prop :=
 | Τ_Num :
     forall E n,
       TypeOf E (expNum n) tNum tt ff objnil
-| T_Const :
-    forall E c,
-      TypeOf E
-             (e_primop (prim_c c))
-             (c_op_type c)
-             tt
-             ff
-             objnil
+| T_Const_isnum :
+  forall E x,
+    TypeOf E 
+           isnum' 
+           (tλ x
+               tTop
+               (envFact true tNum (var x) envEmpty)
+               (envFact false tNum (var x) envEmpty)
+               objnil
+               tBool)
+           tt
+           ff
+           objnil
+| T_Const_isproc :
+  forall E x,
+    TypeOf E 
+           isproc' 
+           (tλ x
+               tTop
+               (envFact true (tλ x tBottom tt ff objnil tTop) (var x) envEmpty)
+               (envFact false (tλ x tBottom tt ff objnil tTop) (var x) envEmpty)
+               objnil
+               tBool)
+           tt
+           ff
+           objnil
+| T_Const_isbool :
+  forall E x,
+    TypeOf E 
+           isbool' 
+           (tλ x
+               tTop
+               (envFact true tBool (var x) envEmpty)
+               (envFact false tBool (var x) envEmpty)
+               objnil
+               tBool)
+           tt
+           ff
+           objnil
+| T_Const_iscons :
+  forall E x,
+    TypeOf E 
+           iscons' 
+           (tλ x
+               tTop
+               (envFact true (tPair tTop tTop) (var x) envEmpty)
+               (envFact false (tPair tTop tTop) (var x) envEmpty)
+               objnil
+               tBool)
+           tt
+           ff
+           objnil
+| T_Const_add1 :
+  forall E x,
+    TypeOf E 
+           add1' 
+           (tλ x
+               tTop
+               tt
+               tt
+               objnil
+               tNum)
+           tt
+           ff
+           objnil
+| T_Const_iszero :
+  forall E x,
+    TypeOf E 
+           iszero' 
+           (tλ x
+               tTop
+               tt
+               tt
+               objnil
+               tNum)
+           tt
+           ff
+           objnil
 | T_True :
     forall E,
-      TypeOf E expTrue tTrue tt ff objnil
+      TypeOf E expT tTrue tt ff objnil
 | T_False :
     forall E,
-      TypeOf E expFalse tFalse ff tt objnil
+      TypeOf E expF tFalse ff tt objnil
 | T_Var :
     forall E x t,
-      Proves E (fact true t (objπ [] x)) ->
+      Proves E (envFact true t (var x) envEmpty) ->
       TypeOf E
              (expVar x)
              t
-             [[(fact false tFalse (objπ [] x))]]
-             [[(fact true tFalse (objπ [] x))]]
-             (obj_p [] x)
-(* BOOKMARK *)
+             (envFact false tFalse (var x) envEmpty)
+             (envFact true tFalse (var x) envEmpty)
+             (var x)
 | T_Abs :
-   forall E s x e t pT pF o,
-     TypeOf ((ψτ true s [] x) :: E) e t pT pF o ->
+   forall E σ x e t tE fE o,
+     TypeOf (envFact true σ (var x) E) e t tE fE o ->
      TypeOf E
-            (e_abs x s e)
-            (τλ x s pT pF o t)
-            ψT
-            ψF
-            obj_nil
+            (expAbs x σ e)
+            (tλ x σ tE fE o t)
+            tt
+            ff
+            objnil
 | T_App :
-   forall E e x s pTf pFf t pT pF of o e' pT' pF' o',
-     TypeOf E e (τλ x s pTf pFf of t) pT pF o ->
-     TypeOf E e' s pT' pF' o' ->
-     TypeOf E (e_app e e')
-            (subst_t pos t o' x)
-            (subst_p pos pTf o' x)
-            (subst_p pos pFf o' x)
-            (subst_o of o' x)
+   forall E e x σ tEλ fEλ oλ t tE fE o e' tE' fE' o',
+     TypeOf E e (tλ x σ tEλ fEλ oλ t) tE fE o ->
+     TypeOf E e' σ tE' fE' o' ->
+     TypeOf E (expApp e e') (* BOOKMARK *)
+            (subst_t t o' x)
+            (subst_env tEλ o' x)
+            (subst_env fEλ o' x)
+            (subst_o oλ o' x)
 | T_If :
-   forall E e1 t1 pT1 pF1 o1 e2 t pT2 pF2 o e3 pT3 pF3,
-     TypeOf E e1 t1 pT1 pF1 o1 ->
-     TypeOf (pT1 :: E) e2 t pT2 pF2 o ->
-     TypeOf (pF1 :: E) e3 t pT3 pF3 o ->
-     TypeOf E (e_if e1 e2 e3) t (ψor pT2 pT3) (ψor pF2 pF3) o
+   forall E e1 t1 tE1 fE1 o1 e2 t tE2 fE2 o e3 tE3 fE3,
+     TypeOf E e1 t1 tE1 fE1 o1 ->
+     TypeOf (env_app E tE1) e2 t tE2 fE2 o ->
+     TypeOf (env_app E fE1) e3 t tE3 fE3 o ->
+     TypeOf E (expIf e1 e2 e3) t (envOr tE2 tE3) (envOr fE2 fE3) o
 | T_Subsume :
-   forall E e t pT pF o pT' pF' t' o',
-     TypeOf E e t pT pF o ->
-     Proves (pT :: E) pT' ->
-     Proves (pF :: E) pF' ->
-     SubType t t' ->
+   forall E e t tE fE o tE' fE' t' o',
+     TypeOf E e t tE fE o ->
+     Proves (env_app E tE) tE' ->
+     Proves (env_app E fE) fE' ->
+     Subtype t t' ->
      SubObj o o' ->
-     TypeOf E e t' pT' pF' o'
+     TypeOf E e t' tE' fE' o'
 | T_Cons :
-   forall E e1 t1 p1 p1' o1 e2 t2 p2 p2' o2,
-     TypeOf E e1 t1 p1 p1' o1 ->
-     TypeOf E e2 t2 p2 p2' o2 ->
-     TypeOf E (e_cons e1 e2) (τcons t1 t2) ψT ψF obj_nil
+   forall E e1 t1 tE1 fE1 o1 e2 t2 tE2 fE2 o2,
+     TypeOf E e1 t1 tE1 fE1 o1 ->
+     TypeOf E e2 t2 tE2 fE2 o2 ->
+     TypeOf E (expCons e1 e2) (tPair t1 t2) tt ff objnil
 | T_Car :
-   forall E e t1 t2 p0 p0' o o' p p' x,
-     TypeOf E e (τcons t1 t2) p0 p0' o ->
-     p = (subst_p pos (ψτ false τf [car] x) o x) ->
-     p' = (subst_p pos (ψτ true τf [car] x) o x) ->
-     o' = subst_o (obj_p [car] x) o x ->
-     TypeOf E (e_app car' e) t1 p p' o'
+   forall E e t1 t2 tE0 fE0 o o' tE fE x,
+     TypeOf E e (tPair t1 t2) tE0 fE0 o ->
+     tE = (subst_env (envFact false tFalse (objπ [car] x) envEmpty) o x) ->
+     fE = (subst_env (envFact true tFalse (objπ [car] x) envEmpty) o x) ->
+     o' = subst_o (objπ [car] x) o x ->
+     TypeOf E (expApp car' e) t1 tE fE o'
 | T_Cdr :
-   forall E e t1 t2 p0 p0' o o' p p' x,
-     TypeOf E e (τcons t1 t2) p0 p0' o ->
-     p = (subst_p pos (ψτ false τf [cdr] x) o x) ->
-     p' = (subst_p pos (ψτ true τf [cdr] x) o x) ->
-     o' = subst_o (obj_p [cdr] x) o x ->
-     TypeOf E (e_app cdr' e) t2 p p' o'
+   forall E e t1 t2 tE0 fE0 o o' tE fE x,
+     TypeOf E e (tPair t1 t2) tE0 fE0 o ->
+     tE = (subst_env (envFact false tFalse (objπ [cdr] x) envEmpty) o x) ->
+     fE = (subst_env (envFact true tFalse (objπ [cdr] x) envEmpty) o x) ->
+     o' = subst_o (objπ [cdr] x) o x ->
+     TypeOf E (expApp cdr' e) t2 tE fE o'
 | T_Let :
-   forall E e0 t p0 p0' o0 e1 t' p1 p1' o1 x,
-   TypeOf E e0 t p0 p0' o0 ->
-   TypeOf ((ψτ true t [] x) ::
-           (ψimp (ψτ false τf [] x) p0) ::
-           (ψimp (ψτ true τf [] x) p0') ::
-           E)
-          e1
-          t'
-          p1
-          p1'
-          o1 ->
-   TypeOf E
-          (e_let x e0 e1)
-          (subst_t pos t' o0 x)
-          (subst_p pos p1 o0 x)
-          (subst_p pos p1' o0 x)
-          (subst_o o1 o0 x)
+   forall E e0 t tE0 fE0 o0 e1 σ tE1 fE1 o1 x,
+     TypeOf E e0 t tE0 fE0 o0 ->
+     TypeOf (env_app (envFact true t (var x) envEmpty)
+                     (env_app (envOr (envFact true tFalse (var x) envEmpty) 
+                                     tE0)
+                              (envOr (envFact true tFalse (var x) envEmpty) 
+                                     tE0)))
+            e1 
+            σ 
+            tE1 
+            fE1 
+            o1 ->
+     TypeOf E
+            (expLet x e0 e1)
+            (subst_t σ o0 x)
+            (subst_env tE1 o0 x)
+            (subst_env fE1 o0 x)
+            (subst_o o1 o0 x)
 
 (* subtyping *)
 with Subtype : type -> type -> Prop :=
@@ -500,110 +648,15 @@ with Subtype : type -> type -> Prop :=
 
 (* subtype negation *)
 with NonSubtype : type -> type -> Prop :=
-| NST_temp : forall t1 t2, NonSubtype t1 t2.
+| NST_temp : forall t1 t2, NonSubtype t1 t2
+
+(* subtype negation *)
+with Proves : env -> env -> Prop :=
+| P_all : forall E1 E2, Proves E1 E2.
 
 
 
 
-
-(* Typing Rules *)
-with TypeOf :
-  Γ -> e -> τ -> ψ -> ψ -> obj -> Prop :=
-| Τ_Num :
-    forall E n,
-      TypeOf E (e_num n) τN ψT ψF obj_nil
-| T_Const :
-    forall E c,
-      TypeOf E
-             (e_primop (prim_c c))
-             (c_op_type c)
-             ψT
-             ψF
-             obj_nil
-| T_True :
-    forall E,
-      TypeOf E e_true τt ψT ψF obj_nil
-| T_False :
-    forall E,
-      TypeOf E e_false τf ψF ψT obj_nil
-| T_Var :
-    forall E x t,
-      In (ψτ true t [] x) E ->
-      TypeOf E
-             (e_var x)
-             t
-             (ψτ false τf [] x)
-             (ψτ true τf [] x)
-             (obj_p [] x)
-| T_Abs :
-   forall E s x e t pT pF o,
-     TypeOf ((ψτ true s [] x) :: E) e t pT pF o ->
-     TypeOf E
-            (e_abs x s e)
-            (τλ x s pT pF o t)
-            ψT
-            ψF
-            obj_nil
-| T_App :
-   forall E e x s pTf pFf t pT pF of o e' pT' pF' o',
-     TypeOf E e (τλ x s pTf pFf of t) pT pF o ->
-     TypeOf E e' s pT' pF' o' ->
-     TypeOf E (e_app e e')
-            (subst_t pos t o' x)
-            (subst_p pos pTf o' x)
-            (subst_p pos pFf o' x)
-            (subst_o of o' x)
-| T_If :
-   forall E e1 t1 pT1 pF1 o1 e2 t pT2 pF2 o e3 pT3 pF3,
-     TypeOf E e1 t1 pT1 pF1 o1 ->
-     TypeOf (pT1 :: E) e2 t pT2 pF2 o ->
-     TypeOf (pF1 :: E) e3 t pT3 pF3 o ->
-     TypeOf E (e_if e1 e2 e3) t (ψor pT2 pT3) (ψor pF2 pF3) o
-| T_Subsume :
-   forall E e t pT pF o pT' pF' t' o',
-     TypeOf E e t pT pF o ->
-     Proves (pT :: E) pT' ->
-     Proves (pF :: E) pF' ->
-     SubType t t' ->
-     SubObj o o' ->
-     TypeOf E e t' pT' pF' o'
-| T_Cons :
-   forall E e1 t1 p1 p1' o1 e2 t2 p2 p2' o2,
-     TypeOf E e1 t1 p1 p1' o1 ->
-     TypeOf E e2 t2 p2 p2' o2 ->
-     TypeOf E (e_cons e1 e2) (τcons t1 t2) ψT ψF obj_nil
-| T_Car :
-   forall E e t1 t2 p0 p0' o o' p p' x,
-     TypeOf E e (τcons t1 t2) p0 p0' o ->
-     p = (subst_p pos (ψτ false τf [car] x) o x) ->
-     p' = (subst_p pos (ψτ true τf [car] x) o x) ->
-     o' = subst_o (obj_p [car] x) o x ->
-     TypeOf E (e_app car' e) t1 p p' o'
-| T_Cdr :
-   forall E e t1 t2 p0 p0' o o' p p' x,
-     TypeOf E e (τcons t1 t2) p0 p0' o ->
-     p = (subst_p pos (ψτ false τf [cdr] x) o x) ->
-     p' = (subst_p pos (ψτ true τf [cdr] x) o x) ->
-     o' = subst_o (obj_p [cdr] x) o x ->
-     TypeOf E (e_app cdr' e) t2 p p' o'
-| T_Let :
-   forall E e0 t p0 p0' o0 e1 t' p1 p1' o1 x,
-   TypeOf E e0 t p0 p0' o0 ->
-   TypeOf ((ψτ true t [] x) ::
-           (ψimp (ψτ false τf [] x) p0) ::
-           (ψimp (ψτ true τf [] x) p0') ::
-           E)
-          e1
-          t'
-          p1
-          p1'
-          o1 ->
-   TypeOf E
-          (e_let x e0 e1)
-          (subst_t pos t' o0 x)
-          (subst_p pos p1 o0 x)
-          (subst_p pos p1' o0 x)
-          (subst_o o1 o0 x).
 (* forall τ1 ψ1 ψ1' o1 σ1 ψ2 ψ2' o2,
 ~(exists v, (and (TypeOf [] v τ1 ψ1 ψ1' o1)
 (TypeOf [] v σ1 ψ2 ψ2' o2))) ->

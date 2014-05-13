@@ -342,15 +342,19 @@ Solve Obligations using crush.
 TODO - We must prove all types have a principal type
    if we're going to use this for Removed *)
 
-Definition typelookup := obj -> option type.
-Definition emptylookup : typelookup := fun o => None.
+Definition typelookup := option (obj -> option type).
+Definition emptylookup : typelookup := Some (fun o => None).
 
-Definition falselookup : typelookup := (fun o : obj => Some tBottom).
+Definition falselookup : typelookup := None.
 
 Definition extend_lookup (o:obj) (t:type) (tl:typelookup) : typelookup :=
-(fun o' => if obj_eq o o'
-           then Some t
-           else tl o').
+if type_eqdec t tBottom then None else
+match tl with
+| None => None
+| Some tl => Some (fun o' => if obj_eq o o'
+                        then Some t
+                        else tl o')
+end.
 
 Definition tt := envEmpty.
 Definition ff := envFalse envEmpty.
@@ -365,22 +369,7 @@ Fixpoint tls_app (l1 l2:lookupset) : lookupset :=
 match l1 with
 | tls_atom tl => (tls_cons tl l2)
 | tls_cons tl tls => (tls_cons tl (tls_app tls l2))
-end.
-
-Inductive FalseEnv : env -> Prop :=
-| FE_False :
-    forall E,
-          FalseEnv (envFalse E)
-| FE_Fact : 
-    forall E b t o,
-      FalseEnv E ->
-      FalseEnv (envFact b t o E)
-| FE_Or : 
-    forall E1 E2,
-      FalseEnv E1 ->
-      FalseEnv E2 ->
-      FalseEnv (envOr E1 E2).
-           
+end.           
 
 Inductive UpdatedEnv : env -> lookupset -> Prop :=
 | UpEnv_Empty :
@@ -412,10 +401,11 @@ with UpdatedLookupSet : bool -> type -> obj -> lookupset -> lookupset -> Prop :=
 
 with UpdatedLookup : bool -> type -> obj -> typelookup -> typelookup -> Prop :=
 | UpLU :
-    forall b t t' pth pth' x tl updated,
+    forall b t t' pth pth' x otl tl updated,
+      otl = Some tl ->
       tl (objπ pth' x) = Some t' ->
       UpdatedType t' (b, t) pth updated ->
-      UpdatedLookup b t (objπ (pth ++ pth') x) tl (extend_lookup (objπ pth' x) updated tl)
+      UpdatedLookup b t (objπ (pth ++ pth') x) (Some tl) (extend_lookup (objπ pth' x) updated (Some tl))
 
 with UpdatedType : type -> (bool * type) -> path -> type -> Prop :=
 | UpT_Car :
@@ -715,21 +705,23 @@ with Proves : relation env  :=
 
 with ProvesTyping : lookupset -> bool -> type -> obj -> Prop :=
 | PT_Atom :
-    forall (tl:typelookup) t o t',
+    forall (otl:typelookup) tl t (o:obj) t',
+      otl = Some tl ->
       (tl o) = Some t' ->
       Subtype t t' ->
-      ProvesTyping (tls_atom tl) true t o
+      ProvesTyping (tls_atom (Some tl)) true t o
 | PT_Cons :
-    forall tl tls t' t o,
+    forall otl tl tls t' t (o:obj),
+      otl = Some tl ->
       (tl o) = Some t' ->
       Subtype t t' ->
       ProvesTyping tls true t o ->
-      ProvesTyping (tls_cons tl tls) true t o
+      ProvesTyping (tls_cons (Some tl) tls) true t o
 | PF_Atom :
     forall tl t o t',
       (tl o) = Some t' ->
       NonSubtype t t' ->
-      ProvesTyping (tls_atom tl) false t o
+      ProvesTyping (tls_atom (Some tl)) false t o
 | PF_Cons_prev :
     forall tl tls t o,
       ProvesTyping tls false t o ->
@@ -738,7 +730,7 @@ with ProvesTyping : lookupset -> bool -> type -> obj -> Prop :=
     forall tl tls t' t o,
       (tl o) = Some t' ->
       NonSubtype t t' ->
-      ProvesTyping (tls_cons tl tls) false t o.
+      ProvesTyping (tls_cons (Some tl) tls) false t o.
 
 
 

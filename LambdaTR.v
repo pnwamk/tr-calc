@@ -652,7 +652,23 @@ with NonSubtype : type -> type -> Prop :=
 
 (* subtype negation *)
 with Proves : env -> env -> Prop :=
-| P_all : forall E1 E2, Proves E1 E2
+| PAll_empty :
+    forall E,
+      Proves E envEmpty
+| PAll_Cons :
+    forall E1 E2 b f o tls,
+      Proves E1 E2 ->
+      UpdatedEnv E1 tls ->
+      ProvesTyping tls b f o ->
+      Proves E1 (envFact b f o E2)
+| PΓ_Or_l :
+    forall E E1 E2,
+      Proves E E1 ->
+      Proves E (envOr E1 E2)
+| PΓ_Or_r :
+    forall E E1 E2,
+      Proves E E2 ->
+      Proves E (envOr E1 E2)
 
 with ProvesTyping : lookupset -> bool -> type -> obj -> Prop :=
 | PT_Atom :
@@ -721,98 +737,5 @@ Inductive Proves : env -> bool -> type -> obj -> Prop
       Update t1 (b, σ) pth2 t2 ->
       Proves E (fτ b t2 (objπ pth1 x))
 
-with NotProves : env -> fact -> Prop
-| NP_Nil :
-    forall f E,
-      NotProves envNil f
-| NP_Cons :
-    forall f E x t',
-      contains_false E = false ->
-      NotProves E f ->
-      fact_symbol f = Some x -> (* TODO: Proving a fact with a null object...? *)
-      (* And for all things proven about x in E, neither they nore their updated type are super-types
-         of the type in this query, then it is not proven hear either *)
-
-
-with ProvesAll : env -> env -> Prop :=
-| PAll_empty :
-    forall E,
-      ProvesΓ E envNil
-| PAll_Cons :
-    forall E1 E2 f,
-      Proves E1 f ->
-      ProvesAll E1 E2 ->
-      ProvesAll E1 (Γfact f E2)
-| PΓ_Or_l :
-    forall E E1 E2,
-      ProvesAll E E1 ->
-      ProvesAll E (Γor E1 E2)
-| PΓ_Or_r :
-    forall E E1 E2,
-      ProvesΓ E E2 ->
-      ProvesΓ E (Γor E1 E2)
-
-with NotProvesAll : env -> env -> Prop :=
-
-with Subtype : type -> type -> Prop :=
-
-with NotSubtype : type -> type -> Prop :=
-
-with Update :
-
-with Restrict
-
-with Remove :
-
-with TypeOf : 
-
-
-(*  TODO: Build this into the typing relation
-Definition c_op_type (c : c_op) : type :=
-match c with
-| op_isnum =>
-  (tλ X
-         tTrue
-         (envFact (fact true tNum (objπ [] X)) envEmpty)
-         (envFact (fact false tNum (objπ [] X)) envEmpty)
-         objnil
-         τB)
-| op_isproc =>
-  (tλ X
-         τT
-         (envFact (fact true (τλ X τ_ ψtt ψff objnil τT) (objπ [] X)) envEmpty)
-         (envFact (fact false (τλ X τ_ ψtt ψff objnil τT) (objπ [] X)) envEmpty)
-         objnil
-         τB)
-| op_isbool =>
-  (tλ X
-         τT
-         (envFact (fact true τB (objπ [] X)) envEmpty)
-         (envFact (fact false τB (objπ [] X)) envEmpty)
-         objnil
-         τB)
-| op_iscons =>
-  (tλ X
-         τT
-         (envFact (fτ true (τcons τT τT) (objπ [] X)) envEmpty)
-         (envFact (fτ false (τcons τT τT) (objπ [] X)) envEmpty)
-         objnil
-         τB)
-| op_add1 =>
-  (tλ X
-      τN
-      envEmpty
-      envEmpty
-      objnil
-      τN)
-| op_iszero =>
-  (tλ X
-      τN
-      envEmpty
-      envEmpty
-      objnil
-      τB)
-end.
-*)
 
 End LTR.

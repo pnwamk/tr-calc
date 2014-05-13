@@ -436,7 +436,6 @@ with UpdatedType : type -> (bool * type) -> path -> type -> Prop :=
       UpdatedType t (false, σ) nil removed
 
 
-(* TODO: update restricted/removed w/ new Union def *)
 with Restricted : type -> type -> type -> Prop :=
 | RES_Bottom :
     forall t σ,

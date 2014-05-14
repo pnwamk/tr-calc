@@ -307,7 +307,7 @@ match t with
 | tFalse => 1
 | tUnion t1 t2 => 
   1 + (typestructuralsize t1) + (typestructuralsize t2)
-| tλ x t1 e1 e2 o t2 => 1
+| tλ x t1 e1 e2 o t2 => 1 + (typestructuralsize t1) + (typestructuralsize t2)
 | tPair t1 t2 => 1 + (typestructuralsize t1) + (typestructuralsize t2)
 end.
 
@@ -345,6 +345,53 @@ TODO - We must prove all types have a principal type
 (* NOTE: Our lookup models an environment where every variable in scope
    has some type present (even if its only tTop). *)
 
+Program Fixpoint possible_subtype (pos_sub pos_super:type) 
+        {measure ((typestructuralsize pos_sub) + (typestructuralsize pos_super))} : bool :=
+match pos_sub, pos_super with
+| tTop , tTop => true
+| tTop , tUnion t1 t2 => 
+  orb (possible_subtype tTop t1)
+      (possible_subtype tTop t2)
+| tTop , _ => false
+| tBottom , tBottom => true
+| tBottom , tUnion t1 t2 => 
+  orb (possible_subtype tBottom t1)
+      (possible_subtype tBottom t2)
+| tBottom , _ => false
+| tNum , tNum => true
+| tNum , tUnion t1 t2 => 
+  orb (possible_subtype tNum t1)
+      (possible_subtype tNum t2)
+| tNum , _ => false
+| tTrue , tTrue => true
+| tTrue , tUnion t1 t2 => 
+  orb (possible_subtype tTrue t1)
+      (possible_subtype tTrue t2)
+| tTrue , _ => false
+| tFalse , tFalse => true
+| tFalse , tUnion t1 t2 => 
+  orb (possible_subtype tFalse t1)
+      (possible_subtype tFalse t2)
+| tFalse , _ => false
+| tUnion t1 t2, _ => 
+  andb (possible_subtype t1 pos_super)
+       (possible_subtype t2 pos_super)
+| tλ _ t1 _ _ _ t2, tλ _ t3 _ _ _ t4 =>
+  andb (possible_subtype t1 t3)
+       (possible_subtype t2 t4)
+| tλ _ _ _ _ _ _, tUnion t1 t2 =>
+  orb (possible_subtype pos_sub t1)
+      (possible_subtype pos_sub t2)
+| tλ _ _ _ _ _ _, _ => false
+| tPair t1 t2, tPair t3 t4 => 
+  andb (possible_subtype t1 t3)
+       (possible_subtype t2 t4)
+| tPair _ _, tUnion t1 t2 =>
+  orb (possible_subtype pos_sub t1)
+      (possible_subtype pos_sub t2)
+| tPair _ _, _ => false
+end.
+Solve Obligations using crush.
 
 Definition typelookup := option (obj -> type).
 Definition emptylookup : typelookup := Some (fun o => tTop).
@@ -685,6 +732,43 @@ with Subtype : relation type :=
 
 (* subtype negation *)
 with NonSubtype : type -> type -> Prop :=
+| NS_Trivial : forall t1 t2,
+          possible_subtype t1 t2 = false ->
+          NonSubtype t1 t2
+| NS_UnionSuper :
+    forall t1 t2 t3,
+      NonSubtype t1 t2 ->
+      NonSubtype t1 t3 ->
+      NonSubtype t1 (tUnion t2 t3)
+| NS_UnionSub_l :
+    forall t1 t2 t3,
+      NonSubtype t1 t3 ->
+      NonSubtype (tUnion t1 t2) t3 
+| NS_UnionSub_r :
+    forall t1 t2 t3,
+      NonSubtype t2 t3 ->
+      NonSubtype (tUnion t1 t2) t3 
+| NS_Abs_arg :
+    forall σ σ' x tE fE o t tE' fE' o' t',
+      NonSubtype σ' σ ->
+      NonSubtype (tλ x σ tE fE o t) (tλ x σ' tE' fE' o' t')
+| NS_Abs_result :
+    forall σ σ' x tE fE o t tE' fE' o' t',
+      NonSubtype t t' ->
+      NonSubtype (tλ x σ tE fE o t) (tλ x σ' tE' fE' o' t')
+| NS_Abs_obj :
+    forall σ σ' x tE fE o t tE' fE' o' t',
+      ~SubObj o o' ->
+      NonSubtype (tλ x σ tE fE o t) (tλ x σ' tE' fE' o' t')
+| NS_Abs_tEnv :
+    forall σ σ' x tE fE o t tE' fE' o' t',
+      CannotProve tE tE' ->
+      NonSubtype (tλ x σ tE fE o t) (tλ x σ' tE' fE' o' t')
+| NS_Abs_fEnv :
+    forall σ σ' x tE fE o t tE' fE' o' t',
+      CannotProve fE fE' ->
+      NonSubtype (tλ x σ tE fE o t) (tλ x σ' tE' fE' o' t')      
+
 | NST_temp : forall t1 t2, NonSubtype t1 t2
 
 (* Proves: One environment (lhs) has the typing information

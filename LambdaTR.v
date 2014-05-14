@@ -24,9 +24,6 @@ Theorem id_eqdec : forall (x y : id),
 Proof. decide equality. Defined.
 Hint Resolve id_eqdec.
 
-Definition id_eq (x y : id) : bool :=
-if id_eqdec x y then true else false.
-
 (* Path Elements (accessors) *)
 Inductive acc : Type := car | cdr.
 
@@ -34,9 +31,6 @@ Theorem acc_eqdec : forall (x y: acc),
 {x = y} + {x <> y}.
 Proof. decide equality. Defined.
 Hint Resolve acc_eqdec.
-
-Definition acc_eq (x y : acc) : bool :=
-if acc_eqdec x y then true else false.
 
 Definition path := list acc.
 
@@ -46,8 +40,6 @@ Theorem path_eqdec : forall (x y: path),
 Proof. decide equality. Defined.
 Hint Resolve path_eqdec.
 
-Definition path_eq (x y : path) : bool :=
-if path_eqdec x y then true else false.
 
 (* Objects *)
 Inductive obj : Type :=
@@ -58,9 +50,6 @@ Theorem obj_eqdec : forall (x y: obj),
 {x = y} + {x <> y}.
 Proof. decide equality. Defined.
 Hint Resolve obj_eqdec.
-
-Definition obj_eq (x y : obj) : bool :=
-if obj_eqdec x y then true else false.
 
 (* Types *)
 Inductive type : Type :=
@@ -157,10 +146,10 @@ Definition subst_o (o1 o2:obj) (x:id) : obj :=
 match o1 with
 | objnil => objnil
 | objπ pth1 z =>
-  match id_eq x z, o2 with
-  | true, objnil => objnil
-  | true, objπ pth2 y => objπ (pth1 ++ pth2) y
-  | false, _ => o1
+  match id_eqdec x z, o2 with
+  | left _, objnil => objnil
+  | left _, objπ pth2 y => objπ (pth1 ++ pth2) y
+  | right _, _ => o1
   end
 end.
 
@@ -172,15 +161,15 @@ match E with
 | envEmpty => envEmpty
 | envFalse rest => envFalse (subst_env rest o x)
 | envFact fb ft (objπ pth1 z) rest =>
-  match id_eq x z, set_mem id_eqdec z (fv_set_t ft) with
-  | true, _ =>
+  match id_eqdec x z, set_mem id_eqdec z (fv_set_t ft) with
+  | left _, _ =>
     match o with
     | objnil => subst_env rest o x (* tt - ignore *)
     | objπ pth2 y =>
       envFact fb (subst_t ft o x) (objπ (pth1 ++ pth2) y) (subst_env rest o x)
     end
-  | false, false => envFact fb ft (objπ pth1 z) (subst_env rest o x)
-  | false, true => subst_env rest o x (* tt - ignore *)
+  | right _, false => envFact fb ft (objπ pth1 z) (subst_env rest o x)
+  | right _, true => subst_env rest o x (* tt - ignore *)
   end
 | envFact fb ft objnil rest => envFact fb ft objnil (subst_env rest o x)
 | envOr lhs rhs => envOr (subst_env lhs o x) (subst_env rhs o x)
@@ -193,7 +182,7 @@ with subst_t (t:type)
 match t with
 | tUnion t1 t2 => tUnion (subst_t t1 o x) (subst_t t2 o x)
 | tλ y t1 p1 p2 o2 t2 =>
-  if id_eq x y
+  if id_eqdec x y
   then t
   else tλ y
           (subst_t t1 o x)
@@ -220,9 +209,6 @@ Theorem c_op_eqdec : forall (x y : c_op),
 Proof. decide equality. Defined.
 Hint Resolve c_op_eqdec.
 
-Definition c_op_eq (x y : c_op) : bool :=
-if c_op_eqdec x y then true else false.
-
 (* Polymorphic Operations *)
 Inductive p_op : Type :=
 | op_car : p_op
@@ -233,9 +219,6 @@ Theorem p_op_eqdec : forall (x y : p_op),
 Proof. decide equality. Defined.
 Hint Resolve p_op_eqdec.
 
-Definition p_op_eq (x y : p_op) : bool :=
-if p_op_eqdec x y then true else false.
-
 (* Primitive Operations *)
 Inductive primop : Type :=
 | prim_c : c_op -> primop
@@ -245,9 +228,6 @@ Theorem primop_eqdec : forall (x y : primop),
 {x = y} + {x <> y}.
 Proof. decide equality. Defined.
 Hint Resolve primop_eqdec.
-
-Definition primop_eq (x y : primop) : bool :=
-if primop_eqdec x y then true else false.
 
 (* Expressions *)
 Inductive exp : Type :=
@@ -402,7 +382,7 @@ Definition extend_lookup (o:obj) (t:type) (tl:typelookup) : typelookup :=
 if type_eqdec t tBottom then None else
 match tl with
 | None => None
-| Some tl => Some (fun o' => if obj_eq o o'
+| Some tl => Some (fun o' => if obj_eqdec o o'
                         then t
                         else tl o')
 end.
@@ -423,55 +403,55 @@ match l1 with
 end.           
 
 Inductive UpdatedEnv : env -> lookupset -> Prop :=
-| UpEnv_Empty :
+| UE_Empty :
     UpdatedEnv envEmpty (tls_atom emptylookup)
-| UpEnv_False :
+| UE_False :
     forall E,
       UpdatedEnv (envFalse E) (tls_atom falselookup)
-| UpEnv_Fact :
+| UE_Fact :
     forall E tlset b t o tlset',
     UpdatedEnv E tlset ->
     UpdatedLookupSet b t o tlset tlset' ->
     UpdatedEnv (envFact b t o E) tlset' 
-| UpEnv_Or :
+| UE_Or :
     forall E1 E2 tlset1 tlset2, 
     UpdatedEnv E1 tlset1 ->
     UpdatedEnv E2 tlset2 ->
     UpdatedEnv (envOr E1 E2) (tls_app tlset1 tlset2) 
 
 with UpdatedLookupSet : bool -> type -> obj -> lookupset -> lookupset -> Prop :=
-| UpLUS_Atom :
+| ULS_Atom :
     forall b t o tl tl',
       UpdatedLookup b t o tl tl' ->
       UpdatedLookupSet b t o (tls_atom tl) (tls_atom tl')                    
-| UpLUS_cons :
+| ULS_cons :
     forall b t o tl tl' tls tls',
       UpdatedLookupSet b t o tls tls' ->
       UpdatedLookup b t o tl tl' ->
       UpdatedLookupSet b t o (tls_cons tl tls) (tls_cons tl' tls')                    
 
 with UpdatedLookup : bool -> type -> obj -> typelookup -> typelookup -> Prop :=
-| UpLU :
-    forall b t t' pth pth' x otl tl updated,
-      otl = Some tl ->
+| UL :
+    forall b t t' pth pth' x tl o updated,
       tl (objπ pth' x) = t' ->
       UpdatedType t' (b, t) pth updated ->
-      UpdatedLookup b t (objπ (pth ++ pth') x) (Some tl) (extend_lookup (objπ pth' x) updated (Some tl))
+      o = (objπ (pth ++ pth') x) ->
+      UpdatedLookup b t o (Some tl) (extend_lookup (objπ pth' x) updated (Some tl))
 
 with UpdatedType : type -> (bool * type) -> path -> type -> Prop :=
-| UpT_Car :
+| UT_Car :
     forall t v pth σ updated,
       UpdatedType t v pth updated ->
       UpdatedType (tPair t σ) v (pth ++ [car]) (tPair updated σ)
-| UpT_Cdr :
+| UT_Cdr :
     forall t v pth σ updated,
       UpdatedType σ v pth updated ->
       UpdatedType (tPair t σ) v (pth ++ [cdr]) (tPair t updated)
-| UpT_T :
+| UT_T :
     forall t σ restricted,
       Restricted t σ restricted ->
       UpdatedType t (true, σ) nil restricted
-| UpT_NT :
+| UT_NT :
     forall t σ removed,
       Removed t σ removed ->
       UpdatedType t (false, σ) nil removed
@@ -529,13 +509,13 @@ with Removed : type -> type -> type -> Prop :=
       Removed t σ t
 
 (* Typing Rules *)
-with TypeOf : env -> exp -> type -> env -> env -> obj -> Prop :=
+with Typing : env -> exp -> type -> env -> env -> obj -> Prop :=
 | Τ_Num :
     forall E n,
-      TypeOf E (expNum n) tNum tt ff objnil
+      Typing E (expNum n) tNum tt ff objnil
 | T_Const_isnum :
   forall E x,
-    TypeOf E 
+    Typing E 
            isnum' 
            (tλ x
                tTop
@@ -548,7 +528,7 @@ with TypeOf : env -> exp -> type -> env -> env -> obj -> Prop :=
            objnil
 | T_Const_isproc :
   forall E x,
-    TypeOf E 
+    Typing E 
            isproc' 
            (tλ x
                tTop
@@ -561,7 +541,7 @@ with TypeOf : env -> exp -> type -> env -> env -> obj -> Prop :=
            objnil
 | T_Const_isbool :
   forall E x,
-    TypeOf E 
+    Typing E 
            isbool' 
            (tλ x
                tTop
@@ -574,7 +554,7 @@ with TypeOf : env -> exp -> type -> env -> env -> obj -> Prop :=
            objnil
 | T_Const_iscons :
   forall E x,
-    TypeOf E 
+    Typing E 
            iscons' 
            (tλ x
                tTop
@@ -587,7 +567,7 @@ with TypeOf : env -> exp -> type -> env -> env -> obj -> Prop :=
            objnil
 | T_Const_add1 :
   forall E x,
-    TypeOf E 
+    Typing E 
            add1' 
            (tλ x
                tTop
@@ -600,7 +580,7 @@ with TypeOf : env -> exp -> type -> env -> env -> obj -> Prop :=
            objnil
 | T_Const_iszero :
   forall E x,
-    TypeOf E 
+    Typing E 
            iszero' 
            (tλ x
                tTop
@@ -613,14 +593,14 @@ with TypeOf : env -> exp -> type -> env -> env -> obj -> Prop :=
            objnil
 | T_True :
     forall E,
-      TypeOf E expT tTrue tt ff objnil
+      Typing E expT tTrue tt ff objnil
 | T_False :
     forall E,
-      TypeOf E expF tFalse ff tt objnil
+      Typing E expF tFalse ff tt objnil
 | T_Var :
     forall E x t,
       Proves E (envFact true t (var x) envEmpty) ->
-      TypeOf E
+      Typing E
              (expVar x)
              t
              (envFact false tFalse (var x) envEmpty)
@@ -628,59 +608,60 @@ with TypeOf : env -> exp -> type -> env -> env -> obj -> Prop :=
              (var x)
 | T_Abs :
    forall E σ x e t tE fE o,
-     TypeOf (envFact true σ (var x) E) e t tE fE o ->
-     TypeOf E
+     Typing (envFact true σ (var x) E) e t tE fE o ->
+     Typing E
             (expAbs x σ e)
             (tλ x σ tE fE o t)
             tt
             ff
             objnil
 | T_App :
-   forall E e x σ tEλ fEλ oλ t tE fE o e' tE' fE' o',
-     TypeOf E e (tλ x σ tEλ fEλ oλ t) tE fE o ->
-     TypeOf E e' σ tE' fE' o' ->
-     TypeOf E (expApp e e') (* BOOKMARK *)
-            (subst_t t o' x)
-            (subst_env tEλ o' x)
-            (subst_env fEλ o' x)
-            (subst_o oλ o' x)
+   forall E e x σ tEλ fEλ oλ t tE fE o e' tE' fE' o' t'' tEλ'' fEλ'' o'',
+     Typing E e (tλ x σ tEλ fEλ oλ t) tE fE o ->
+     Typing E e' σ tE' fE' o' ->
+     t'' = (subst_t t o' x) ->
+     tEλ'' = (subst_env tEλ o' x) ->
+     fEλ'' = (subst_env fEλ o' x) ->
+     o'' = (subst_o oλ o' x) ->
+     Typing E (expApp e e') t'' tEλ'' fEλ'' o''
+ 
 | T_If :
    forall E e1 t1 tE1 fE1 o1 e2 t tE2 fE2 o e3 tE3 fE3,
-     TypeOf E e1 t1 tE1 fE1 o1 ->
-     TypeOf (env_app E tE1) e2 t tE2 fE2 o ->
-     TypeOf (env_app E fE1) e3 t tE3 fE3 o ->
-     TypeOf E (expIf e1 e2 e3) t (envOr tE2 tE3) (envOr fE2 fE3) o
+     Typing E e1 t1 tE1 fE1 o1 ->
+     Typing (env_app E tE1) e2 t tE2 fE2 o ->
+     Typing (env_app E fE1) e3 t tE3 fE3 o ->
+     Typing E (expIf e1 e2 e3) t (envOr tE2 tE3) (envOr fE2 fE3) o
 | T_Subsume :
    forall E e t tE fE o tE' fE' t' o',
-     TypeOf E e t tE fE o ->
+     Typing E e t tE fE o ->
      Proves (env_app E tE) tE' ->
      Proves (env_app E fE) fE' ->
      Subtype t t' ->
      SubObj o o' ->
-     TypeOf E e t' tE' fE' o'
+     Typing E e t' tE' fE' o'
 | T_Cons :
    forall E e1 t1 tE1 fE1 o1 e2 t2 tE2 fE2 o2,
-     TypeOf E e1 t1 tE1 fE1 o1 ->
-     TypeOf E e2 t2 tE2 fE2 o2 ->
-     TypeOf E (expCons e1 e2) (tPair t1 t2) tt ff objnil
+     Typing E e1 t1 tE1 fE1 o1 ->
+     Typing E e2 t2 tE2 fE2 o2 ->
+     Typing E (expCons e1 e2) (tPair t1 t2) tt ff objnil
 | T_Car :
    forall E e t1 t2 tE0 fE0 o o' tE fE x,
-     TypeOf E e (tPair t1 t2) tE0 fE0 o ->
+     Typing E e (tPair t1 t2) tE0 fE0 o ->
      tE = (subst_env (envFact false tFalse (objπ [car] x) envEmpty) o x) ->
      fE = (subst_env (envFact true tFalse (objπ [car] x) envEmpty) o x) ->
      o' = subst_o (objπ [car] x) o x ->
-     TypeOf E (expApp car' e) t1 tE fE o'
+     Typing E (expApp car' e) t1 tE fE o'
 | T_Cdr :
    forall E e t1 t2 tE0 fE0 o o' tE fE x,
-     TypeOf E e (tPair t1 t2) tE0 fE0 o ->
+     Typing E e (tPair t1 t2) tE0 fE0 o ->
      tE = (subst_env (envFact false tFalse (objπ [cdr] x) envEmpty) o x) ->
      fE = (subst_env (envFact true tFalse (objπ [cdr] x) envEmpty) o x) ->
      o' = subst_o (objπ [cdr] x) o x ->
-     TypeOf E (expApp cdr' e) t2 tE fE o'
+     Typing E (expApp cdr' e) t2 tE fE o'
 | T_Let :
    forall E e0 t tE0 fE0 o0 e1 σ tE1 fE1 o1 x,
-     TypeOf E e0 t tE0 fE0 o0 ->
-     TypeOf (env_app (envFact true t (var x) envEmpty)
+     Typing E e0 t tE0 fE0 o0 ->
+     Typing (env_app (envFact true t (var x) envEmpty)
                      (env_app (envOr (envFact true tFalse (var x) envEmpty) 
                                      tE0)
                               (envOr (envFact true tFalse (var x) envEmpty) 
@@ -690,7 +671,7 @@ with TypeOf : env -> exp -> type -> env -> env -> obj -> Prop :=
             tE1 
             fE1 
             o1 ->
-     TypeOf E
+     Typing E
             (expLet x e0 e1)
             (subst_t σ o0 x)
             (subst_env tE1 o0 x)
@@ -774,10 +755,10 @@ with NonSubtype : type -> type -> Prop :=
 (* Proves: One environment (lhs) has the typing information
    to prove the conclusion in the other environment (the rhs). *)
 with Proves : relation env  :=
-| PAll_empty :
+| P_Empty :
     forall E,
       Proves E envEmpty
-| PAll_Cons :
+| P_Cons :
     forall E1 E2 b f o tls,
       Proves E1 E2 ->
       UpdatedEnv E1 tls ->
@@ -811,9 +792,8 @@ with CannotProve : relation env  :=
    support a given typing of an object (_all_ must support 
    for true *)
 with ProvesTyping : lookupset -> bool -> type -> obj -> Prop :=
-| PT_Sub_Atom :
-    forall (otl:typelookup) tl t (o:obj) t',
-      otl = Some tl ->
+| PT_Atom :
+    forall t t' tl (o:obj),
       (tl o) = t' ->
       Subtype t' t ->
       ProvesTyping (tls_atom (Some tl)) true t o
@@ -821,8 +801,7 @@ with ProvesTyping : lookupset -> bool -> type -> obj -> Prop :=
     forall b t o,
       ProvesTyping (tls_atom None) b t o
 | PT_Sub_Cons :
-    forall otl tl tls t' t (o:obj),
-      otl = Some tl ->
+    forall tl tls t' t (o:obj),
       (tl o) = t' ->
       Subtype t' t ->
       ProvesTyping tls true t o ->
@@ -845,7 +824,50 @@ with ProvesTyping : lookupset -> bool -> type -> obj -> Prop :=
       (tl o) = t' ->
       NonSubtype t' t ->
       ProvesTyping (tls_cons (Some tl) tls) false t o.
+Hint Constructors UpdatedEnv UpdatedLookupSet UpdatedLookup UpdatedType 
+Restricted Removed Typing Subtype NonSubtype Proves CannotProve ProvesTyping.
 
 
+Inductive TypeOf : exp -> type -> Prop :=
+| typeof : forall e t tE fE o,
+               Typing envEmpty e t tE fE o ->
+               TypeOf e t.
+Hint Constructors TypeOf.
+
+Lemma subst_emptyeqid_tNum : forall b x y,
+(subst_env (envFact b tNum (var y) envEmpty) (var x) y) =
+envFact b tNum (var x) envEmpty.
+Proof.
+  intros b x y.
+  simpl. destruct (id_eqdec y y).
+  reflexivity. tryfalse.
+Qed.  
+
+Example example1:
+  forall x,
+  TypeOf (expIf (expApp isnum' (expVar x)) 
+                (expApp add1' (expVar x)) 
+                (expNum 0))
+         tNum.
+Proof.
+  intros x.
+  eapply typeof. eapply T_If. eapply T_App.
+  eapply T_Const_isnum. eapply T_Var. eapply P_Cons.
+  apply P_Empty. apply UE_Empty. eapply (PT_Atom tTop tTop). 
+  reflexivity. eapply S_Refl. simpl. reflexivity.
+  erewrite subst_emptyeqid_tNum. reflexivity.
+  erewrite subst_emptyeqid_tNum. reflexivity.
+  simpl. reflexivity.
+  eapply T_App. eapply T_Const_add1. eapply T_Var.
+  simpl. eapply P_Cons. eauto. eapply UE_Fact. eapply UE_Empty.
+  eapply ULS_Atom. eapply UL. reflexivity. eapply UT_T.
+  eapply RES_NonSub. compute. reflexivity. intros contra. inversion contra. 
+  eapply NS_Trivial. compute. reflexivity. simpl. reflexivity.
+  eapply PT_Atom. destruct (obj_eqdec (var x) (var x)). reflexivity.
+  tryfalse. eauto. simpl. reflexivity. simpl. reflexivity.
+  simpl. reflexivity. simpl. reflexivity. eauto.
+Grab Existential Variables.
+eauto. eauto.
+Qed.
 
 End LTR.

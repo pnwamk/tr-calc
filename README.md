@@ -1,7 +1,7 @@
 TRcalc
 ======
 
-Representations of the core calculi for Typed Racket
+Representations of the core calculus for Typed Racket
 
 LambdaTR.v - Coq representation of the λTR calculus presented by Tobin-Hochstadt and Felleisen [1].
 

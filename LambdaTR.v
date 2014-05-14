@@ -342,8 +342,12 @@ Solve Obligations using crush.
 TODO - We must prove all types have a principal type
    if we're going to use this for Removed *)
 
-Definition typelookup := option (obj -> option type).
-Definition emptylookup : typelookup := Some (fun o => None).
+(* NOTE: Our lookup models an environment where every variable in scope
+   has some type present (even if its only tTop). *)
+
+
+Definition typelookup := option (obj -> type).
+Definition emptylookup : typelookup := Some (fun o => tTop).
 
 Definition falselookup : typelookup := None.
 
@@ -352,7 +356,7 @@ if type_eqdec t tBottom then None else
 match tl with
 | None => None
 | Some tl => Some (fun o' => if obj_eq o o'
-                        then Some t
+                        then t
                         else tl o')
 end.
 
@@ -403,7 +407,7 @@ with UpdatedLookup : bool -> type -> obj -> typelookup -> typelookup -> Prop :=
 | UpLU :
     forall b t t' pth pth' x otl tl updated,
       otl = Some tl ->
-      tl (objπ pth' x) = Some t' ->
+      tl (objπ pth' x) = t' ->
       UpdatedType t' (b, t) pth updated ->
       UpdatedLookup b t (objπ (pth ++ pth') x) (Some tl) (extend_lookup (objπ pth' x) updated (Some tl))
 
@@ -683,7 +687,8 @@ with Subtype : relation type :=
 with NonSubtype : type -> type -> Prop :=
 | NST_temp : forall t1 t2, NonSubtype t1 t2
 
-(* subtype negation *)
+(* Proves: One environment (lhs) has the typing information
+   to prove the conclusion in the other environment (the rhs). *)
 with Proves : relation env  :=
 | PAll_empty :
     forall E,
@@ -703,24 +708,49 @@ with Proves : relation env  :=
       Proves E E2 ->
       Proves E (envOr E1 E2)
 
+(* CannotProve: The lhs environment cannot prove
+   the judgements in the rhs environment. *)
+with CannotProve : relation env  :=
+| CP_Cons :
+    forall E1 E2 b t o tls,
+      Proves E1 E2 ->
+      UpdatedEnv E1 tls ->
+      ProvesTyping tls (negb b) t o ->
+      CannotProve E1 (envFact b t o E2)
+| P_Or :
+    forall E E1 E2,
+      CannotProve E E1 ->
+      CannotProve E E2 ->
+      CannotProve E (envOr E1 E2)
+
+(* A set of 'updated' typing conclusions does or does not
+   support a given typing of an object (_all_ must support 
+   for true *)
 with ProvesTyping : lookupset -> bool -> type -> obj -> Prop :=
-| PT_Atom :
+| PT_Sub_Atom :
     forall (otl:typelookup) tl t (o:obj) t',
       otl = Some tl ->
-      (tl o) = Some t' ->
-      Subtype t t' ->
+      (tl o) = t' ->
+      Subtype t' t ->
       ProvesTyping (tls_atom (Some tl)) true t o
-| PT_Cons :
+| P_False_Atom :
+    forall b t o,
+      ProvesTyping (tls_atom None) b t o
+| PT_Sub_Cons :
     forall otl tl tls t' t (o:obj),
       otl = Some tl ->
-      (tl o) = Some t' ->
-      Subtype t t' ->
+      (tl o) = t' ->
+      Subtype t' t ->
       ProvesTyping tls true t o ->
       ProvesTyping (tls_cons (Some tl) tls) true t o
+| P_False_Cons :
+    forall tls b t o,
+      ProvesTyping tls b t o ->
+      ProvesTyping (tls_cons None tls) b t o
 | PF_Atom :
     forall tl t o t',
-      (tl o) = Some t' ->
-      NonSubtype t t' ->
+      (tl o) = t' ->
+      NonSubtype t' t ->
       ProvesTyping (tls_atom (Some tl)) false t o
 | PF_Cons_prev :
     forall tl tls t o,
@@ -728,8 +758,8 @@ with ProvesTyping : lookupset -> bool -> type -> obj -> Prop :=
       ProvesTyping (tls_cons tl tls) false t o
 | PF_Cons_new :
     forall tl tls t' t o,
-      (tl o) = Some t' ->
-      NonSubtype t t' ->
+      (tl o) = t' ->
+      NonSubtype t' t ->
       ProvesTyping (tls_cons (Some tl) tls) false t o.
 
 

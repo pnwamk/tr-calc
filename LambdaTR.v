@@ -587,7 +587,7 @@ with Typing : env -> exp -> type -> env -> env -> obj -> Prop :=
                tt
                tt
                objnil
-               tNum)
+               tBool)
            tt
            ff
            objnil
@@ -887,7 +887,15 @@ Proof.
   intros T x t1 t2.
   destruct (id_eqdec x x); auto. tryfalse.
 Qed.
-Hint Rewrite if_id_eqdec_refl.  
+Hint Rewrite if_id_eqdec_refl.
+
+Lemma all_proves_top : forall E x,
+Proves E (envFact true tTop (var x) envEmpty).
+Proof with crush.
+  intros E. induction E; intros x...
+  eapply P_Cons...
+  eapply P_Cons. eauto.
+Abort.  
 
 Example example1:
   forall x,
@@ -909,6 +917,13 @@ Grab Existential Variables.
   crush. crush.
 Qed.
 
+Lemma then_else_eq : forall (T:Type) (P1 P2:Prop) (test: sumbool P1 P2) (Q:T),
+(if test then Q else Q) = Q.
+Proof.
+  crush.
+Qed.
+Hint Rewrite then_else_eq.
+
 Example example2:
   forall x,
     FunctionTypeOf 
@@ -918,6 +933,41 @@ Example example2:
                    (expApp iszero' (expVar x))))
       (tUnion tBool tNum)
       (tBool).
+Proof with crush.
+  intros x.
+  eapply functiontype.
+  eapply T_Abs. eapply T_If. eapply T_App...
+  eapply T_Var. 
+  eapply P_Cons. eauto. eapply UE_Fact. eapply UE_Empty.
+  eapply ULS_Atom. eapply UL... eapply UT_T. eapply RES_NonSub.
+  compute... intros contra; inversion contra...
+  eapply NS_Trivial. compute... reflexivity.
+  eapply PT_Atom... simpl. 
+  erewrite if_id_eqdec_refl. eapply T_Subsume... 
+  simpl. erewrite if_id_eqdec_refl.
+  eapply T_App... eapply T_Var... eapply P_Cons.
+  eapply P_Empty. eapply UE_Fact. eapply UE_Fact.
+  eapply UE_Empty... eapply ULS_Atom. eapply UL...
+  eapply UT_NT. eapply REM_nop. eapply NS_Trivial. compute... 
+  intros contra; inversion contra. reflexivity.
+  eapply ULS_Atom. eapply UL... eapply UT_T.
+  eapply RES_NonSub. compute...
+  intros contra; inversion contra.
+  eapply NS_Trivial... reflexivity.
+  eapply PT_Atom...
+Grab Existential Variables.
+  crush. crush.
+Qed.
+(* TODO: Applications of P_Cons... 
+   often lead to things like:
+
+ UpdatedEnv
+     (envFact true (tUnion tBool tNum) (varx)
+        (envFact false tBool (varx) envEmpty)) (tls_atom None)
+
+Which is stupid, I should fix this.
+
+ *)
 
 Example example3:
   forall x,

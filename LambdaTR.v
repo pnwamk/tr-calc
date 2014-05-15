@@ -233,7 +233,7 @@ Hint Resolve primop_eqdec.
 Inductive exp : Type :=
 | expVar : id -> exp
 | expApp : exp -> exp -> exp
-| expAbs : id -> type -> exp -> exp
+| expλ : id -> type -> exp -> exp
 | expIf : exp -> exp -> exp -> exp
 | expPrimop : primop -> exp
 | expT : exp
@@ -610,7 +610,7 @@ with Typing : env -> exp -> type -> env -> env -> obj -> Prop :=
    forall E σ x e t tE fE o,
      Typing (envFact true σ (var x) E) e t tE fE o ->
      Typing E
-            (expAbs x σ e)
+            (expλ x σ e)
             (tλ x σ tE fE o t)
             tt
             ff
@@ -828,11 +828,17 @@ Hint Constructors UpdatedEnv UpdatedLookupSet UpdatedLookup UpdatedType
 Restricted Removed Typing Subtype NonSubtype Proves CannotProve ProvesTyping.
 
 
-Inductive TypeOf : exp -> type -> Prop :=
-| typeof : forall e t tE fE o,
+Inductive SimpleTypeOf : exp -> type -> Prop :=
+| simpletype : forall e t tE fE o,
                Typing envEmpty e t tE fE o ->
-               TypeOf e t.
-Hint Constructors TypeOf.
+               SimpleTypeOf e t.
+Hint Constructors SimpleTypeOf.
+
+Inductive FunctionTypeOf : exp -> type -> type -> Prop :=
+| functiontype : forall e x t1 tEλ fEλ oλ t2 tE fE o,
+               Typing envEmpty e (tλ x t1 tEλ fEλ oλ t2) tE fE o ->
+               FunctionTypeOf e t1 t2.
+Hint Constructors FunctionTypeOf.
 
 Lemma subst_emptyeqid_tNum : forall b x y,
 (subst_env (envFact b tNum (var y) envEmpty) (var x) y) =
@@ -845,13 +851,13 @@ Qed.
 
 Example example1:
   forall x,
-  TypeOf (expIf (expApp isnum' (expVar x)) 
-                (expApp add1' (expVar x)) 
-                (expNum 0))
-         tNum.
+    SimpleTypeOf (expIf (expApp isnum' (expVar x)) 
+                        (expApp add1' (expVar x)) 
+                        (expNum 0))
+                 tNum.
 Proof.
   intros x.
-  eapply typeof. eapply T_If. eapply T_App.
+  eapply simpletype. eapply T_If. eapply T_App.
   eapply T_Const_isnum. eapply T_Var. eapply P_Cons.
   apply P_Empty. apply UE_Empty. eapply (PT_Atom tTop tTop). 
   reflexivity. eapply S_Refl. simpl. reflexivity.
@@ -869,5 +875,38 @@ Proof.
 Grab Existential Variables.
 eauto. eauto.
 Qed.
+
+Example example2:
+  forall x,
+    FunctionTypeOf 
+      (expλ x (tUnion tBool tNum) 
+            (expIf (expApp isbool' (expVar x)) 
+                   expF 
+                   (expApp iszero' (expVar x))))
+      (tUnion tBool tNum)
+      (tBool).
+
+Example example3:
+  forall x,
+    SimpleTypeOf
+      (expLet x (expApp isnum' (expVar x)) 
+              (expIf (expVar x) 
+                     (expVar x) 
+                     (expNum 0)))
+      tNum.
+
+Example example4:
+  forall x,
+  SimpleTypeOf
+  (expIf (expIf (expApp isnum' (expVar x)) 
+                expT
+                (expApp isbool' (expVar x)))
+         (expApp (expλ x (tUnion tBool tNum) 
+                       (expIf (expApp isbool' (expVar x)) 
+                              expF 
+                              (expApp iszero' (expVar x))))
+                 (expVar x))
+         expF)
+  tBool.
 
 End LTR.

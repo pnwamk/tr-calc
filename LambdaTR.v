@@ -424,7 +424,7 @@ with UpdatedLookupSet : bool -> type -> obj -> lookupset -> lookupset -> Prop :=
     forall b t o tl tl',
       UpdatedLookup b t o tl tl' ->
       UpdatedLookupSet b t o (tls_atom tl) (tls_atom tl')                    
-| ULS_cons :
+| ULS_Cons :
     forall b t o tl tl' tls tls',
       UpdatedLookupSet b t o tls tls' ->
       UpdatedLookup b t o tl tl' ->
@@ -847,7 +847,47 @@ Proof.
   intros b x y.
   simpl. destruct (id_eqdec y y).
   reflexivity. tryfalse.
-Qed.  
+Qed.
+Hint Rewrite subst_emptyeqid_tNum.
+
+Lemma app_envEmpty_l : forall E,
+env_app envEmpty E = E.
+Proof.
+  intros E.
+  simpl. reflexivity.
+Qed.
+Hint Rewrite app_envEmpty_l.
+
+Lemma app_envEmpty_r : forall E,
+env_app E envEmpty = E.
+Proof.
+  intros E.
+  induction E.
+  simpl. reflexivity.
+  simpl. rewrite IHE. reflexivity.
+  simpl. rewrite IHE. reflexivity.
+  simpl. rewrite IHE1. rewrite IHE2. reflexivity.
+Qed.
+Hint Rewrite app_envEmpty_r.
+
+
+Lemma empty_proves_top : forall x E,
+Proves envEmpty E ->
+Proves envEmpty (envFact true tTop (var x) E).
+Proof.
+  intros x E HE.
+  eapply P_Cons. auto. eauto. eapply (PT_Atom tTop tTop). auto.
+  auto.
+Qed.
+Hint Resolve empty_proves_top.
+
+Lemma if_id_eqdec_refl : forall (T:Type) x (t1 t2: T),
+(if id_eqdec x x then t1 else t2) = t1.
+Proof.
+  intros T x t1 t2.
+  destruct (id_eqdec x x); auto. tryfalse.
+Qed.
+Hint Rewrite if_id_eqdec_refl.  
 
 Example example1:
   forall x,
@@ -855,25 +895,18 @@ Example example1:
                         (expApp add1' (expVar x)) 
                         (expNum 0))
                  tNum.
-Proof.
+Proof with crush.
   intros x.
-  eapply simpletype. eapply T_If. eapply T_App.
-  eapply T_Const_isnum. eapply T_Var. eapply P_Cons.
-  apply P_Empty. apply UE_Empty. eapply (PT_Atom tTop tTop). 
-  reflexivity. eapply S_Refl. simpl. reflexivity.
-  erewrite subst_emptyeqid_tNum. reflexivity.
-  erewrite subst_emptyeqid_tNum. reflexivity.
-  simpl. reflexivity.
-  eapply T_App. eapply T_Const_add1. eapply T_Var.
-  simpl. eapply P_Cons. eauto. eapply UE_Fact. eapply UE_Empty.
-  eapply ULS_Atom. eapply UL. reflexivity. eapply UT_T.
-  eapply RES_NonSub. compute. reflexivity. intros contra. inversion contra. 
-  eapply NS_Trivial. compute. reflexivity. simpl. reflexivity.
-  eapply PT_Atom. destruct (obj_eqdec (var x) (var x)). reflexivity.
-  tryfalse. eauto. simpl. reflexivity. simpl. reflexivity.
-  simpl. reflexivity. simpl. reflexivity. eauto.
+  eapply simpletype.
+  eapply T_If. eapply T_App... simpl. eapply T_App... 
+  eapply T_Var... eapply P_Cons. eapply P_Empty...
+  eapply UE_Fact. eapply UE_Empty.
+  eapply ULS_Atom. eapply UL... eapply UT_T.
+  eapply RES_NonSub. compute... intros contra; inversion contra.
+  eapply NS_Trivial. compute... reflexivity.
+  eapply PT_Atom... simpl...
 Grab Existential Variables.
-eauto. eauto.
+  crush. crush.
 Qed.
 
 Example example2:
@@ -908,5 +941,19 @@ Example example4:
                  (expVar x))
          expF)
   tBool.
+
+
+(*
+TODO -- Other theorems?
+
+1. forall (e:exp), TypeOf e t ->
+                   TypeOf e t' ->
+                   (Subtype t t' \/ Subtype t' t)
+
+2. forall (e:exp),
+
+
+*)
+
 
 End LTR.

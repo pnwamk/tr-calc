@@ -382,9 +382,7 @@ Definition extend_lookup (o:obj) (t:type) (tl:typelookup) : typelookup :=
 if type_eqdec t tBottom then None else
 match tl with
 | None => None
-| Some tl => Some (fun o' => if obj_eqdec o o'
-                        then t
-                        else tl o')
+| Some tl => Some (fun o' => if obj_eqdec o o' then t else tl o')
 end.
 
 Definition tt := envEmpty.
@@ -431,12 +429,15 @@ with UpdatedLookupSet : bool -> type -> obj -> lookupset -> lookupset -> Prop :=
       UpdatedLookupSet b t o (tls_cons tl tls) (tls_cons tl' tls')                    
 
 with UpdatedLookup : bool -> type -> obj -> typelookup -> typelookup -> Prop :=
-| UL :
+| UL_Some :
     forall b t t' pth pth' x tl o updated,
       tl (objπ pth' x) = t' ->
       UpdatedType t' (b, t) pth updated ->
       o = (objπ (pth ++ pth') x) ->
       UpdatedLookup b t o (Some tl) (extend_lookup (objπ pth' x) updated (Some tl))
+| UL_None :
+    forall b t o,
+    UpdatedLookup b t o None None
 
 with UpdatedType : type -> (bool * type) -> path -> type -> Prop :=
 | UT_Car :
@@ -659,7 +660,7 @@ with Typing : env -> exp -> type -> env -> env -> obj -> Prop :=
      o' = subst_o (objπ [cdr] x) o x ->
      Typing E (expApp cdr' e) t2 tE fE o'
 | T_Let :
-   forall E e0 t tE0 fE0 o0 e1 σ tE1 fE1 o1 x,
+   forall E e0 t tE0 fE0 o0 e1 σ tE1 fE1 o1 x σ' tE1' fE1' o1',
      Typing E e0 t tE0 fE0 o0 ->
      Typing (env_app (envFact true t (var x) envEmpty)
                      (env_app (envOr (envFact true tFalse (var x) envEmpty) 
@@ -671,12 +672,11 @@ with Typing : env -> exp -> type -> env -> env -> obj -> Prop :=
             tE1 
             fE1 
             o1 ->
-     Typing E
-            (expLet x e0 e1)
-            (subst_t σ o0 x)
-            (subst_env tE1 o0 x)
-            (subst_env fE1 o0 x)
-            (subst_o o1 o0 x)
+     σ' = (subst_t σ o0 x) ->
+     tE1' = (subst_env tE1 o0 x) ->
+     fE1' = (subst_env fE1 o0 x) ->
+     o1' = (subst_o o1 o0 x) ->
+     Typing E (expLet x e0 e1) σ' tE1' fE1' o1'
 
 (* subtyping *)
 with Subtype : relation type :=
@@ -797,19 +797,12 @@ with ProvesTyping : lookupset -> bool -> type -> obj -> Prop :=
       (tl o) = t' ->
       Subtype t' t ->
       ProvesTyping (tls_atom (Some tl)) true t o
-| P_False_Atom :
-    forall b t o,
-      ProvesTyping (tls_atom None) b t o
 | PT_Sub_Cons :
     forall tl tls t' t (o:obj),
       (tl o) = t' ->
       Subtype t' t ->
       ProvesTyping tls true t o ->
       ProvesTyping (tls_cons (Some tl) tls) true t o
-| P_False_Cons :
-    forall tls b t o,
-      ProvesTyping tls b t o ->
-      ProvesTyping (tls_cons None tls) b t o
 | PF_Atom :
     forall tl t o t',
       (tl o) = t' ->
@@ -823,7 +816,14 @@ with ProvesTyping : lookupset -> bool -> type -> obj -> Prop :=
     forall tl tls t' t o,
       (tl o) = t' ->
       NonSubtype t' t ->
-      ProvesTyping (tls_cons (Some tl) tls) false t o.
+      ProvesTyping (tls_cons (Some tl) tls) false t o
+| P_False_Cons :
+    forall tls b t o,
+      ProvesTyping tls b t o ->
+      ProvesTyping (tls_cons None tls) b t o
+| P_False_Atom :
+    forall b t o,
+      ProvesTyping (tls_atom None) b t o.
 Hint Constructors UpdatedEnv UpdatedLookupSet UpdatedLookup UpdatedType 
 Restricted Removed Typing Subtype NonSubtype Proves CannotProve ProvesTyping.
 
@@ -889,13 +889,44 @@ Proof.
 Qed.
 Hint Rewrite if_id_eqdec_refl.
 
-Lemma all_proves_top : forall E x,
-Proves E (envFact true tTop (var x) envEmpty).
-Proof with crush.
-  intros E. induction E; intros x...
-  eapply P_Cons...
-  eapply P_Cons. eauto.
-Abort.  
+Lemma if_obj_eqdec_refl : forall (T:Type) x (t1 t2: T),
+(if obj_eqdec x x then t1 else t2) = t1.
+Proof.
+  intros T x t1 t2.
+  destruct (obj_eqdec x x); auto. tryfalse.
+Qed.
+Hint Rewrite if_obj_eqdec_refl.
+
+Lemma if_type_eqdec_refl : forall (T:Type) x (t1 t2: T),
+(if type_eqdec x x then t1 else t2) = t1.
+Proof.
+  intros T x t1 t2.
+  destruct (type_eqdec x x); auto. tryfalse.
+Qed.
+Hint Rewrite if_type_eqdec_refl.
+
+Lemma top_not_union :
+~ isUnion tTop.
+Proof.
+  intros contra; inversion contra.
+Qed. 
+Lemma num_not_union :
+~ isUnion tNum.
+Proof. intros contra; inversion contra. Qed. 
+Lemma true_not_union :
+~ isUnion tTrue.
+Proof. intros contra; inversion contra. Qed. 
+Lemma false_not_union :
+~ isUnion tFalse.
+Proof. intros contra; inversion contra. Qed. 
+Lemma λ_not_union : forall x t tE fE o t',
+~ isUnion (tλ x t tE fE o t').
+Proof. intros x t tE fE o t' contra; inversion contra. Qed. 
+Lemma pair_not_union : forall t1 t2,
+~ isUnion (tPair t1 t2).
+Proof. intros t1 t2 contra; inversion contra. Qed.
+Hint Resolve top_not_union num_not_union true_not_union
+false_not_union λ_not_union pair_not_union.
 
 Example example1:
   forall x,
@@ -909,9 +940,7 @@ Proof with crush.
   eapply T_If. eapply T_App... simpl. eapply T_App... 
   eapply T_Var... eapply P_Cons. eapply P_Empty...
   eapply UE_Fact. eapply UE_Empty.
-  eapply ULS_Atom. eapply UL... eapply UT_T.
-  eapply RES_NonSub. compute... intros contra; inversion contra.
-  eapply NS_Trivial. compute... reflexivity.
+  eapply ULS_Atom. eapply UL_Some... 
   eapply PT_Atom... simpl...
 Grab Existential Variables.
   crush. crush.
@@ -939,21 +968,14 @@ Proof with crush.
   eapply T_Abs. eapply T_If. eapply T_App...
   eapply T_Var. 
   eapply P_Cons. eauto. eapply UE_Fact. eapply UE_Empty.
-  eapply ULS_Atom. eapply UL... eapply UT_T. eapply RES_NonSub.
-  compute... intros contra; inversion contra...
-  eapply NS_Trivial. compute... reflexivity.
+  eapply ULS_Atom. eapply UL_Some... 
   eapply PT_Atom... simpl. 
   erewrite if_id_eqdec_refl. eapply T_Subsume... 
   simpl. erewrite if_id_eqdec_refl.
   eapply T_App... eapply T_Var... eapply P_Cons.
   eapply P_Empty. eapply UE_Fact. eapply UE_Fact.
-  eapply UE_Empty... eapply ULS_Atom. eapply UL...
-  eapply UT_NT. eapply REM_nop. eapply NS_Trivial. compute... 
-  intros contra; inversion contra. reflexivity.
-  eapply ULS_Atom. eapply UL... eapply UT_T.
-  eapply RES_NonSub. compute...
-  intros contra; inversion contra.
-  eapply NS_Trivial... reflexivity.
+  eapply UE_Empty... eapply ULS_Atom. eapply UL_Some...
+  eapply ULS_Atom. eapply UL_Some... 
   eapply PT_Atom...
 Grab Existential Variables.
   crush. crush.
@@ -965,9 +987,16 @@ Qed.
      (envFact true (tUnion tBool tNum) (varx)
         (envFact false tBool (varx) envEmpty)) (tls_atom None)
 
-Which is stupid, I should fix this.
+Which is stupid, I should fix this if possible.
 
  *)
+
+Ltac simplify_UE :=
+  (try (repeat ((eapply UE_Fact) || (eapply UE_Or) || (eapply UE_Empty) || (eapply UE_False)))).
+
+Ltac simplify_ULS :=
+  (try (repeat ((eapply ULS_Cons) || (eapply ULS_Atom)))).
+
 
 Example example3:
   forall x,
@@ -977,6 +1006,38 @@ Example example3:
                      (expVar x) 
                      (expNum 0)))
       tNum.
+Proof with crush.
+  intros x.
+  eapply simpletype. eapply T_Let. eapply T_App... simpl.
+  erewrite if_id_eqdec_refl. eapply T_If... eapply T_Var.
+  eapply P_Cons. eapply P_Empty. simplify_UE. 
+  eapply ULS_Atom. eapply UL_Some... 
+  eapply ULS_Atom. eapply UL_Some... simpl. eapply ULS_Cons.
+  eapply ULS_Atom. eapply (UL_Some true tFalse tNum [] [] x)...
+  eapply (UL_Some true tFalse tFalse [] [] x)...
+  eapply ULS_Atom. eapply UL_Some...
+  eapply ULS_Atom. eapply UL_Some... simple. eapply ULS_Cons.
+  eapply ULS_Atom. eapply (UL_Some true tNum tNum [] [] x)...
+  eapply (UL_Some true tNum tFalse [] [] x)... unfold extend_lookup. 
+  destruct (type_eqdec tBottom tBottom).
+  eapply ULS_Cons. eapply ULS_Cons. eapply ULS_Cons.
+  eapply ULS_Atom.
+  destruct (type_eqdec tNum tBottom). tryfalse.
+  eapply (UL_Some true tBool tNum [] [] x)... eapply UL_None. 
+  eapply UL_None. eapply (UL_Some true tBool tFalse [] [] x)...
+  tryfalse. unfold extend_lookup... 
+  eapply T_Subsume. eapply T_Var. eapply P_Cons... simplify_UE.
+  eapply ULS_Atom. eapply UL_Some... eapply ULS_Atom. 
+  eapply (UL_Some true tFalse tTop [] [] x)...
+  eapply ULS_Atom. eapply UL_Some... eapply ULS_Atom. 
+  eapply (UL_Some true tNum tTop [] [] x)...
+  unfold tls_app. eapply ULS_Cons. eapply ULS_Atom. 
+  eapply (UL_Some true tFalse tNum [] [] x)...
+  eapply (UL_Some true tFalse tFalse [] [] x)... eapply ULS_Atom.
+  eapply UL_Some... eapply ULS_Atom. eapply UL_Some...
+  eapply ULS_Atom. eapply UL_Some... eapply ULS_Atom. 
+  eapply (UL_Some true tNum tTop [] [] x)... unfold tls_app.
+  eapply ULS_Cons. eapply ULS_Atom.
 
 Example example4:
   forall x,

@@ -511,9 +511,6 @@ with Removed : type -> type -> type -> Prop :=
 
 (* Typing Rules *)
 with Typing : env -> exp -> type -> env -> env -> obj -> Prop :=
-| Τ_Num :
-    forall E n,
-      Typing E (expNum n) tNum tt ff objnil
 | T_Const_isnum :
   forall E x,
     Typing E 
@@ -592,6 +589,9 @@ with Typing : env -> exp -> type -> env -> env -> obj -> Prop :=
            tt
            ff
            objnil
+| Τ_Num :
+    forall E n,
+      Typing E (expNum n) tNum tt ff objnil
 | T_True :
     forall E,
       Typing E expT tTrue tt ff objnil
@@ -758,26 +758,32 @@ with Proves : relation env  :=
 | P_Refl :
     forall E,
       Proves E E
-| P_Empty :
-    forall E,
-      Proves E envEmpty
 | P_False :
-    forall E E',
-      Proves (envFalse E) E'
-| P_Fact :
+    forall E1 E2,
+      Proves (envFalse E1) E2
+| P_Fact_lhs :
+    forall E1 E2 b t o,
+      Proves E1 E2 ->
+      Proves (envFact b t o E1) E2
+| P_Fact_rhs :
     forall E1 E2 b t o tls,
       Proves E1 E2 ->
       UpdatedEnv E1 tls ->
       ProvesTyping tls b t o ->
       Proves E1 (envFact b t o E2)
-| P_Or_l :
+| P_Or_rhs_l :
     forall E E1 E2,
       Proves E E1 ->
       Proves E (envOr E1 E2)
-| P_Or_r :
+| P_Or_rhs_r :
     forall E E1 E2,
       Proves E E2 ->
       Proves E (envOr E1 E2)
+| P_Or_lhs :
+    forall E1 E2 E3,
+      Proves E1 E3 ->
+      Proves E2 E3 ->
+      Proves (envOr E1 E2) E3
 
 (* CannotProve: The lhs environment cannot prove
    the judgements in the rhs environment. *)
@@ -833,6 +839,13 @@ with ProvesTyping : lookupset -> bool -> type -> obj -> Prop :=
 Hint Constructors UpdatedEnv UpdatedLookupSet UpdatedLookup UpdatedType 
 Restricted Removed Typing Subtype NonSubtype Proves CannotProve ProvesTyping.
 
+Theorem P_Empty : forall E,
+Proves E envEmpty.
+Proof with crush. 
+  intros E.
+  induction E...
+Qed.
+Hint Resolve P_Empty.
 
 Inductive SimpleTypeOf : exp -> type -> Prop :=
 | simpletype : forall e t tE fE o,
@@ -882,7 +895,7 @@ Proves envEmpty E ->
 Proves envEmpty (envFact true tTop (var x) E).
 Proof.
   intros x E HE.
-  eapply P_Fact. auto. eauto. eapply (PT_Atom tTop tTop). auto.
+  eapply P_Fact_rhs. auto. eauto. eapply (PT_Atom tTop tTop). auto.
   auto.
 Qed.
 Hint Resolve empty_proves_top.
@@ -958,10 +971,7 @@ Example example1:
 Proof with crush.
   intros x.
   eapply simpletype.
-  eapply T_If. eapply T_App... simpl. eapply T_App... 
-  eapply T_Var... eapply P_Fact. eapply P_Empty...
-  eautoUE. eautoULS. eapply UL_Some... 
-  eapply PT_Atom... simpl...
+  eapply T_If. eapply T_App... simpl. eapply T_App... simpl. crush.
 Grab Existential Variables.
   crush. crush.
 Qed.
@@ -979,15 +989,9 @@ Proof with crush.
   intros x.
   eapply functiontype.
   eapply T_Abs. eapply T_If. eapply T_App...
-  eapply T_Var. 
-  eapply P_Fact. eauto. eautoUE.  eautoULS. 
-  eapply UL_Some... eapply PT_Atom... simpl. 
   erewrite if_id_eqdec_refl. eapply T_Subsume... 
   simpl. erewrite if_id_eqdec_refl.
-  eapply T_App... eapply T_Var... eapply P_Fact.
-  eapply P_Empty. eautoUE. eautoULS. eapply UL_Some...
-  eautoULS. eapply UL_Some... 
-  eapply PT_Atom...
+  eapply T_App...
 Grab Existential Variables.
   crush. crush.
 Qed.
@@ -1013,8 +1017,8 @@ Example example3:
 Proof with crush.
   intros x.
   eapply simpletype. eapply T_Let. eapply T_App... simpl.
-  erewrite if_id_eqdec_refl. eapply T_If... eapply T_Var.
-  eapply P_Fact. eapply P_Empty. eautoUE. eautoULS.
+  erewrite if_id_eqdec_refl. eapply T_If... eapply T_Var...
+  eapply P_Fact_rhs. eapply P_Empty. eautoUE. eautoULS.
   eapply UL_Some... eautoULS. eapply UL_Some... simpl. 
   eautoULS. eapply (UL_Some true tFalse tNum [] [] x)...
   eapply (UL_Some true tFalse tFalse [] [] x)... eautoULS.
@@ -1025,7 +1029,7 @@ Proof with crush.
   eapply (UL_Some true tBool tNum [] [] x)... eapply UL_None. 
   eapply UL_None. eapply (UL_Some true tBool tFalse [] [] x)...
   unfold extend_lookup... 
-  eapply T_Subsume. eapply T_Var. eapply P_Fact. eapply P_Empty. eautoUE.
+  eapply T_Subsume. eapply T_Var. eapply P_Fact_rhs. eapply P_Empty. eautoUE.
   eautoULS. eapply UL_Some... eautoULS.
   eapply (UL_Some true tFalse tTop [] [] x)... eautoULS. eapply UL_Some... 
   eautoULS. eapply (UL_Some true tNum tTop [] [] x)...
@@ -1058,7 +1062,7 @@ Example example4:
                  (expVar x))
          expF)
   tBool.
-
+Proof. Admitted. (* TODO! *)
 
 (*
 TODO -- Other theorems?

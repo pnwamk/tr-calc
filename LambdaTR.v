@@ -934,6 +934,21 @@ Proof. intros t1 t2 contra; inversion contra. Qed.
 Hint Resolve top_not_union num_not_union true_not_union
 false_not_union λ_not_union pair_not_union.
 
+Lemma then_else_eq : forall (T:Type) (P1 P2:Prop) (test: sumbool P1 P2) (Q:T),
+(if test then Q else Q) = Q.
+Proof.
+  crush.
+Qed.
+Hint Rewrite then_else_eq.
+
+
+Ltac eautoUE :=
+  (try (repeat ((eapply UE_Fact) || (eapply UE_Or) || (eapply UE_Empty) || (eapply UE_False)))).
+
+Ltac eautoULS :=
+  (try (repeat ((eapply ULS_Cons) || (eapply ULS_Atom)))).
+
+
 Example example1:
   forall x,
     SimpleTypeOf (expIf (expApp isnum' (expVar x)) 
@@ -945,19 +960,11 @@ Proof with crush.
   eapply simpletype.
   eapply T_If. eapply T_App... simpl. eapply T_App... 
   eapply T_Var... eapply P_Fact. eapply P_Empty...
-  eapply UE_Fact. eapply UE_Empty.
-  eapply ULS_Atom. eapply UL_Some... 
+  eautoUE. eautoULS. eapply UL_Some... 
   eapply PT_Atom... simpl...
 Grab Existential Variables.
   crush. crush.
 Qed.
-
-Lemma then_else_eq : forall (T:Type) (P1 P2:Prop) (test: sumbool P1 P2) (Q:T),
-(if test then Q else Q) = Q.
-Proof.
-  crush.
-Qed.
-Hint Rewrite then_else_eq.
 
 Example example2:
   forall x,
@@ -973,15 +980,13 @@ Proof with crush.
   eapply functiontype.
   eapply T_Abs. eapply T_If. eapply T_App...
   eapply T_Var. 
-  eapply P_Fact. eauto. eapply UE_Fact. eapply UE_Empty.
-  eapply ULS_Atom. eapply UL_Some... 
-  eapply PT_Atom... simpl. 
+  eapply P_Fact. eauto. eautoUE.  eautoULS. 
+  eapply UL_Some... eapply PT_Atom... simpl. 
   erewrite if_id_eqdec_refl. eapply T_Subsume... 
   simpl. erewrite if_id_eqdec_refl.
   eapply T_App... eapply T_Var... eapply P_Fact.
-  eapply P_Empty. eapply UE_Fact. eapply UE_Fact.
-  eapply UE_Empty... eapply ULS_Atom. eapply UL_Some...
-  eapply ULS_Atom. eapply UL_Some... 
+  eapply P_Empty. eautoUE. eautoULS. eapply UL_Some...
+  eautoULS. eapply UL_Some... 
   eapply PT_Atom...
 Grab Existential Variables.
   crush. crush.
@@ -996,12 +1001,6 @@ Qed.
 Which is stupid, I should fix this if possible.
 
  *)
-
-Ltac eautoUE :=
-  (try (repeat ((eapply UE_Fact) || (eapply UE_Or) || (eapply UE_Empty) || (eapply UE_False)))).
-
-Ltac eautoULS :=
-  (try (repeat ((eapply ULS_Cons) || (eapply ULS_Atom)))).
 
 Example example3:
   forall x,

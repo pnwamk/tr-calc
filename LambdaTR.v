@@ -426,7 +426,7 @@ with UpdatedLookupSet : bool -> type -> obj -> lookupset -> lookupset -> Prop :=
     forall b t o tl tl' tls tls',
       UpdatedLookupSet b t o tls tls' ->
       UpdatedLookup b t o tl tl' ->
-      UpdatedLookupSet b t o (tls_cons tl tls) (tls_cons tl' tls')                    
+      UpdatedLookupSet b t o (tls_cons tl tls) (tls_cons tl' tls')
 
 with UpdatedLookup : bool -> type -> obj -> typelookup -> typelookup -> Prop :=
 | UL_Some :
@@ -755,15 +755,21 @@ with NonSubtype : type -> type -> Prop :=
 (* Proves: One environment (lhs) has the typing information
    to prove the conclusion in the other environment (the rhs). *)
 with Proves : relation env  :=
+| P_Refl :
+    forall E,
+      Proves E E
 | P_Empty :
     forall E,
       Proves E envEmpty
-| P_Cons :
-    forall E1 E2 b f o tls,
+| P_False :
+    forall E E',
+      Proves (envFalse E) E'
+| P_Fact :
+    forall E1 E2 b t o tls,
       Proves E1 E2 ->
       UpdatedEnv E1 tls ->
-      ProvesTyping tls b f o ->
-      Proves E1 (envFact b f o E2)
+      ProvesTyping tls b t o ->
+      Proves E1 (envFact b t o E2)
 | P_Or_l :
     forall E E1 E2,
       Proves E E1 ->
@@ -776,13 +782,13 @@ with Proves : relation env  :=
 (* CannotProve: The lhs environment cannot prove
    the judgements in the rhs environment. *)
 with CannotProve : relation env  :=
-| CP_Cons :
+| CP_Fact :
     forall E1 E2 b t o tls,
       Proves E1 E2 ->
       UpdatedEnv E1 tls ->
       ProvesTyping tls (negb b) t o ->
       CannotProve E1 (envFact b t o E2)
-| P_Or :
+| CP_Or :
     forall E E1 E2,
       CannotProve E E1 ->
       CannotProve E E2 ->
@@ -803,25 +809,25 @@ with ProvesTyping : lookupset -> bool -> type -> obj -> Prop :=
       Subtype t' t ->
       ProvesTyping tls true t o ->
       ProvesTyping (tls_cons (Some tl) tls) true t o
-| PF_Atom :
+| PT_FAtom :
     forall tl t o t',
       (tl o) = t' ->
       NonSubtype t' t ->
       ProvesTyping (tls_atom (Some tl)) false t o
-| PF_Cons_prev :
+| PT_FCons_prev :
     forall tl tls t o,
       ProvesTyping tls false t o ->
       ProvesTyping (tls_cons tl tls) false t o
-| PF_Cons_new :
+| PT_FCons_new :
     forall tl tls t' t o,
       (tl o) = t' ->
       NonSubtype t' t ->
       ProvesTyping (tls_cons (Some tl) tls) false t o
-| P_False_Cons :
+| PT_False_Cons :
     forall tls b t o,
       ProvesTyping tls b t o ->
       ProvesTyping (tls_cons None tls) b t o
-| P_False_Atom :
+| PT_False_Atom :
     forall b t o,
       ProvesTyping (tls_atom None) b t o.
 Hint Constructors UpdatedEnv UpdatedLookupSet UpdatedLookup UpdatedType 
@@ -876,7 +882,7 @@ Proves envEmpty E ->
 Proves envEmpty (envFact true tTop (var x) E).
 Proof.
   intros x E HE.
-  eapply P_Cons. auto. eauto. eapply (PT_Atom tTop tTop). auto.
+  eapply P_Fact. auto. eauto. eapply (PT_Atom tTop tTop). auto.
   auto.
 Qed.
 Hint Resolve empty_proves_top.
@@ -938,7 +944,7 @@ Proof with crush.
   intros x.
   eapply simpletype.
   eapply T_If. eapply T_App... simpl. eapply T_App... 
-  eapply T_Var... eapply P_Cons. eapply P_Empty...
+  eapply T_Var... eapply P_Fact. eapply P_Empty...
   eapply UE_Fact. eapply UE_Empty.
   eapply ULS_Atom. eapply UL_Some... 
   eapply PT_Atom... simpl...
@@ -967,12 +973,12 @@ Proof with crush.
   eapply functiontype.
   eapply T_Abs. eapply T_If. eapply T_App...
   eapply T_Var. 
-  eapply P_Cons. eauto. eapply UE_Fact. eapply UE_Empty.
+  eapply P_Fact. eauto. eapply UE_Fact. eapply UE_Empty.
   eapply ULS_Atom. eapply UL_Some... 
   eapply PT_Atom... simpl. 
   erewrite if_id_eqdec_refl. eapply T_Subsume... 
   simpl. erewrite if_id_eqdec_refl.
-  eapply T_App... eapply T_Var... eapply P_Cons.
+  eapply T_App... eapply T_Var... eapply P_Fact.
   eapply P_Empty. eapply UE_Fact. eapply UE_Fact.
   eapply UE_Empty... eapply ULS_Atom. eapply UL_Some...
   eapply ULS_Atom. eapply UL_Some... 
@@ -980,7 +986,7 @@ Proof with crush.
 Grab Existential Variables.
   crush. crush.
 Qed.
-(* TODO: Applications of P_Cons... 
+(* TODO: Applications of P_Fact... 
    often lead to things like:
 
  UpdatedEnv
@@ -991,12 +997,11 @@ Which is stupid, I should fix this if possible.
 
  *)
 
-Ltac simplify_UE :=
+Ltac eautoUE :=
   (try (repeat ((eapply UE_Fact) || (eapply UE_Or) || (eapply UE_Empty) || (eapply UE_False)))).
 
-Ltac simplify_ULS :=
+Ltac eautoULS :=
   (try (repeat ((eapply ULS_Cons) || (eapply ULS_Atom)))).
-
 
 Example example3:
   forall x,
@@ -1010,34 +1015,36 @@ Proof with crush.
   intros x.
   eapply simpletype. eapply T_Let. eapply T_App... simpl.
   erewrite if_id_eqdec_refl. eapply T_If... eapply T_Var.
-  eapply P_Cons. eapply P_Empty. simplify_UE. 
-  eapply ULS_Atom. eapply UL_Some... 
-  eapply ULS_Atom. eapply UL_Some... simpl. eapply ULS_Cons.
-  eapply ULS_Atom. eapply (UL_Some true tFalse tNum [] [] x)...
-  eapply (UL_Some true tFalse tFalse [] [] x)...
-  eapply ULS_Atom. eapply UL_Some...
-  eapply ULS_Atom. eapply UL_Some... simple. eapply ULS_Cons.
-  eapply ULS_Atom. eapply (UL_Some true tNum tNum [] [] x)...
-  eapply (UL_Some true tNum tFalse [] [] x)... unfold extend_lookup. 
-  destruct (type_eqdec tBottom tBottom).
-  eapply ULS_Cons. eapply ULS_Cons. eapply ULS_Cons.
-  eapply ULS_Atom.
+  eapply P_Fact. eapply P_Empty. eautoUE. eautoULS.
+  eapply UL_Some... eautoULS. eapply UL_Some... simpl. 
+  eautoULS. eapply (UL_Some true tFalse tNum [] [] x)...
+  eapply (UL_Some true tFalse tFalse [] [] x)... eautoULS.
+  eapply UL_Some... eautoULS. eapply (UL_Some true tNum tTop [] [] x)...
+  eautoULS. eapply (UL_Some true tNum tNum [] [] x)...
+  eapply (UL_Some true tNum tFalse [] [] x)... eautoULS. unfold extend_lookup. 
   destruct (type_eqdec tNum tBottom). tryfalse.
   eapply (UL_Some true tBool tNum [] [] x)... eapply UL_None. 
   eapply UL_None. eapply (UL_Some true tBool tFalse [] [] x)...
-  tryfalse. unfold extend_lookup... 
-  eapply T_Subsume. eapply T_Var. eapply P_Cons... simplify_UE.
-  eapply ULS_Atom. eapply UL_Some... eapply ULS_Atom. 
-  eapply (UL_Some true tFalse tTop [] [] x)...
-  eapply ULS_Atom. eapply UL_Some... eapply ULS_Atom. 
-  eapply (UL_Some true tNum tTop [] [] x)...
-  unfold tls_app. eapply ULS_Cons. eapply ULS_Atom. 
-  eapply (UL_Some true tFalse tNum [] [] x)...
-  eapply (UL_Some true tFalse tFalse [] [] x)... eapply ULS_Atom.
-  eapply UL_Some... eapply ULS_Atom. eapply UL_Some...
-  eapply ULS_Atom. eapply UL_Some... eapply ULS_Atom. 
-  eapply (UL_Some true tNum tTop [] [] x)... unfold tls_app.
-  eapply ULS_Cons. eapply ULS_Atom.
+  unfold extend_lookup... 
+  eapply T_Subsume. eapply T_Var. eapply P_Fact. eapply P_Empty. eautoUE.
+  eautoULS. eapply UL_Some... eautoULS.
+  eapply (UL_Some true tFalse tTop [] [] x)... eautoULS. eapply UL_Some... 
+  eautoULS. eapply (UL_Some true tNum tTop [] [] x)...
+  unfold tls_app. eautoULS. eapply (UL_Some true tFalse tNum [] [] x)...
+  eapply (UL_Some true tFalse tFalse [] [] x)... eautoULS.
+  eapply UL_Some... eautoULS. eapply UL_Some... eautoULS.
+  eapply UL_Some... eautoULS. eapply (UL_Some true tNum tTop [] [] x)... 
+  unfold tls_app. eautoULS. eapply (UL_Some true tNum tNum [] [] x)...
+  eapply (UL_Some true tNum tFalse [] [] x)... unfold tls_app. eautoULS.
+  unfold extend_lookup. destruct (type_eqdec tNum tBottom). tryfalse.
+  eapply (UL_Some true tBool tNum [] [] x)... eapply UL_None.
+  eapply UL_None. eapply (UL_Some true tBool tFalse [] [] x)... 
+  unfold extend_lookup... unfold env_app. eapply P_Refl. unfold env_app.
+  eapply P_Refl. eapply S_Refl. eapply SO_Top. reflexivity. reflexivity.
+  reflexivity. reflexivity.
+Grab Existential Variables.
+  eauto. eauto.
+Qed.
 
 Example example4:
   forall x,
@@ -1066,5 +1073,13 @@ TODO -- Other theorems?
 
 *)
 
+(*
+TODO - right now, there is no way to reason about the following:
+If we know Proves E1 E2,
+we *should* be able to say forall E1' s.t. E1' is an extension of E1,
+Proves E1' E2
+But we currently cannot (or it has not been proven at least and the
+Proves relation doesn't indicate any obvious ways to do that)
+*)
 
 End LTR.

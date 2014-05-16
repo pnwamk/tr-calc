@@ -837,7 +837,9 @@ with ProvesTyping : lookupset -> bool -> type -> obj -> Prop :=
     forall b t o,
       ProvesTyping (tls_atom None) b t o.
 Hint Constructors UpdatedEnv UpdatedLookupSet UpdatedLookup UpdatedType 
-Restricted Removed Typing Subtype NonSubtype Proves CannotProve ProvesTyping.
+Restricted Removed Typing Subtype NonSubtype Proves CannotProve.
+Hint Resolve PT_Atom PT_Sub_Cons PT_FAtom PT_FCons_prev PT_FCons_new.
+
 
 Theorem P_Empty : forall E,
 Proves E envEmpty.
@@ -961,6 +963,13 @@ Ltac eautoUE :=
 Ltac eautoULS :=
   (try (repeat ((eapply ULS_Cons) || (eapply ULS_Atom)))).
 
+(*
+Ltac eautoT :=
+(try 
+   (repeat 
+      (match goal with
+       | )))
+*)
 
 Example example1:
   forall x,
@@ -971,10 +980,11 @@ Example example1:
 Proof with crush.
   intros x.
   eapply simpletype.
-  eapply T_If. eapply T_App... simpl. eapply T_App... simpl. crush.
+  eapply T_If. eapply T_App... eapply T_App... crush.
 Grab Existential Variables.
   crush. crush.
 Qed.
+
 
 Example example2:
   forall x,
@@ -989,9 +999,8 @@ Proof with crush.
   intros x.
   eapply functiontype.
   eapply T_Abs. eapply T_If. eapply T_App...
-  erewrite if_id_eqdec_refl. eapply T_Subsume... 
-  simpl. erewrite if_id_eqdec_refl.
-  eapply T_App...
+  erewrite if_id_eqdec_refl. eapply T_Subsume...
+  simpl... eapply T_App...
 Grab Existential Variables.
   crush. crush.
 Qed.
@@ -1017,8 +1026,8 @@ Example example3:
 Proof with crush.
   intros x.
   eapply simpletype. eapply T_Let. eapply T_App... simpl.
-  erewrite if_id_eqdec_refl. eapply T_If... eapply T_Var...
-  eapply P_Fact_rhs. eapply P_Empty. eautoUE. eautoULS.
+  eapply T_If... eapply T_Var...
+  eapply P_Fact_rhs... eautoUE. eautoULS.
   eapply UL_Some... eautoULS. eapply UL_Some... simpl. 
   eautoULS. eapply (UL_Some true tFalse tNum [] [] x)...
   eapply (UL_Some true tFalse tFalse [] [] x)... eautoULS.
@@ -1028,7 +1037,8 @@ Proof with crush.
   destruct (type_eqdec tNum tBottom). tryfalse.
   eapply (UL_Some true tBool tNum [] [] x)... eapply UL_None. 
   eapply UL_None. eapply (UL_Some true tBool tFalse [] [] x)...
-  unfold extend_lookup... 
+  eapply PT_False_Cons. eapply PT_False_Cons. eapply PT_False_Cons.
+  eapply PT_False_Atom. 
   eapply T_Subsume. eapply T_Var. eapply P_Fact_rhs. eapply P_Empty. eautoUE.
   eautoULS. eapply UL_Some... eautoULS.
   eapply (UL_Some true tFalse tTop [] [] x)... eautoULS. eapply UL_Some... 
@@ -1041,10 +1051,13 @@ Proof with crush.
   eapply (UL_Some true tNum tFalse [] [] x)... unfold tls_app. eautoULS.
   unfold extend_lookup. destruct (type_eqdec tNum tBottom). tryfalse.
   eapply (UL_Some true tBool tNum [] [] x)... eapply UL_None.
-  eapply UL_None. eapply (UL_Some true tBool tFalse [] [] x)... 
-  unfold extend_lookup... unfold env_app. eapply P_Refl. unfold env_app.
-  eapply P_Refl. eapply S_Refl. eapply SO_Top. reflexivity. reflexivity.
-  reflexivity. reflexivity.
+  eapply UL_None. eapply (UL_Some true tBool tFalse [] [] x)...
+  eapply PT_False_Cons. eapply PT_False_Cons.  eapply PT_False_Cons.
+  eapply PT_False_Atom.
+
+  unfold env_app. eapply P_Refl. unfold env_app.
+  eapply P_Refl. eapply S_Refl. eapply SO_Top. crush. reflexivity. reflexivity.
+  reflexivity.
 Grab Existential Variables.
   eauto. eauto.
 Qed.

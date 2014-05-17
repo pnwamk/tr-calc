@@ -589,7 +589,7 @@ with Typing : env -> exp -> type -> env -> env -> obj -> Prop :=
            tt
            ff
            objnil
-| Τ_Num :
+| T_Num :
     forall E n,
       Typing E (expNum n) tNum tt ff objnil
 | T_True :
@@ -627,7 +627,7 @@ with Typing : env -> exp -> type -> env -> env -> obj -> Prop :=
      Typing E (expApp e e') t'' tEλ'' fEλ'' o''
  
 | T_If :
-   forall E e1 t1 tE1 fE1 o1 e2 t tE2 fE2 o e3 tE3 fE3,
+   forall t1 t E e1 tE1 fE1 o1 e2 tE2 fE2 o e3 tE3 fE3,
      Typing E e1 t1 tE1 fE1 o1 ->
      Typing (env_app E tE1) e2 t tE2 fE2 o ->
      Typing (env_app E fE1) e3 t tE3 fE3 o ->
@@ -956,20 +956,91 @@ Proof.
 Qed.
 Hint Rewrite then_else_eq.
 
-
 Ltac eautoUE :=
-  (try (repeat ((eapply UE_Fact) || (eapply UE_Or) || (eapply UE_Empty) || (eapply UE_False)))).
+repeat 
+  (try 
+     (match goal with
+        | |- UpdatedEnv envEmpty ?tl => (eapply UE_Empty)
+        | |- UpdatedEnv (envFalse ?E) ?tl => (eapply UE_False)
+        | |- UpdatedEnv (envFact ?b ?t ?o ?tl) ?E => (eapply UE_Fact)
+        | |- UpdatedEnv (envOr ?E1 ?E2) ?tl => (eapply UE_Or)
+      end)).
+  
 
 Ltac eautoULS :=
-  (try (repeat ((eapply ULS_Cons) || (eapply ULS_Atom)))).
+repeat 
+  (try 
+     (match goal with
+        | |- UpdatedLookupSet ?b ?t ?o (tls_atom ?tl) => (eapply ULS_Atom)
+        | |- UpdatedLookupSet ?b ?t ?o (tls_cons ?tl ?tls) => (eapply UE_False)
+      end)).
+
+
+Ltac eautoT :=
+try
+  (repeat 
+     (match goal with
+        | |- Typing ?E isnum' ?t ?tE ?fE ?o => (eapply T_Const_isnum)
+        | |- Typing ?E isproc' ?t ?tE ?fE ?o => (eapply T_Const_isproc)
+        | |- Typing ?E isbool' ?t ?tE ?fE ?o => (eapply T_Const_isbool)
+        | |- Typing ?E iscons' ?t ?tE ?fE ?o => (eapply T_Const_iscons)
+        | |- Typing ?E add1' ?t ?tE ?fE ?o => (eapply T_Const_add1)
+        | |- Typing ?E iszero' ?t ?tE ?fE ?o => (eapply T_Const_iszero)
+        | |- Typing ?E (expNum ?n) ?t ?tE ?fE ?o => (eapply T_Num)
+        | |- Typing ?E expT ?t ?tE ?fE ?o => (eapply T_True)
+        | |- Typing ?E expF ?t ?tE ?fE ?o => (eapply T_False)
+        | |- Typing ?E (expVar ?x) ?t ?tE ?fE ?o => (eapply T_Var)
+        | |- Typing ?E (expλ ?x ?t1 ?e) ?t' ?tE' ?fE' ?o' => (eapply T_Abs)
+        | |- Typing ?E (expApp ?e1 ?e2) ?t ?tE ?fE ?o => (eapply T_App)
+        | |- Typing ?E (expIf ?e1 ?e2 ?e3) ?t ?tE ?fE ?o => (eapply T_If)
+      end)).
+
+(* TODO 1: eautoT can try and match each directly, and if those fail
+         and it is really *some* typing goal, it can automatically
+         apply T_Subsume! This may or may not be a good idea... we'll
+         see i.e. *if* it is a Typing judgement, then try these
+         propermatches, and if those fail, try T_Subsume (or
+         something) 
+
+
+  TODO 2: Ltacs for the other relations *)
+
+
+Ltac crushTR :=
+repeat (try (eautoUE || eautoULS || eautoT || eauto || crush)).
+
+Ltac eautoP :=
+  (try (repeat (((eapply P_Fact_rhs) || (eapply P_Refl) || (eapply P_Refl))))).
 
 (*
-Ltac eautoT :=
-(try 
-   (repeat 
-      (match goal with
-       | )))
-*)
+Ltac crushTR :=
+(try (repeat (eautoUE || eautoULS || eautoT || eautoP))). *)
+
+
+Lemma PT_empty_any : forall o,
+ProvesTyping (tls_atom emptylookup) true tTop o.
+Proof.
+  intros o.
+  eapply PT_Atom. eauto. eauto.
+Qed.  
+Hint Resolve PT_empty_any.
+
+Lemma neq_id_neq : forall (T:Type) x y (P Q:T),
+x <> y ->
+((if (id_eqdec x y) then P else Q) = Q).
+Proof.
+  intros.
+  destruct (id_eqdec x y); crush.
+Qed.
+
+Lemma neq_obj_neq : forall (T:Type) x y (P Q:T),
+x <> y ->
+((if (obj_eqdec x y) then P else Q) = Q).
+Proof.
+  intros.
+  destruct (obj_eqdec x y); crush.
+Qed.
+
 
 Example example1:
   forall x,
@@ -977,10 +1048,9 @@ Example example1:
                         (expApp add1' (expVar x)) 
                         (expNum 0))
                  tNum.
-Proof with crush.
+Proof with crushTR. 
   intros x.
-  eapply simpletype.
-  eapply T_If. eapply T_App... eapply T_App... crush.
+  eapply simpletype...
 Grab Existential Variables.
   crush. crush.
 Qed.
@@ -995,12 +1065,9 @@ Example example2:
                    (expApp iszero' (expVar x))))
       (tUnion tBool tNum)
       (tBool).
-Proof with crush.
+Proof with crushTR.
   intros x.
-  eapply functiontype.
-  eapply T_Abs. eapply T_If. eapply T_App...
-  erewrite if_id_eqdec_refl. eapply T_Subsume...
-  simpl... eapply T_App...
+  eapply functiontype...
 Grab Existential Variables.
   crush. crush.
 Qed.
@@ -1016,48 +1083,44 @@ Which is stupid, I should fix this if possible.
  *)
 
 Example example3:
-  forall x,
+  forall x y,
+    x <> y ->
     SimpleTypeOf
-      (expLet x (expApp isnum' (expVar x)) 
+      (expLet x (expApp isnum' (expVar y)) 
               (expIf (expVar x) 
-                     (expVar x) 
+                     (expVar y) 
                      (expNum 0)))
       tNum.
 Proof with crush.
-  intros x.
-  eapply simpletype. eapply T_Let. eapply T_App... simpl.
-  eapply T_If... eapply T_Var...
-  eapply P_Fact_rhs... eautoUE. eautoULS.
-  eapply UL_Some... eautoULS. eapply UL_Some... simpl. 
-  eautoULS. eapply (UL_Some true tFalse tNum [] [] x)...
+  intros x y Hneq.
+  eapply simpletype. 
+  eapply (T_Let envEmpty 
+                (expApp isnum' (expVar y)) 
+                tBool 
+                (envFact true tNum (var y) envEmpty) 
+                (envFact false tNum (var y) envEmpty))...
+  eautoT... eapply (T_If tBool tNum). eautoT... eautoP... crushTR. crushTR. eautoUE...
+  eautoULS... eapply (UL_Some true tFalse tTop [] [] x)... eautoULS... 
+  eapply UL_Some... eautoULS... eapply (UL_Some true tFalse tTop [] [] x).
+  destruct (obj_eqdec (var y) (var x))... crush. crush.
   eapply (UL_Some true tFalse tFalse [] [] x)... eautoULS.
-  eapply UL_Some... eautoULS. eapply (UL_Some true tNum tTop [] [] x)...
-  eautoULS. eapply (UL_Some true tNum tNum [] [] x)...
-  eapply (UL_Some true tNum tFalse [] [] x)... eautoULS. unfold extend_lookup. 
-  destruct (type_eqdec tNum tBottom). tryfalse.
-  eapply (UL_Some true tBool tNum [] [] x)... eapply UL_None. 
-  eapply UL_None. eapply (UL_Some true tBool tFalse [] [] x)...
+  eapply (UL_Some true tFalse tTop [] [] x)... eautoULS.
+  eapply (UL_Some true tNum tTop [] [] y)... eautoULS.
+  eapply (UL_Some true tNum tNum [] [] y)... 
+  eapply (UL_Some true tNum tTop [] [] y).
+  destruct (obj_eqdec (var x) (var y))... crush.
+  crush. eautoULS.
+  eapply (UL_Some true tBool tTop [] [] x).
+  destruct (obj_eqdec (vary) (varx))...
+  eapply UT_T... crush. 
+  eapply (UL_Some true tBool tFalse [] [] x). 
+  destruct (obj_eqdec (var y) (var x))... crush.
+  crush. eapply (UL_Some true tBool tFalse [] [] x)... 
+  eapply (UL_Some true tBool tFalse [] [] x)...
   eapply PT_False_Cons. eapply PT_False_Cons. eapply PT_False_Cons.
-  eapply PT_False_Atom. 
-  eapply T_Subsume. eapply T_Var. eapply P_Fact_rhs. eapply P_Empty. eautoUE.
-  eautoULS. eapply UL_Some... eautoULS.
-  eapply (UL_Some true tFalse tTop [] [] x)... eautoULS. eapply UL_Some... 
-  eautoULS. eapply (UL_Some true tNum tTop [] [] x)...
-  unfold tls_app. eautoULS. eapply (UL_Some true tFalse tNum [] [] x)...
-  eapply (UL_Some true tFalse tFalse [] [] x)... eautoULS.
-  eapply UL_Some... eautoULS. eapply UL_Some... eautoULS.
-  eapply UL_Some... eautoULS. eapply (UL_Some true tNum tTop [] [] x)... 
-  unfold tls_app. eautoULS. eapply (UL_Some true tNum tNum [] [] x)...
-  eapply (UL_Some true tNum tFalse [] [] x)... unfold tls_app. eautoULS.
-  unfold extend_lookup. destruct (type_eqdec tNum tBottom). tryfalse.
-  eapply (UL_Some true tBool tNum [] [] x)... eapply UL_None.
-  eapply UL_None. eapply (UL_Some true tBool tFalse [] [] x)...
-  eapply PT_False_Cons. eapply PT_False_Cons.  eapply PT_False_Cons.
-  eapply PT_False_Atom.
+  eapply PT_Atom... eautoT... eapply P_Fact_rhs...
+  eautoUE. eautoULS...
 
-  unfold env_app. eapply P_Refl. unfold env_app.
-  eapply P_Refl. eapply S_Refl. eapply SO_Top. crush. reflexivity. reflexivity.
-  reflexivity.
 Grab Existential Variables.
   eauto. eauto.
 Qed.

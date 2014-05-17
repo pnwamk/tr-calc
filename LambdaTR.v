@@ -242,6 +242,10 @@ Inductive exp : Type :=
 | expCons : exp -> exp -> exp
 | expLet : id -> exp -> exp -> exp.
 
+Notation "(and' x y )" := (expIf x y expF).
+Notation "(or' x y )" := (expIf x expT y).
+
+
 Notation car' := (expPrimop (prim_p op_car)).
 Notation cdr' := (expPrimop (prim_p op_cdr)).
 Notation add1' := (expPrimop (prim_c op_add1)).
@@ -1041,7 +1045,8 @@ Proof.
   destruct (obj_eqdec x y); crush.
 Qed.
 
-
+(* Typing If statement where the if predicate/test passes
+   it's conclusion to the then branch *)
 Example example1:
   forall x,
     SimpleTypeOf (expIf (expApp isnum' (expVar x)) 
@@ -1055,7 +1060,7 @@ Grab Existential Variables.
   crush. crush.
 Qed.
 
-
+(* Typing a function of type ((U Bool Num) -> Bool)  *)
 Example example2:
   forall x,
     FunctionTypeOf 
@@ -1082,6 +1087,8 @@ Which is stupid, I should fix this if possible.
 
  *)
 
+
+(* Propositions from let-assignment are present in the let-body *)
 Example example3:
   forall x y,
     x <> y ->
@@ -1125,20 +1132,83 @@ Grab Existential Variables.
   eauto. eauto.
 Qed.
 
+(* Using or predicate to identify if x is of type (U Num Bool),
+   and if so calling f (the function from example 2) which takes
+   (U Num Bool) 
+ (Note also: the Union order is flipped, so it must use subtyping 
+  to typecheck. )
+ *)
 Example example4:
-  forall x,
+  forall f x,
+    FunctionTypeOf (expVar f) (tUnion tNum tBool) (tBool) ->
   SimpleTypeOf
-  (expIf (expIf (expApp isnum' (expVar x)) 
-                expT
-                (expApp isbool' (expVar x)))
-         (expApp (expλ x (tUnion tBool tNum) 
-                       (expIf (expApp isbool' (expVar x)) 
-                              expF 
-                              (expApp iszero' (expVar x))))
-                 (expVar x))
+  (expIf (or' (expApp isnum' (expVar x)) (expApp isbool' (expVar x)))
+         (expApp (expVar f) (expVar x))
          expF)
   tBool.
 Proof. Admitted. (* TODO! *)
+
+(* usage of an and (nested ifs) to illustrate the conjunction of
+   the predicates from the and being true *)
+Example example7:
+  forall x y,
+    SimpleTypeOf
+      (expIf (and' (expApp isnum' (expVar x)) (expApp isbool' (expVar y)))
+             (and' (expApp iszero' (expVar x)) (expVar y))
+             expF)
+      tBool.
+
+(* usage of function to identify (U Bool Num) type *)
+Example example8:
+  forall x,
+    SimpleTypeOf 
+      (expIf (expApp (expλ x tTop (* strbool? *)
+                           (or' (expApp isbool' (expVar x)) 
+                                (expApp isnum'  (expVar x))))
+                     (expVar x))
+             (expVar x)
+             expT)
+      (tUnion tBool tNum).
+
+
+(* Results of tests on structure-accessors (car)
+   for typing *)
+Example example10:
+  forall p,
+    SimpleTypeOf
+    (expIf (expApp isnum' (expApp car' p))
+           (expApp add1'  (expApp car' p))
+           42)
+    tNum.
+
+(* Results of tests on structure-accessors (car & cdr)
+   for typing *)
+Example example11:
+  forall p,
+    SimpleTypeOf
+    (expIf (and' (expApp isnum' (expApp car' p)) (expApp isnum' (expApp cdr' p)))
+           p
+           (expCons (expNum 19) (expNum 84)))
+    (tPair tNum tNum).
+
+
+(* Reasons about the else branch of an if whose predicate is a conjuction
+   and must use this to typecheck (in the else branch, if x is a bool then
+   y must be a bool since it cannot be a num being that 
+   (and (bool? x) (number? y)) produced #f ) *)
+Example example13:
+  forall x y,
+    FunctionTypeOf
+      (expλ y (tUnion tNum tBool) (* strbool? *)
+            (expIf (and' (expApp isbool' (expVar x)) 
+                         (expApp isnum'  (expVar y)))
+                   (and' (expVar x) (expApp 'iszero (expVar y)))
+                   (expIf (expApp isbool' (expVar x))
+                          (and' (expVar x) (expVar y))
+                          expF)))
+      (tUnion tNum tBool) 
+      (tBool).
+
 
 (*
 TODO -- Other theorems?

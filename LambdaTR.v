@@ -1009,16 +1009,40 @@ try
 
   TODO 2: Ltacs for the other relations *)
 
+Ltac eautoP :=
+  (try (repeat ((eapply P_Refl) || (eapply P_Empty)
+                  || (match goal with
+                          | |- Proves (envFalse ?E1) ?E2 => 
+                            (eapply P_False)
+                          | |- Proves ?E1 (envFact ?b ?t ?o ?E2) => 
+                            (eapply P_Fact_rhs)
+                          | |- Proves ?E1 (envFact ?b ?t ?o ?E2) => 
+                            (eapply P_Fact_rhs)
+                          | |- Proves ?E (envOr ?E1 ?E2) => 
+                            first [ (eapply P_Or_rhs_l) | (eapply P_Or_rhs_r)]
+                        end)
+                  || (match goal with
+                      | |- Proves (envOr ?E1 ?E2) ?E3 => 
+                        (eapply P_Or_lhs)
+                      | |- Proves (envFact ?b ?t ?o ?E1) ?E2 => 
+                        (eapply P_Fact_lhs)
+                     end)))).
+
+Ltac eautoPT :=
+  (try (repeat 
+         (match goal with
+          | ProvesTyping (tls_atom (Some tl)) true t o => eauto (* in progress *)
+          end)))
 
 Ltac crushTR :=
-repeat (try (eautoUE || eautoULS || eautoT || eauto || crush)).
-
-Ltac eautoP :=
-  (try (repeat (((eapply P_Fact_rhs) || (eapply P_Refl) || (eapply P_Refl))))).
+repeat (try (eautoUE || eautoULS || eautoT || eautoP || eauto)).
 
 (*
-Ltac crushTR :=
-(try (repeat (eautoUE || eautoULS || eautoT || eautoP))). *)
+- Add if eqdec's to crushTR
+- ProvesTypings to crushTR
+- Add outer match statement into CrushTR
+- add to outer match statement checks for simplifications (eqdecs, simpls of env_apps, etc)
+ *)
 
 
 Lemma PT_empty_any : forall o,
@@ -1055,7 +1079,7 @@ Example example1:
                  tNum.
 Proof with crushTR. 
   intros x.
-  eapply simpletype...
+  eapply simpletype... simpl.  crushTR.
 Grab Existential Variables.
   crush. crush.
 Qed.
@@ -1098,9 +1122,9 @@ Example example3:
                      (expVar y) 
                      (expNum 0)))
       tNum.
-Proof with crush.
+Proof with crushTR.
   intros x y Hneq.
-  eapply simpletype. 
+  eapply simpletype.
   eapply (T_Let envEmpty 
                 (expApp isnum' (expVar y)) 
                 tBool 

@@ -1,5 +1,4 @@
 
-
 Require Import LibTactics.
 Require Import List.
 Require Import ListSet.
@@ -242,10 +241,6 @@ Inductive exp : Type :=
 | expCons : exp -> exp -> exp
 | expLet : id -> exp -> exp -> exp.
 
-Notation "(and' x y )" := (expIf x y expF).
-Notation "(or' x y )" := (expIf x expT y).
-
-
 Notation car' := (expPrimop (prim_p op_car)).
 Notation cdr' := (expPrimop (prim_p op_cdr)).
 Notation add1' := (expPrimop (prim_c op_add1)).
@@ -264,19 +259,8 @@ if exp_eqdec x y then true else false.
 
 Inductive SubObj : relation obj :=
 | SO_Refl : forall x, SubObj x x
-| SO_Top : forall x, SubObj x objnil.
+| SO_Top : forall x, SubObj objnil x.
 Hint Constructors SubObj.
-
-Theorem sub_obj : forall x y,
-{SubObj x y} + {~ SubObj x y}.
-Proof.
-  intros x y.
-  destruct (obj_eqdec x y) as [Heq | Hneq].
-  left; crush.
-  destruct y. auto.
-  right; intro contra.
-  inversion contra; crush.
-Defined.
 
 Inductive isUnion : type -> Prop :=
 | isU : forall t1 t2, isUnion (tUnion t1 t2).
@@ -434,11 +418,11 @@ with UpdatedLookupSet : bool -> type -> obj -> lookupset -> lookupset -> Prop :=
 
 with UpdatedLookup : bool -> type -> obj -> typelookup -> typelookup -> Prop :=
 | UL_Some :
-    forall b t t' pth pth' x tl o updated,
+    forall b t t' pth pth' pth'' x tl updated,
+      pth'' = (pth ++ pth') ->
       tl (objπ pth' x) = t' ->
       UpdatedType t' (b, t) pth updated ->
-      o = (objπ (pth ++ pth') x) ->
-      UpdatedLookup b t o (Some tl) (extend_lookup (objπ pth' x) updated (Some tl))
+      UpdatedLookup b t (objπ pth'' x) (Some tl) (extend_lookup (objπ pth' x) updated (Some tl))
 | UL_None :
     forall b t o,
     UpdatedLookup b t o None None
@@ -467,10 +451,10 @@ with Restricted : type -> type -> type -> Prop :=
     forall t σ,
       common_subtype t σ = false ->
       Restricted t σ tBottom
-| RES_Bottom_Left :
+| RES_Bottom_l :
     forall σ,
       Restricted tBottom σ tBottom
-| RES_Bottom_Right :
+| RES_Bottom_r :
     forall σ,
       Restricted σ tBottom tBottom
 | RES_U :
@@ -486,20 +470,17 @@ with Restricted : type -> type -> type -> Prop :=
       Restricted t σ t
 | RES_NonSub :
     forall t σ,
-      common_subtype t σ = true ->      
+      possible_subtype t σ = false -> 
+      common_subtype t σ = true ->
       (~isUnion t) ->
       NonSubtype t σ ->
       Restricted t σ σ
 
 with Removed : type -> type -> type -> Prop :=
-| REM_Bot :
-    forall t σ,
-      Subtype t σ ->
-      Removed t σ tBottom
-| REM_Bottom_Left :
+| REM_Bottom_l :
     forall σ,
       Removed tBottom σ tBottom
-| REM_Bottom_Right :
+| REM_Bottom_r :
     forall t,
       Removed t tBottom t
 | REM_Union :
@@ -507,7 +488,11 @@ with Removed : type -> type -> type -> Prop :=
       Removed t1 σ t1' ->
       Removed t2 σ t2' ->
       Removed (tUnion t1 t2) σ (tUnion t1' t2')
-| REM_nop :
+| REM_Sub :
+    forall t σ,
+      Subtype t σ ->
+      Removed t σ tBottom
+| REM_NonSub :
     forall t σ,
       NonSubtype t σ -> 
       (~isUnion t) ->
@@ -754,8 +739,6 @@ with NonSubtype : type -> type -> Prop :=
       CannotProve fE fE' ->
       NonSubtype (tλ x σ tE fE o t) (tλ x σ' tE' fE' o' t')      
 
-| NST_temp : forall t1 t2, NonSubtype t1 t2
-
 (* Proves: One environment (lhs) has the typing information
    to prove the conclusion in the other environment (the rhs). *)
 with Proves : relation env  :=
@@ -840,14 +823,221 @@ with ProvesTyping : lookupset -> bool -> type -> obj -> Prop :=
 | PT_False_Atom :
     forall b t o,
       ProvesTyping (tls_atom None) b t o.
+
+Ltac tryUE :=
+  first [(eapply UE_Empty) | 
+         (eapply UE_Fact) |
+         (eapply UE_Or) |
+         (eapply UE_False)].
+
+Ltac tryULS :=
+  first [(eapply ULS_Atom) |
+         (eapply ULS_Cons)].
+
+Ltac tryUL :=
+  first [(eapply UL_Some) |
+         (eapply UL_None)].
+
+Ltac tryUT :=
+  first [(eapply UT_T) |
+         (eapply UT_NT) |
+         (eapply UT_Car) |
+         (eapply UT_Cdr) ].
+
+Ltac tryRES :=
+  first [(eapply RES_Bottom_l) |
+         (eapply RES_Bottom_r) |
+         (eapply RES_U) |
+         ((eapply RES_Bottom); compute;
+          match goal with
+          | |- common_subtype ?t ?σ = false => compute; first [reflexivity | fail 1]
+          | |- false = false => compute; reflexivity
+          | |- true = false => fail 1
+          | |- _ => eauto
+          end) |
+         ((eapply RES_NonSub); compute;
+          match goal with
+          | |- possible_subtype ?t ?σ = false => compute; first [reflexivity | fail 1];
+            match goal with
+            | |- common_subtype ?t ?σ = true => compute; first [reflexivity | fail 2]
+            | |- common_subtype ?t ?σ = false => fail 1
+            | |- false = true => fail 1
+            | |- true = false => fail 1
+            | |- _ => eauto
+            end
+          | |- common_subtype ?t ?σ = true => compute; first [reflexivity | fail 1]
+          | |- possible_subtype ?t ?σ = true => fail 1
+          | |- common_subtype ?t ?σ = false => fail 1
+          | |- false = true => fail 1
+          | |- true = false => fail 1
+          | |- _ => eauto
+          end) |
+         (eapply RES_Sub)].
+
+Ltac tryT :=
+  first [(eapply T_Const_isnum) |
+        (eapply T_Const_isproc) |
+        (eapply T_Const_isbool) |
+        (eapply T_Const_iscons) |
+        (eapply T_Const_add1) |
+        (eapply T_Const_iszero) |
+        (eapply T_Num) |
+        (eapply T_True) |
+        (eapply T_False) |
+        (eapply T_Var) |
+        (eapply T_Abs) |
+        (eapply T_App) |
+        (eapply T_If) |
+        (eapply T_Cons) |
+        (eapply T_Car) |
+        (eapply T_Cdr) |
+        (eapply T_Let)].
+(* Removed Subsume since it always works *)  
+
+
+Ltac tryS :=
+  first [(eapply S_Refl) |
+        (eapply S_Top) |
+        (eapply S_UnionSub) |
+        (eapply S_Fun) |
+        (eapply S_Pair) |
+        (match goal with
+         | |- Subtype ?t1 (tUnion ?t1 ?t2) => 
+           eapply S_UnionSuper_l
+         | |- Subtype ?t2 (tUnion ?t1 ?t2) => 
+           eapply S_UnionSuper_r
+         | |- Subtype ?t1 (tUnion (tUnion ?t1 ?t2) ?t3) => 
+           eapply S_UnionSuper_l; eapply S_UnionSuper_l
+         | |- Subtype ?t2 (tUnion (tUnion ?t1 ?t2) ?t3) => 
+           eapply S_UnionSuper_l; eapply S_UnionSuper_r
+         | |- Subtype ?t2 (tUnion ?t1 (tUnion ?t2 ?t3)) => 
+           eapply S_UnionSuper_r; eapply S_UnionSuper_l
+         | |- Subtype ?t3 (tUnion ?t1 (tUnion ?t2 ?t3)) => 
+           eapply S_UnionSuper_r; eapply S_UnionSuper_r
+        end)].
+
+Ltac tryNS :=
+  first [(eapply NS_Trivial) |
+        (eapply NS_UnionSuper) |
+        (eapply NS_UnionSub_l) |
+        (eapply NS_UnionSub_r) |
+        (eapply NS_Abs_arg) |
+        (eapply NS_Abs_result) |
+        (eapply NS_Abs_obj) |
+        (eapply NS_Abs_tEnv) |
+        (eapply NS_Abs_fEnv)].
+
+
+Ltac tryREM :=
+  first [(eapply REM_Bottom_l) |
+         (eapply REM_Bottom_r) |
+         (eapply REM_Union) |
+         (match goal with
+            | |- Removed ?t1 ?t2 ?tr =>
+              assert (Subtype t1 t2) by solve [ tryS; crush ];
+            match goal with
+              | |- Subtype t1 t2 => fail 1
+              | _ => eapply REM_Sub
+            end
+            | |- Removed ?t1 ?t2 ?tr =>
+              assert (NonSubtype t1 t2) by solve [ tryNS; crush ];
+            match goal with
+              | |- NonSubtype t1 t2 => fail 1
+              | _ => eapply REM_NonSub
+            end
+          end)].
+
+
+Ltac tryP :=
+  first [(eapply P_Refl) |
+        (eapply P_False) |
+        (eapply P_Fact_rhs) |
+        (eapply P_Or_rhs_l) |
+        (eapply P_Or_rhs_r) |
+        (eapply P_Or_lhs) |
+        (eapply P_Fact_lhs)].
+
+Ltac tryCP :=
+  first [(eapply CP_Fact) |
+        (eapply CP_Or)].
+
+Ltac tryPT :=
+  first [(eapply PT_Atom) |
+        (eapply PT_FAtom) |
+        (eapply PT_Sub_Cons) |
+        (eapply PT_False_Atom) |
+        (eapply PT_False_Cons) |
+        (eapply PT_FCons_new) |
+        (eapply PT_FCons_prev)].
+
+Lemma then_else_eq : forall (T:Type) (P1 P2:Prop) (test: sumbool P1 P2) (Q:T),
+(if test then Q else Q) = Q.
+Proof.
+  crush.
+Qed.
+Hint Rewrite then_else_eq.
+
+Lemma if_id_eqdec_refl : forall (T:Type) x (t1 t2: T),
+(if id_eqdec x x then t1 else t2) = t1.
+Proof.
+  intros T x t1 t2.
+  destruct (id_eqdec x x); auto. tryfalse.
+Qed.
+Hint Rewrite if_id_eqdec_refl.
+
+Lemma if_obj_eqdec_refl : forall (T:Type) x (t1 t2: T),
+(if obj_eqdec x x then t1 else t2) = t1.
+Proof.
+  intros T x t1 t2.
+  destruct (obj_eqdec x x); auto. tryfalse.
+Qed.
+Hint Rewrite if_obj_eqdec_refl.
+
+Lemma neq_id_neq : forall (T:Type) x y (P Q:T),
+x <> y ->
+((if (id_eqdec x y) then P else Q) = Q).
+Proof.
+  intros.
+  destruct (id_eqdec x y); crush.
+Qed.
+
+Lemma neq_obj_neq : forall (T:Type) x y (P Q:T) pth1 pth2,
+x <> y ->
+((if (obj_eqdec (objπ pth1 x) (objπ pth2 y)) then P else Q) = Q).
+Proof.
+  intros.
+  destruct (obj_eqdec (objπ pth1 x) (objπ pth2 y)); crush.
+Qed.
+
+Lemma if_type_eqdec_refl : forall (T:Type) x (t1 t2: T),
+(if type_eqdec x x then t1 else t2) = t1.
+Proof.
+  intros T x t1 t2.
+  destruct (type_eqdec x x); auto. tryfalse.
+Qed.
+Hint Rewrite if_type_eqdec_refl.
+
+Ltac crushTR :=
+repeat (try (erewrite 
+               then_else_eq 
+               || erewrite if_id_eqdec_refl 
+               || erewrite if_obj_eqdec_refl 
+               || erewrite if_type_eqdec_refl
+               || erewrite neq_obj_neq
+               || erewrite neq_id_neq
+               || tryUE || tryULS || tryUL || tryUT 
+               || tryRES || tryREM 
+               || tryT || tryS || tryNS || tryP || tryCP 
+               || tryPT || eauto || crush)).
+(*
 Hint Constructors UpdatedEnv UpdatedLookupSet UpdatedLookup UpdatedType 
 Restricted Removed Typing Subtype NonSubtype Proves CannotProve.
 Hint Resolve PT_Atom PT_Sub_Cons PT_FAtom PT_FCons_prev PT_FCons_new.
-
+*)
 
 Theorem P_Empty : forall E,
 Proves E envEmpty.
-Proof with crush. 
+Proof with crushTR. 
   intros E.
   induction E...
 Qed.
@@ -899,36 +1089,12 @@ Hint Rewrite app_envEmpty_r.
 Lemma empty_proves_top : forall x E,
 Proves envEmpty E ->
 Proves envEmpty (envFact true tTop (var x) E).
-Proof.
+Proof with crushTR.
   intros x E HE.
-  eapply P_Fact_rhs. auto. eauto. eapply (PT_Atom tTop tTop). auto.
-  auto.
+  eapply P_Fact_rhs...
 Qed.
 Hint Resolve empty_proves_top.
 
-Lemma if_id_eqdec_refl : forall (T:Type) x (t1 t2: T),
-(if id_eqdec x x then t1 else t2) = t1.
-Proof.
-  intros T x t1 t2.
-  destruct (id_eqdec x x); auto. tryfalse.
-Qed.
-Hint Rewrite if_id_eqdec_refl.
-
-Lemma if_obj_eqdec_refl : forall (T:Type) x (t1 t2: T),
-(if obj_eqdec x x then t1 else t2) = t1.
-Proof.
-  intros T x t1 t2.
-  destruct (obj_eqdec x x); auto. tryfalse.
-Qed.
-Hint Rewrite if_obj_eqdec_refl.
-
-Lemma if_type_eqdec_refl : forall (T:Type) x (t1 t2: T),
-(if type_eqdec x x then t1 else t2) = t1.
-Proof.
-  intros T x t1 t2.
-  destruct (type_eqdec x x); auto. tryfalse.
-Qed.
-Hint Rewrite if_type_eqdec_refl.
 
 Lemma top_not_union :
 ~ isUnion tTop.
@@ -953,89 +1119,8 @@ Proof. intros t1 t2 contra; inversion contra. Qed.
 Hint Resolve top_not_union num_not_union true_not_union
 false_not_union λ_not_union pair_not_union.
 
-Lemma then_else_eq : forall (T:Type) (P1 P2:Prop) (test: sumbool P1 P2) (Q:T),
-(if test then Q else Q) = Q.
-Proof.
-  crush.
-Qed.
-Hint Rewrite then_else_eq.
-
-Ltac eautoUE :=
-repeat 
-  (try 
-     (match goal with
-        | |- UpdatedEnv envEmpty ?tl => (eapply UE_Empty)
-        | |- UpdatedEnv (envFalse ?E) ?tl => (eapply UE_False)
-        | |- UpdatedEnv (envFact ?b ?t ?o ?tl) ?E => (eapply UE_Fact)
-        | |- UpdatedEnv (envOr ?E1 ?E2) ?tl => (eapply UE_Or)
-      end)).
-  
-
-Ltac eautoULS :=
-repeat 
-  (try 
-     (match goal with
-        | |- UpdatedLookupSet ?b ?t ?o (tls_atom ?tl) => (eapply ULS_Atom)
-        | |- UpdatedLookupSet ?b ?t ?o (tls_cons ?tl ?tls) => (eapply UE_False)
-      end)).
 
 
-Ltac eautoT :=
-try
-  (repeat 
-     (match goal with
-        | |- Typing ?E isnum' ?t ?tE ?fE ?o => (eapply T_Const_isnum)
-        | |- Typing ?E isproc' ?t ?tE ?fE ?o => (eapply T_Const_isproc)
-        | |- Typing ?E isbool' ?t ?tE ?fE ?o => (eapply T_Const_isbool)
-        | |- Typing ?E iscons' ?t ?tE ?fE ?o => (eapply T_Const_iscons)
-        | |- Typing ?E add1' ?t ?tE ?fE ?o => (eapply T_Const_add1)
-        | |- Typing ?E iszero' ?t ?tE ?fE ?o => (eapply T_Const_iszero)
-        | |- Typing ?E (expNum ?n) ?t ?tE ?fE ?o => (eapply T_Num)
-        | |- Typing ?E expT ?t ?tE ?fE ?o => (eapply T_True)
-        | |- Typing ?E expF ?t ?tE ?fE ?o => (eapply T_False)
-        | |- Typing ?E (expVar ?x) ?t ?tE ?fE ?o => (eapply T_Var)
-        | |- Typing ?E (expλ ?x ?t1 ?e) ?t' ?tE' ?fE' ?o' => (eapply T_Abs)
-        | |- Typing ?E (expApp ?e1 ?e2) ?t ?tE ?fE ?o => (eapply T_App)
-        | |- Typing ?E (expIf ?e1 ?e2 ?e3) ?t ?tE ?fE ?o => (eapply T_If)
-      end)).
-
-(* TODO 1: eautoT can try and match each directly, and if those fail
-         and it is really *some* typing goal, it can automatically
-         apply T_Subsume! This may or may not be a good idea... we'll
-         see i.e. *if* it is a Typing judgement, then try these
-         propermatches, and if those fail, try T_Subsume (or
-         something) 
-
-
-  TODO 2: Ltacs for the other relations *)
-
-Ltac eautoP :=
-  (try (repeat ((eapply P_Refl) || (eapply P_Empty)
-                  || (match goal with
-                          | |- Proves (envFalse ?E1) ?E2 => 
-                            (eapply P_False)
-                          | |- Proves ?E1 (envFact ?b ?t ?o ?E2) => 
-                            (eapply P_Fact_rhs)
-                          | |- Proves ?E1 (envFact ?b ?t ?o ?E2) => 
-                            (eapply P_Fact_rhs)
-                          | |- Proves ?E (envOr ?E1 ?E2) => 
-                            first [ (eapply P_Or_rhs_l) | (eapply P_Or_rhs_r)]
-                        end)
-                  || (match goal with
-                      | |- Proves (envOr ?E1 ?E2) ?E3 => 
-                        (eapply P_Or_lhs)
-                      | |- Proves (envFact ?b ?t ?o ?E1) ?E2 => 
-                        (eapply P_Fact_lhs)
-                     end)))).
-
-Ltac eautoPT :=
-  (try (repeat 
-         (match goal with
-          | ProvesTyping (tls_atom (Some tl)) true t o => eauto (* in progress *)
-          end)))
-
-Ltac crushTR :=
-repeat (try (eautoUE || eautoULS || eautoT || eautoP || eauto)).
 
 (*
 - Add if eqdec's to crushTR
@@ -1044,30 +1129,17 @@ repeat (try (eautoUE || eautoULS || eautoT || eautoP || eauto)).
 - add to outer match statement checks for simplifications (eqdecs, simpls of env_apps, etc)
  *)
 
-
 Lemma PT_empty_any : forall o,
 ProvesTyping (tls_atom emptylookup) true tTop o.
-Proof.
-  intros o.
-  eapply PT_Atom. eauto. eauto.
+Proof with crushTR.
+  intros o...
 Qed.  
 Hint Resolve PT_empty_any.
 
-Lemma neq_id_neq : forall (T:Type) x y (P Q:T),
-x <> y ->
-((if (id_eqdec x y) then P else Q) = Q).
+Theorem rescrap :
+Restricted tTop tNum tNum.
 Proof.
-  intros.
-  destruct (id_eqdec x y); crush.
-Qed.
 
-Lemma neq_obj_neq : forall (T:Type) x y (P Q:T),
-x <> y ->
-((if (obj_eqdec x y) then P else Q) = Q).
-Proof.
-  intros.
-  destruct (obj_eqdec x y); crush.
-Qed.
 
 (* Typing If statement where the if predicate/test passes
    it's conclusion to the then branch *)
@@ -1077,9 +1149,8 @@ Example example1:
                         (expApp add1' (expVar x)) 
                         (expNum 0))
                  tNum.
-Proof with crushTR. 
-  intros x.
-  eapply simpletype... simpl.  crushTR.
+Proof with crushTR.
+  intros x; eapply simpletype...
 Grab Existential Variables.
   crush. crush.
 Qed.
@@ -1095,21 +1166,11 @@ Example example2:
       (tUnion tBool tNum)
       (tBool).
 Proof with crushTR.
-  intros x.
-  eapply functiontype...
+  intros x; eapply functiontype... 
+  eapply T_Subsume...
 Grab Existential Variables.
   crush. crush.
 Qed.
-(* TODO: Applications of P_Fact... 
-   often lead to things like:
-
- UpdatedEnv
-     (envFact true (tUnion tBool tNum) (varx)
-        (envFact false tBool (varx) envEmpty)) (tls_atom None)
-
-Which is stupid, I should fix this if possible.
-
- *)
 
 
 (* Propositions from let-assignment are present in the let-body *)
@@ -1123,37 +1184,10 @@ Example example3:
                      (expNum 0)))
       tNum.
 Proof with crushTR.
-  intros x y Hneq.
-  eapply simpletype.
-  eapply (T_Let envEmpty 
-                (expApp isnum' (expVar y)) 
-                tBool 
-                (envFact true tNum (var y) envEmpty) 
-                (envFact false tNum (var y) envEmpty))...
-  eautoT... eapply (T_If tBool tNum). eautoT... eautoP... crushTR. crushTR. eautoUE...
-  eautoULS... eapply (UL_Some true tFalse tTop [] [] x)... eautoULS... 
-  eapply UL_Some... eautoULS... eapply (UL_Some true tFalse tTop [] [] x).
-  destruct (obj_eqdec (var y) (var x))... crush. crush.
-  eapply (UL_Some true tFalse tFalse [] [] x)... eautoULS.
-  eapply (UL_Some true tFalse tTop [] [] x)... eautoULS.
-  eapply (UL_Some true tNum tTop [] [] y)... eautoULS.
-  eapply (UL_Some true tNum tNum [] [] y)... 
-  eapply (UL_Some true tNum tTop [] [] y).
-  destruct (obj_eqdec (var x) (var y))... crush.
-  crush. eautoULS.
-  eapply (UL_Some true tBool tTop [] [] x).
-  destruct (obj_eqdec (vary) (varx))...
-  eapply UT_T... crush. 
-  eapply (UL_Some true tBool tFalse [] [] x). 
-  destruct (obj_eqdec (var y) (var x))... crush.
-  crush. eapply (UL_Some true tBool tFalse [] [] x)... 
-  eapply (UL_Some true tBool tFalse [] [] x)...
-  eapply PT_False_Cons. eapply PT_False_Cons. eapply PT_False_Cons.
-  eapply PT_Atom... eautoT... eapply P_Fact_rhs...
-  eautoUE. eautoULS...
-
+  intros x y Hneq; eapply simpletype...
+  eapply T_Subsume...
 Grab Existential Variables.
-  eauto. eauto.
+crush.
 Qed.
 
 (* Using or predicate to identify if x is of type (U Num Bool),
@@ -1162,15 +1196,58 @@ Qed.
  (Note also: the Union order is flipped, so it must use subtyping 
   to typecheck. )
  *)
+
+Definition f' (x:id) := (expλ x (tUnion tBool tNum) 
+            (expIf (expApp isbool' (expVar x)) 
+                   expF 
+                   (expApp iszero' (expVar x)))).
+
+Example example4prep:
+  forall x,
+    SimpleTypeOf
+      (expIf (expApp isnum' (expVar x)) 
+             expT 
+             (expApp isbool' (expVar x)))
+      tBool.
+Proof with crushTR.
+  intros x; eapply simpletype...
+  eapply T_Subsume...
+Grab Existential Variables.
+crush. crush.
+Qed.
+
 Example example4:
-  forall f x,
-    FunctionTypeOf (expVar f) (tUnion tNum tBool) (tBool) ->
+  forall x,
   SimpleTypeOf
-  (expIf (or' (expApp isnum' (expVar x)) (expApp isbool' (expVar x)))
-         (expApp (expVar f) (expVar x))
+  (expIf (expIf (expApp isnum' (expVar x)) expT (expApp isbool' (expVar x)))
+         (expApp (f' x) (expVar x))
          expF)
   tBool.
-Proof. Admitted. (* TODO! *)
+Proof with crushTR.
+  intros x.
+  eapply simpletype.
+  eapply T_If.
+  eapply T_If. (* BOOKMARK *)
+  crushTR.
+  crushTR.
+  crushTR.
+  crushTR.
+  crushTR.
+  crushTR.
+  crushTR.
+  eapply T_App.
+  tryT.
+  eapply T_Const_isbool.
+  tryT.
+  tryT.
+  crushTR.
+
+
+  intros x; eapply simpletype...
+  eapply T_Subsume...
+Grab Existential Variables.
+crush.
+Qed.
 
 (* usage of an and (nested ifs) to illustrate the conjunction of
    the predicates from the and being true *)

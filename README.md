@@ -3,7 +3,7 @@ TRcalc
 
 Representations of the core calculus for Typed Racket
 
-TR.v - Coq representation of the λTR calculus presented by Tobin-Hochstadt and Felleisen [1]. [coqdoc](http://htmlpreview.github.com/?https://github.com/sgtamk/TRcalc/TR.html)
+TR.v - Coq representation of the λTR calculus presented by Tobin-Hochstadt and Felleisen [1]. [coqdoc](http://htmlpreview.github.com/?https://github.com/sgtamk/TRcalc/blob/master/TR.html)
 
 
 

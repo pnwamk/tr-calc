@@ -514,34 +514,57 @@ with Remove : type -> type -> type -> Prop :=
 
 with TypeOf : prop -> exp -> type -> (prop * prop) -> opt object -> Prop :=
 | T_Num :
-    forall Γ t' tP' fP' o' n,
-      Subtype tNum t'
+    forall τ' Γ tP' fP' o' n,
+      Subtype tNum τ'
       -> Proves TT tP'
       -> Proves FF fP'
       -> SubObj None o'
-      -> TypeOf Γ (eNum n) t' (tP', fP') o'
+      -> TypeOf Γ (eNum n) τ' (tP', fP') o'
 | T_Const :
-    forall Γ c x τ' tP' fP' o',
+    forall τ' Γ c x tP' fP' o',
       Proves (Γ & TT) tP'
       -> Proves (Γ & FF) fP'
       -> Subtype (const_type c x) τ'
       -> SubObj None o'
       -> TypeOf Γ (eOp (c_op c)) τ' (tP', fP') o'
 | T_True :
-    forall Γ t' tP' fP' o',
-      Subtype tTrue t'
+    forall τ' Γ tP' fP' o',
+      Subtype tTrue τ'
       -> Proves TT tP'
       -> Proves FF fP'
       -> SubObj None o'
-      -> TypeOf Γ eTrue t' (tP', fP') o'
+      -> TypeOf Γ eTrue τ' (tP', fP') o'
 | T_False :
-    forall Γ t' tP' fP' o',
-      Subtype tFalse t'
+    forall τ' Γ tP' fP' o',
+      Subtype tFalse τ'
       -> Proves FF tP'
       -> Proves TT fP'
       -> SubObj None o'
-      -> TypeOf Γ eFalse t' (tP', fP') o'
-
+      -> TypeOf Γ eFalse τ' (tP', fP') o'
+| T_Var :
+    forall τ' τ Γ tP' fP' ox ox',
+      Proves Γ (ox ::= τ)
+      -> Subtype τ τ'
+      -> Proves (ox ::~ tFalse) tP'
+      -> Proves (ox ::= tFalse) fP'
+      -> SubObj (Some ox) ox'
+      -> TypeOf Γ eFalse τ' (tP', fP') ox'
+(* IN PROG
+| T_Abs
+         forall σ' t' σ t Γ x e tE fE o tE' fE' o',
+           TypeOf (Γ & (σ ::= (var x))) e τ tE fE o ->
+           Subtype t t' ->
+           Subtype σ' σ ->
+           SubObj o o' ->
+           Proves tE tE' ->
+           Proves fE fE' ->
+           TypeOf E
+                  (expλ x σ e)
+                  (tλ x σ' tE fE o t')
+                  tE'
+                  fE'
+                  o'
+*)    
 (* TODO *)
 (** ** Subtype *)
 

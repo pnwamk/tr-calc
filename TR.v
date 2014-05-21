@@ -43,7 +43,7 @@ Inductive type : Type :=
 | tFalse : type
 | tUnion : type -> type -> type
 | tPair : type -> type -> type
-| tFun : id -> type -> prop -> prop -> opt object -> type -> type
+| tFun : id -> (type * type) -> (prop * prop) -> opt object -> type
 
 with prop : Type :=
 | Is    : object -> type -> prop
@@ -55,6 +55,8 @@ with prop : Type :=
 | FF    : prop.
 Hint Constructors type prop.
 
+Hint Resolve eq_nat_dec.
+
 Notation tBool := (tUnion tTrue tFalse).
 
 Infix "::=" := Is (at level 30, right associativity).
@@ -64,15 +66,24 @@ Infix "+" := Or (at level 50, left associativity).
 Infix "=->" := Imp (at level 90, right associativity).
 
 (** Expressions and primitive operations: *)
+Inductive const_op :=
+  opAdd1 | opIsZero | opIsNum | opIsBool | opIsProc | opIsCons.
+Hint Constructors const_op.
+
+Inductive poly_op :=
+ opCar | opCdr.
+Hint Constructors poly_op.
+
 Inductive op : Type :=
-  opAdd1 | opIsZero | opIsNum | opIsBool | opIsProc | opIsCons | opCar | opCdr.
+| c_op : const_op -> op
+| p_op : poly_op -> op.
 Hint Constructors op.
 
 Inductive exp : Type :=
 | eVar : id -> exp
 | eOp  : op -> exp
-| eT   : exp
-| eF   : exp
+| eTrue   : exp
+| eFalse   : exp
 | eNum : nat -> exp
 | eIf  : exp -> exp -> exp -> exp
 | eAbs : id -> type -> exp -> exp
@@ -80,18 +91,52 @@ Inductive exp : Type :=
 | eLet : id -> exp -> exp.
 Hint Constructors exp.
 
-Notation Car' := (eOp opCar).
-Notation Cdr' := (eOp opCdr).
-Notation Add1' := (eOp opAdd1).
-Notation IsZero' := (eOp opIsZero).
-Notation IsNum' := (eOp opIsNum).
-Notation IsBool' := (eOp opIsBool).
-Notation IsProc' := (eOp opIsProc).
-Notation IsCons' := (eOp opIsCons).
+Notation Car' := (eOp (p_op opCar)).
+Notation Cdr' := (eOp (p_op opCdr)).
+Notation Add1' := (eOp (c_op opAdd1)).
+Notation IsZero' := (eOp (c_op opIsZero)).
+Notation IsNum' := (eOp (c_op opIsNum)).
+Notation IsBool' := (eOp (c_op opIsBool)).
+Notation IsProc' := (eOp (c_op opIsProc)).
+Notation IsCons' := (eOp (c_op opIsCons)).
+
+(** Constant types: *)
+Definition const_type (c : const_op) (x:id) : type :=
+  match c with
+    | opIsNum =>
+      (tFun x 
+            (tTop, tBool) 
+            (((var x) ::= tNum), ((var x) ::~ tNum)) 
+            None)
+    | opIsProc =>
+      (tFun x 
+            (tTop, tBool) 
+            (((var x) ::= (tFun x (tBot, tTop) (TT, FF) None)), 
+             ((var x) ::~ (tFun x (tBot, tTop) (TT, FF) None)))
+            None)
+    | opIsBool =>
+      (tFun x 
+            (tTop, tBool) 
+            (((var x) ::= tBool), ((var x) ::~ tBool)) 
+            None)
+    | opIsCons =>
+      (tFun x 
+            (tTop, tBool) 
+            (((var x) ::= (tPair tTop tTop)), ((var x) ::~ (tPair tTop tTop)))
+            None)
+    | opAdd1 =>
+      (tFun x 
+            (tNum, tNum) 
+            (TT, FF)
+            None)
+    | opIsZero =>
+      (tFun x 
+            (tNum, tBool) 
+            (TT, TT)
+            None)
+end.
 
 (** Decidable equality of defined types thus far: *)
-
-Hint Resolve eq_nat_dec.
 
 Theorem id_eqdec : 
   forall (x y : id),
@@ -125,8 +170,11 @@ Proof.
   decide equality.
   decide equality.
   decide equality.
+  decide equality.
+  decide equality.
 Defined.
 Hint Resolve type_eqdec prop_eqdec.
+
 
 (** * Utility Functions 
  Substitution, free variable checking, etc... *)
@@ -152,7 +200,7 @@ Fixpoint fv_set_t (t : type) : set id :=
   match t with
     | tUnion lhs rhs =>
       set_union id_eqdec (fv_set_t lhs) (fv_set_t rhs)
-    | tFun x t1 p1 p2 o t2 =>
+    | tFun x (t1, t2) (p1, p2) o =>
       setU id_eqdec
            [[x];
              (fv_set_t t1);
@@ -236,15 +284,15 @@ with subst_t (b:bool)
              (x:id) : type :=
   match t with
     | tUnion lhs rhs => tUnion (subst_t b lhs opto x) (subst_t b rhs opto x)
-    | tFun y t1 p1 p2 opto2 t2 =>
+    | tFun y (t1, t2) (p1, p2) opto2 =>
       if id_eqdec x y
       then t
       else tFun y
-                (subst_t b t1 opto x)
-                (subst_p b p1 opto x)
-                (subst_p b p2 opto x)
+                ((subst_t b t1 opto x),
+                 (subst_t b t2 opto x))
+                ((subst_p b p1 opto x),
+                 (subst_p b p2 opto x))
                 (subst_o opto2 opto x)
-                (subst_t b t2 opto x)
     | tPair t1 t2 => tPair (subst_t b t1 opto x)
                            (subst_t b t2 opto x)
     | _ => t
@@ -259,7 +307,7 @@ Fixpoint typestructuralsize (t:type) : nat :=
   match t with
     | tUnion t1 t2 =>
       S (plus (typestructuralsize t1) (typestructuralsize t2))
-    | tFun x t1 e1 e2 o t2 => S (plus (typestructuralsize t1) (typestructuralsize t2))
+    | tFun x (t1, t2) _ _ => S (plus (typestructuralsize t1) (typestructuralsize t2))
     | tPair t1 t2 => S (plus (typestructuralsize t1) (typestructuralsize t2))
     | _ => 1
   end.
@@ -281,8 +329,8 @@ Program Fixpoint common_subtype (type1 type2:type)
     | tTrue, _ => false
     | tFalse, tFalse => true
     | tFalse, _ => false
-    | tFun _ _ _ _ _ _, tFun _ _ _ _ _ _ => true
-    | tFun _ _ _ _ _ _, _ => false
+    | tFun _ _ _ _, tFun _ _ _ _ => true
+    | tFun _ _ _ _, _ => false
     | tPair t1 t2, tPair t3 t4 => andb (common_subtype t1 t3)
                                        (common_subtype t2 t4)
     | tPair _ _, _ => false
@@ -315,10 +363,10 @@ Program Fixpoint possible_subtype (pos_sub pos_super:type)
     | tUnion t1 t2, _ =>
       andb (possible_subtype t1 pos_super)
            (possible_subtype t2 pos_super)
-    | tFun _ t1 _ _ _ t2, tFun _ t3 _ _ _ t4 =>
+    | tFun _ (t1,t2) _ _, tFun _ (t3, t4) _ _ =>
       andb (possible_subtype t1 t3)
            (possible_subtype t2 t4)
-    | tFun _ _ _ _ _ _, _ => false
+    | tFun _ _ _ _, _ => false
     | tPair t1 t2, tPair t3 t4 =>
       andb (possible_subtype t1 t3)
            (possible_subtype t2 t4)
@@ -426,9 +474,9 @@ with Update : type -> (bool * type) -> path -> type -> Prop :=
 
 with Restrict : type -> type -> type -> Prop :=
      | RES_NoCommon :
-         forall t σ,
-           common_subtype t σ = false 
-           -> Restrict t σ tBot
+         forall τ σ,
+           common_subtype τ σ = false 
+           -> Restrict τ σ tBot
      | RES_Bottom_l :
          forall σ,
            Restrict tBot σ tBot
@@ -436,16 +484,11 @@ with Restrict : type -> type -> type -> Prop :=
          forall σ,
            Restrict σ tBot tBot
      | RES_U :
-         forall t1 t2 σ t1' t2',
-           common_subtype (tUnion t1 t2) σ = true
-           -> Restrict t1 σ t1' 
-           -> Restrict t2 σ t2' 
-           -> Restrict (tUnion t1 t2) σ (tUnion t1' t2')
-     | RES_Sub :
-         forall t σ,
-           (~isUnion t)
-           -> Subtype t σ 
-           -> Restrict t σ t
+         forall τ1 τ2 σ τ1' τ2',
+           common_subtype (tUnion τ1 τ2) σ = true
+           -> Restrict τ1 σ τ1' 
+           -> Restrict τ2 σ τ2' 
+           -> Restrict (tUnion τ1 τ2) σ (tUnion τ1' τ2')
 
 (** ** Remove *)
 
@@ -469,14 +512,35 @@ with Remove : type -> type -> type -> Prop :=
 (* TODO *)
 (** ** TypeOf *)
 
-with TypeOf : prop -> exp -> type -> prop -> prop -> opt object -> Prop :=
+with TypeOf : prop -> exp -> type -> (prop * prop) -> opt object -> Prop :=
 | T_Num :
-    forall t' E tP' fP' o' n,
+    forall Γ t' tP' fP' o' n,
       Subtype tNum t'
       -> Proves TT tP'
       -> Proves FF fP'
       -> SubObj None o'
-      -> TypeOf E (eNum n) t' tP' fP' o'
+      -> TypeOf Γ (eNum n) t' (tP', fP') o'
+| T_Const :
+    forall Γ c x τ' tP' fP' o',
+      Proves (Γ & TT) tP'
+      -> Proves (Γ & FF) fP'
+      -> Subtype (const_type c x) τ'
+      -> SubObj None o'
+      -> TypeOf Γ (eOp (c_op c)) τ' (tP', fP') o'
+| T_True :
+    forall Γ t' tP' fP' o',
+      Subtype tTrue t'
+      -> Proves TT tP'
+      -> Proves FF fP'
+      -> SubObj None o'
+      -> TypeOf Γ eTrue t' (tP', fP') o'
+| T_False :
+    forall Γ t' tP' fP' o',
+      Subtype tFalse t'
+      -> Proves FF tP'
+      -> Proves TT fP'
+      -> SubObj None o'
+      -> TypeOf Γ eFalse t' (tP', fP') o'
 
 (* TODO *)
 (** ** Subtype *)

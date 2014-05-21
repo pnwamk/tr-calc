@@ -131,7 +131,7 @@ match l with
 | x :: xs => set_union dec x (setU dec xs)
 end.
 
-
+(** free variable calculations *)
 (* free variables in objects *)
 Definition fv_set_o (opto : opt object) : set id :=
 match opto with
@@ -171,7 +171,7 @@ match p with
 | _ => nil
 end.
 
-
+(** substitution: *)
 Definition subst_o (o newobj: opt object) (x:id) : opt object :=
 match o with
 | None => None
@@ -183,13 +183,15 @@ match o with
   end
 end.
 
+(** _ "sign" refers to the "+" or "-" on substitution
+    calls in the λTR. We just use bools (true = +, 
+    false = -) *)
 Definition sign_truth (b:bool) : prop :=
 match b with
 | true => TT
 | false => FF
 end.
 
-(* subst+ and - for properties*)
 Fixpoint subst_p (b:bool)
                  (p:prop)
                  (opto:opt object)
@@ -223,7 +225,6 @@ match p with
 | _ => p
 end
 
-(* type substitution *)
 with subst_t (b:bool)
              (t:type)
              (opto:opt object)
@@ -244,6 +245,81 @@ match t with
 | _ => t
 end.
 
+(** A few functions to reason about subtyping: *)
+Fixpoint typestructuralsize (t:type) : nat :=
+match t with
+| tUnion t1 t2 =>
+  1 + (typestructuralsize t1) + (typestructuralsize t2)
+| tFun x t1 e1 e2 o t2 => 1 + (typestructuralsize t1) + (typestructuralsize t2)
+| tPair t1 t2 => 1 + (typestructuralsize t1) + (typestructuralsize t2)
+| _ => 1
+end.
+
+Program Fixpoint common_subtype (type1 type2:type)
+        {measure ((typestructuralsize type1) + (typestructuralsize type2))} : bool :=
+match type1, type2 with
+| tTop , _ => true
+| _, tTop => true
+| tBot, _ => false
+| _, tBot => false
+| tUnion t1 t2, tUnion t3 t4 =>
+  orb (common_subtype t1 t3)
+      (orb (common_subtype t1 t4)
+           (orb (common_subtype t2 t3)
+                (common_subtype t2 t4)))
+| tUnion t1 t2, _ => orb (common_subtype t1 type2) (common_subtype t2 type2)
+| _, tUnion t1 t2 => orb (common_subtype type1 t1) (common_subtype type1 t2)
+| tNum, tNum => true
+| tNum, _ => false
+| tTrue, tTrue => true
+| tTrue, _ => false
+| tFalse, tFalse => true
+| tFalse, _ => false
+| tFun _ _ _ _ _ _, tFun _ _ _ _ _ _ => true
+| tFun _ _ _ _ _ _, _ => false
+| tPair t1 t2, tPair t3 t4 => andb (common_subtype t1 t3)
+                                   (common_subtype t2 t4)
+| tPair _ _, _ => false
+end.
+Solve Obligations using crush.
+
+(*
+TODO - We must prove all types have a principal type
+if we're going to use this for Removed *)
+
+(* NOTE: Our lookup models an environment where every variable in scope
+has some type present (even if its only tTop). *)
+
+Program Fixpoint possible_subtype (pos_sub pos_super:type)
+        {measure ((typestructuralsize pos_sub) + (typestructuralsize pos_super))} : bool :=
+match pos_sub, pos_super with
+| _, tUnion t1 t2 =>
+  orb (possible_subtype pos_sub t1)
+      (possible_subtype pos_sub t2)
+| tTop , tTop => true
+| tTop , _ => false
+| tBot , tBot => true
+| tBot , _ => false
+| tNum , tNum => true
+| tNum , _ => false
+| tTrue , tTrue => true
+| tTrue , _ => false
+| tFalse , tFalse => true
+| tFalse , _ => false
+| tUnion t1 t2, _ =>
+  andb (possible_subtype t1 pos_super)
+       (possible_subtype t2 pos_super)
+| tFun _ t1 _ _ _ t2, tFun _ t3 _ _ _ t4 =>
+  andb (possible_subtype t1 t3)
+       (possible_subtype t2 t4)
+| tFun _ _ _ _ _ _, _ => false
+| tPair t1 t2, tPair t3 t4 =>
+  andb (possible_subtype t1 t3)
+       (possible_subtype t2 t4)
+| tPair _ _, _ => false
+end.
+Solve Obligations using crush.
+
 (** * λTR Core Relations 
    Logic, Typing, Subtyping, etc... *)
 
@@ -251,6 +327,8 @@ Inductive SubObj : relation (opt object) :=
 | SO_Refl : forall x, SubObj x x
 | SO_Top : forall x, SubObj x None.
 Hint Constructors SubObj.
+
+
 
 
 

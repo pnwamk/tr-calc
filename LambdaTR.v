@@ -286,19 +286,19 @@ match type1, type2 with
 | _, tTop => true
 | tBottom, _ => false
 | _, tBottom => false
-| tNum,  tNum => true
-| tNum, _ => false
-| tTrue,  tTrue => true
-| tTrue, _ => false 
-| tFalse,  tFalse => true
-| tFalse, _ => false 
 | tUnion t1 t2, tUnion t3 t4 =>
   orb (common_subtype t1 t3)
       (orb (common_subtype t1 t4)
            (orb (common_subtype t2 t3)
                 (common_subtype t2 t4)))           
 | tUnion t1 t2, _ => orb (common_subtype t1 type2) (common_subtype t2 type2)
-| _, tUnion t1 t2 => orb (common_subtype t1 type1) (common_subtype t2 type1)
+| _, tUnion t1 t2 => orb (common_subtype type1 t1) (common_subtype type1 t2)
+| tNum,  tNum => true
+| tNum, _ => false
+| tTrue,  tTrue => true
+| tTrue, _ => false 
+| tFalse,  tFalse => true
+| tFalse, _ => false 
 | tλ _ _ _ _ _ _, tλ _ _ _ _ _ _  => true
 | tλ _ _ _ _ _ _, _ => false
 | tPair t1 t2, tPair t3 t4 => andb (common_subtype t1 t3) 
@@ -306,6 +306,7 @@ match type1, type2 with
 | tPair _ _, _ => false
 end.
 Solve Obligations using crush.
+
 (* 
 TODO - We must prove all types have a principal type
    if we're going to use this for Removed *)
@@ -500,171 +501,196 @@ with Removed : type -> type -> type -> Prop :=
 
 (* Typing Rules *)
 with Typing : env -> exp -> type -> env -> env -> obj -> Prop :=
-| T_Const_isnum :
-  forall E x,
-    Typing E 
-           isnum' 
-           (tλ x
+| T_isnum :
+  forall t' E x tE' fE' o',
+    Subtype (tλ x
                tTop
                (envFact true tNum (var x) envEmpty)
                (envFact false tNum (var x) envEmpty)
                objnil
                tBool)
-           tt
-           ff
-           objnil
-| T_Const_isproc :
-  forall E x,
-    Typing E 
-           isproc' 
-           (tλ x
+            t' ->
+    Proves tt tE' ->
+    Proves ff fE' ->
+    SubObj objnil o' ->
+    Typing E isnum' t' tE' fE' o'
+| T_isproc :
+  forall t' E x tE' fE' o',
+    Subtype (tλ x
                tTop
                (envFact true (tλ x tBottom tt ff objnil tTop) (var x) envEmpty)
                (envFact false (tλ x tBottom tt ff objnil tTop) (var x) envEmpty)
                objnil
                tBool)
-           tt
-           ff
-           objnil
-| T_Const_isbool :
-  forall E x,
-    Typing E 
-           isbool' 
-           (tλ x
+            t' ->
+    Proves tt tE' ->
+    Proves ff fE' ->
+    SubObj objnil o' ->
+    Typing E isproc' t' tE' fE' o'
+| T_isbool :
+  forall t' E x tE' fE' o',
+    Subtype (tλ x
                tTop
                (envFact true tBool (var x) envEmpty)
                (envFact false tBool (var x) envEmpty)
                objnil
                tBool)
-           tt
-           ff
-           objnil
-| T_Const_iscons :
-  forall E x,
-    Typing E 
-           iscons' 
-           (tλ x
+            t' ->
+    Proves tt tE' ->
+    Proves ff fE' ->
+    SubObj objnil o' ->
+    Typing E isbool' t' tE' fE' o'
+| T_iscons :
+  forall t' E x tE' fE' o',
+    Subtype (tλ x
                tTop
                (envFact true (tPair tTop tTop) (var x) envEmpty)
                (envFact false (tPair tTop tTop) (var x) envEmpty)
                objnil
                tBool)
-           tt
-           ff
-           objnil
-| T_Const_add1 :
-  forall E x,
-    Typing E 
-           add1' 
-           (tλ x
-               tTop
+            t' ->
+    Proves tt tE' ->
+    Proves ff fE' ->
+    SubObj objnil o' ->
+    Typing E iscons' t' tE' fE' o'
+| T_add1 :
+  forall t' E x tE' fE' o',
+    Subtype (tλ x
+               tNum
                tt
-               tt
+               ff
                objnil
                tNum)
-           tt
-           ff
-           objnil
-| T_Const_iszero :
-  forall E x,
-    Typing E 
-           iszero' 
-           (tλ x
+            t' ->
+    Proves tt tE' ->
+    Proves ff fE' ->
+    SubObj objnil o' ->
+    Typing E add1' t' tE' fE' o'
+
+| T_iszero :
+  forall t' E x tE' fE' o',
+    Subtype (tλ x
                tTop
                tt
                tt
                objnil
                tBool)
-           tt
-           ff
-           objnil
+            t' ->
+    Proves tt tE' ->
+    Proves ff fE' ->
+    SubObj objnil o' ->
+    Typing E iszero' t' tE' fE' o'
+
 | T_Num :
-    forall E n,
-      Typing E (expNum n) tNum tt ff objnil
+  forall t' E tE' fE' o' n,
+      Subtype tNum t' ->
+      Proves tt tE' ->
+      Proves ff fE' ->
+      SubObj objnil o' ->
+      Typing E (expNum n) t' tE' fE' o'
 | T_True :
-    forall E,
-      Typing E expT tTrue tt ff objnil
+  forall t' E tE' fE' o',
+      Subtype tTrue t' ->
+      Proves tt tE' ->
+      Proves ff fE' ->
+      SubObj objnil o' ->
+      Typing E expT t' tE' fE' o'
 | T_False :
-    forall E,
-      Typing E expF tFalse ff tt objnil
+  forall t' E tE' fE' o',
+      Subtype tFalse t' ->
+      Proves ff tE' ->
+      Proves tt fE' ->
+      SubObj objnil o' ->
+      Typing E expF t' tE' fE' o'
 | T_Var :
-    forall E x t,
+    forall t' t E x tE' fE' o',
       Proves E (envFact true t (var x) envEmpty) ->
+      Subtype t t' ->
+      Proves (envFact false tFalse (var x) envEmpty) tE' ->
+      Proves (envFact true tFalse (var x) envEmpty) fE' ->
+      SubObj (var x) o' ->
       Typing E
              (expVar x)
-             t
-             (envFact false tFalse (var x) envEmpty)
-             (envFact true tFalse (var x) envEmpty)
+             t'
+             tE'
+             fE'
              (var x)
 | T_Abs :
-   forall E σ x e t tE fE o,
+   forall σ' t' σ t E x e tE fE o tE' fE' o',
      Typing (envFact true σ (var x) E) e t tE fE o ->
+     Subtype t t' ->
+     Subtype σ' σ ->
+     SubObj o o' ->
+     Proves tE tE' ->
+     Proves fE fE' ->
      Typing E
             (expλ x σ e)
-            (tλ x σ tE fE o t)
-            tt
-            ff
-            objnil
+            (tλ x σ' tE fE o t')
+            tE'
+            fE'
+            o'
 | T_App :
-   forall E e x σ tEλ fEλ oλ t tE fE o e' tE' fE' o' t'' tEλ'' fEλ'' o'',
+   forall t'' σ t σ' E e x tEλ fEλ oλ tE fE o e' tE' fE' o' tEλ'' fEλ'' o'',
      Typing E e (tλ x σ tEλ fEλ oλ t) tE fE o ->
-     Typing E e' σ tE' fE' o' ->
-     t'' = (subst_t t o' x) ->
-     tEλ'' = (subst_env tEλ o' x) ->
-     fEλ'' = (subst_env fEλ o' x) ->
-     o'' = (subst_o oλ o' x) ->
+     Typing E e' σ' tE' fE' o' ->
+     Subtype σ' σ ->
+     Subtype (subst_t t o' x) t'' ->
+     Proves (subst_env tEλ o' x) tEλ'' ->
+     Proves (subst_env fEλ o' x) fEλ'' ->
+     SubObj (subst_o oλ o' x) o'' ->
      Typing E (expApp e e') t'' tEλ'' fEλ'' o''
  
 | T_If :
-   forall t1 t E e1 tE1 fE1 o1 e2 tE2 fE2 o e3 tE3 fE3,
+   forall t' t1 t2 t3 E e1 tE1 fE1 o1 e2 tE2 fE2 o e3 tE3 fE3 o',
      Typing E e1 t1 tE1 fE1 o1 ->
-     Typing (env_app E tE1) e2 t tE2 fE2 o ->
-     Typing (env_app E fE1) e3 t tE3 fE3 o ->
-     Typing E (expIf e1 e2 e3) t (envOr tE2 tE3) (envOr fE2 fE3) o
-| T_Subsume :
-   forall E e t tE fE o tE' fE' t' o',
-     Typing E e t tE fE o ->
-     Proves (env_app E tE) tE' ->
-     Proves (env_app E fE) fE' ->
-     Subtype t t' ->
+     Typing (env_app E tE1) e2 t2 tE2 fE2 o ->
+     Typing (env_app E fE1) e3 t3 tE3 fE3 o ->
+     Subtype (tUnion t2 t3) t' ->
+(*     Subtype t2 t' ->
+     Subtype t3 t' -> *)
      SubObj o o' ->
-     Typing E e t' tE' fE' o'
+     Typing E (expIf e1 e2 e3) t' (envOr tE2 tE3) (envOr fE2 fE3) o
 | T_Cons :
-   forall E e1 t1 tE1 fE1 o1 e2 t2 tE2 fE2 o2,
+   forall t1' t2' t1 t2 E e1 tE1 fE1 o1 e2 tE2 fE2 o2 o' fE' tE',
      Typing E e1 t1 tE1 fE1 o1 ->
      Typing E e2 t2 tE2 fE2 o2 ->
-     Typing E (expCons e1 e2) (tPair t1 t2) tt ff objnil
+     Subtype t1 t1' ->
+     Subtype t2 t2' ->
+     Proves tt tE' ->
+     Proves ff fE' ->
+     SubObj objnil o' ->
+     Typing E (expCons e1 e2) (tPair t1' t2') tE' fE' o'
 | T_Car :
-   forall E e t1 t2 tE0 fE0 o o' tE fE x,
+   forall t1 t2 E e tE0 fE0 o o' tE fE x,
      Typing E e (tPair t1 t2) tE0 fE0 o ->
      tE = (subst_env (envFact false tFalse (objπ [car] x) envEmpty) o x) ->
      fE = (subst_env (envFact true tFalse (objπ [car] x) envEmpty) o x) ->
      o' = subst_o (objπ [car] x) o x ->
      Typing E (expApp car' e) t1 tE fE o'
 | T_Cdr :
-   forall E e t1 t2 tE0 fE0 o o' tE fE x,
+   forall t2 t1 E e tE0 fE0 o o' tE fE x,
      Typing E e (tPair t1 t2) tE0 fE0 o ->
      tE = (subst_env (envFact false tFalse (objπ [cdr] x) envEmpty) o x) ->
      fE = (subst_env (envFact true tFalse (objπ [cdr] x) envEmpty) o x) ->
      o' = subst_o (objπ [cdr] x) o x ->
      Typing E (expApp cdr' e) t2 tE fE o'
 | T_Let :
-   forall E e0 t tE0 fE0 o0 e1 σ tE1 fE1 o1 x σ' tE1' fE1' o1',
+   forall σ' t σ E e0 tE0 fE0 o0 e1 tE1 fE1 o1 x tE1' fE1' o1',
      Typing E e0 t tE0 fE0 o0 ->
      Typing (env_app (envFact true t (var x) envEmpty)
                      (env_app (envOr (envFact true tFalse (var x) envEmpty) 
                                      tE0)
-                              (envOr (envFact true tFalse (var x) envEmpty) 
-                                     tE0)))
+                              (envOr (envFact false tFalse (var x) envEmpty) 
+                                     fE0)))
             e1 
             σ 
             tE1 
             fE1 
             o1 ->
-     σ' = (subst_t σ o0 x) ->
-     tE1' = (subst_env tE1 o0 x) ->
-     fE1' = (subst_env fE1 o0 x) ->
-     o1' = (subst_o o1 o0 x) ->
+     Subtype (subst_t σ o0 x) σ'->
+     Proves (subst_env tE1 o0 x) tE1'  ->
+     Proves (subst_env fE1 o0 x) fE1'  ->
+     SubObj (subst_o o1 o0 x) o1' ->
      Typing E (expLet x e0 e1) σ' tE1' fE1' o1'
 
 (* subtyping *)
@@ -875,23 +901,25 @@ Ltac tryRES :=
          (eapply RES_Sub)].
 
 Ltac tryT :=
-  first [(eapply T_Const_isnum) |
-        (eapply T_Const_isproc) |
-        (eapply T_Const_isbool) |
-        (eapply T_Const_iscons) |
-        (eapply T_Const_add1) |
-        (eapply T_Const_iszero) |
+  first [(eapply T_isnum) |
+        (eapply T_isproc) |
+        (eapply T_isbool) |
+        (eapply T_iscons) |
+        (eapply T_add1) |
+        (eapply T_iszero) |
         (eapply T_Num) |
         (eapply T_True) |
         (eapply T_False) |
         (eapply T_Var) |
         (eapply T_Abs) |
-        (eapply T_App) |
         (eapply T_If) |
         (eapply T_Cons) |
         (eapply T_Car) |
         (eapply T_Cdr) |
-        (eapply T_Let)].
+        (eapply T_App) |
+        (eapply T_Abs) |
+        (eapply T_Let) |
+        (eapply T_If)].
 (* Removed Subsume since it always works *)  
 
 
@@ -902,19 +930,20 @@ Ltac tryS :=
         (eapply S_Fun) |
         (eapply S_Pair) |
         (match goal with
-         | |- Subtype ?t1 (tUnion ?t1 ?t2) => 
+         | |- Subtype ?t1 (tUnion ?t1 ?t2) =>
            eapply S_UnionSuper_l
-         | |- Subtype ?t2 (tUnion ?t1 ?t2) => 
+         | |- Subtype ?t2 (tUnion ?t1 ?t2) =>
            eapply S_UnionSuper_r
-         | |- Subtype ?t1 (tUnion (tUnion ?t1 ?t2) ?t3) => 
+         | |- Subtype ?t1 (tUnion (tUnion ?t1 ?t2) ?t3) =>
            eapply S_UnionSuper_l; eapply S_UnionSuper_l
-         | |- Subtype ?t2 (tUnion (tUnion ?t1 ?t2) ?t3) => 
+         | |- Subtype ?t2 (tUnion (tUnion ?t1 ?t2) ?t3) =>
            eapply S_UnionSuper_l; eapply S_UnionSuper_r
-         | |- Subtype ?t2 (tUnion ?t1 (tUnion ?t2 ?t3)) => 
+         | |- Subtype ?t2 (tUnion ?t1 (tUnion ?t2 ?t3)) =>
            eapply S_UnionSuper_r; eapply S_UnionSuper_l
-         | |- Subtype ?t3 (tUnion ?t1 (tUnion ?t2 ?t3)) => 
+         | |- Subtype ?t3 (tUnion ?t1 (tUnion ?t2 ?t3)) =>
            eapply S_UnionSuper_r; eapply S_UnionSuper_r
-        end)].
+        end) |
+        (eapply S_Refl)].
 
 Ltac tryNS :=
   first [(eapply NS_Trivial) |
@@ -1136,10 +1165,6 @@ Proof with crushTR.
 Qed.  
 Hint Resolve PT_empty_any.
 
-Theorem rescrap :
-Restricted tTop tNum tNum.
-Proof.
-
 
 (* Typing If statement where the if predicate/test passes
    it's conclusion to the then branch *)
@@ -1152,7 +1177,23 @@ Example example1:
 Proof with crushTR.
   intros x; eapply simpletype...
 Grab Existential Variables.
-  crush. crush.
+apply objnil. crush. apply objnil.
+crush. apply objnil. apply objnil.
+Qed.
+
+
+Example example2':
+  forall x,
+    SimpleTypeOf
+      (expIf (expApp isbool' (expVar x)) 
+                   expF 
+                   (expApp iszero' (expVar x)))
+      tBool.
+Proof with crushTR.
+  intros x; eapply simpletype...
+Grab Existential Variables.
+apply objnil. crush. apply objnil.
+crush. apply objnil. apply objnil.
 Qed.
 
 (* Typing a function of type ((U Bool Num) -> Bool)  *)
@@ -1164,12 +1205,13 @@ Example example2:
                    expF 
                    (expApp iszero' (expVar x))))
       (tUnion tBool tNum)
-      (tBool).
+      tBool.
 Proof with crushTR.
-  intros x; eapply functiontype... 
-  eapply T_Subsume...
+  intros x; eapply functiontype...
 Grab Existential Variables.
-  crush. crush.
+apply objnil. crush. apply objnil.
+crush. apply objnil. apply objnil.
+apply objnil.
 Qed.
 
 
@@ -1185,7 +1227,82 @@ Example example3:
       tNum.
 Proof with crushTR.
   intros x y Hneq; eapply simpletype...
-  eapply T_Subsume...
+Check T_Let.
+  eapply (T_Let tNum tBool tNum).
+Check T_App.
+  eapply (T_App tBool tTop tBool tTop)...
+Check T_If.
+  eapply (T_If tNum tBool tNum tNum).
+  tryT.
+  tryP.
+  tryP.
+  tryP.
+  tryP.
+  tryP.
+  tryP.
+  tryP.
+  crush. simpl. crush. 
+  tryUE. 
+  tryUE.
+  tryUE.
+  tryUE.
+  tryUE.
+  tryUE.
+  tryULS.
+  tryUL. crush. crush.
+  tryUT.
+  tryREM.
+  tryNS. compute. reflexivity.
+  crush. simpl. crush.
+  tryUE.
+  tryUE.
+  tryULS.
+  tryUL. crush. crush.
+  tryUT.
+  tryREM.
+  tryNS. crush. crush.
+  simpl.
+  tryULS. 
+  tryULS.
+  tryUL.
+  crush. crushTR.
+  tryUT.
+  tryRES.
+  tryNS. compute; reflexivity.
+  tryUL. crush. crushTR.
+  tryUT.
+  tryRES.
+  tryNS. compute; reflexivity.
+  simpl. crushTR. simpl.
+  tryULS.
+  tryULS.
+  tryULS.
+  tryULS.
+  tryUL. crush.
+  crushTR.
+  tryUT.
+  tryRES.
+  tryNS. compute; reflexivity.
+  tryUL. crush. crushTR.
+  tryUT.
+  tryRES.
+  tryNS. compute; reflexivity.
+  tryUL. crush. crush.
+  tryUT. crush.
+  tryRES. crush.
+  tryS. tryS.
+  crushTR.
+  tryPT. crushTR.
+  crushTR.
+  tryPT.
+  destruct (obj_eqdec (varx) (varx)).
+  crush.
+  crushTR.
+  crushTR.
+  tryPT. destruct (obj_eqdec (varx) (varx)).
+  reflexivity. (* Right here, subgoal 2 is now Subtype tBool tFalse! *)
+  tryfalse.
+
 Grab Existential Variables.
 crush.
 Qed.

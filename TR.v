@@ -733,6 +733,16 @@ Qed.
 Hint Rewrite subst_Some_tNum.
   
 
+
+(** *Automation for Examples *)
+
+Hint Constructors TypeOf Update.
+Hint Resolve P_Refl S_Refl SO_Refl .
+
+
+
+
+
 (** * Example TypeOf Judgements *)
 
 Example example1:
@@ -744,75 +754,25 @@ Example example1:
            tNum
            (TT,TT)
            None.
-Proof. 
+Proof with crush. 
   intros x.
-  eapply T_If.
-  eapply T_App.
-  eapply T_Const.
-  eapply P_AndE_lhs.
-  eapply P_Refl.
-  eapply P_AndE_rhs.
+  eapply T_If...
+  eapply T_App...
+  eapply T_Const...
+  eapply T_Var...
+  eapply T_App...
+  eapply T_Const... 
+  eapply T_Var...
+  eapply P_AndE_rhs...
+  crush.
+  eapply P_Or...
+  eapply P_Or...
   eapply P_False.
-  simpl. eapply S_Abs. 
-  simpl. eapply S_Refl.
-  simpl. eapply S_Refl.
-  simpl. erewrite if_eq_id.
-  eapply P_Refl.
-  simpl. erewrite if_eq_id.
-  eapply P_Refl.
-  simpl. eapply SO_Refl.
-  eapply SO_Refl.
-  eapply T_Var.
-  eapply P_Refl.
-  eapply S_Refl.
-  eapply P_Refl.
-  eapply P_Refl.
-  eapply SO_Refl.
-  eapply S_Refl.
-  simpl. eapply S_Refl. (* Here I *was* applying S_Top -- yikes..? *)
-  simpl. erewrite if_eq_id. eapply P_Refl.
-  simpl. erewrite if_eq_id. eapply P_Refl.
-  simpl. eapply SO_Refl.
-  eapply T_App.
-  eapply T_Const.
-  eapply P_Refl.
-  eapply P_Refl.
-  simpl. eapply S_Abs.
-  simpl. eapply S_Refl.
-  simpl. eapply S_Refl.
-  simpl. eapply P_Refl.
-  simpl. eapply P_False.
-  simpl. eapply SO_Refl.
-  eapply SO_Refl.
-  eapply T_Var.
-  eapply P_AndE_rhs.
-  eapply P_Refl.
-  eapply S_Refl.
-  eapply P_Refl.
-  eapply P_Refl. 
-  eapply SO_Refl.
-  eapply S_Refl.
-  eapply S_Refl.
-  simpl. eapply P_Refl.
-  eapply P_Refl.
-  eapply SO_Refl.
-  eapply T_Num.
-  eapply S_Refl.
-  eapply P_Refl.
-  eapply P_Refl.
-  eapply SO_Refl.
-  eapply P_Or.
-  eapply P_Refl.
-  eapply P_Refl.
-  eapply P_True.
-  simpl.
-  eapply S_UnionSub.
-  eapply S_Refl.
-  eapply S_Refl.
-  simpl. eapply SO_Refl.
+  eapply P_False.
+  crush.
+  eapply S_UnionSub...
 Grab Existential Variables.
-crush. eapply TT. crush.
-crush. eapply TT. crush.
+crush. crush.
 Qed.
 
 (*

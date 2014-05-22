@@ -540,7 +540,7 @@ with TypeOf : prop -> exp -> type -> (prop * prop) -> opt object -> Prop :=
       -> TypeOf Γ (eNum n) τ' (tP', fP') o'
 | T_Const :
     forall τ' Γ c x tP' fP' o',
-      Proves (Γ & TT) tP'
+      Proves Γ tP'
       -> Proves (Γ & FF) fP'
       -> Subtype (const_type c x) τ'
       -> SubObj None o'
@@ -649,9 +649,13 @@ with Subtype : relation type :=
     forall τ, Subtype τ τ
 | S_Top : 
     forall τ, Subtype τ tTop
-| S_UnionSuper :
+| S_UnionSuper_l :
     forall τ σ1 σ2,
-      (Subtype τ σ1 \/ Subtype τ σ2)
+      Subtype τ σ1
+      -> Subtype τ (tUnion σ1 σ2)
+| S_UnionSuper_r :
+    forall τ σ1 σ2,
+      Subtype τ σ2
       -> Subtype τ (tUnion σ1 σ2)
 | S_UnionSub :
     forall τ1 τ2 σ,
@@ -674,7 +678,7 @@ with Subtype : relation type :=
       -> Subtype (tPair τ1 σ1) (tPair τ2 σ2).
 
 
-(** Proof Helpers/Lemmas *)
+(** * Proof Helpers/Lemmas and Automation *)
 Lemma then_else_eq : forall (T:Type) (P1 P2:Prop) (test: sumbool P1 P2) (Q:T),
 (if test then Q else Q) = Q.
 Proof.
@@ -732,16 +736,84 @@ Proof.
 Qed.  
 Hint Rewrite subst_Some_tNum.
   
-
-
-(** *Automation for Examples *)
-
 Hint Constructors TypeOf Update.
-Hint Resolve P_Refl S_Refl SO_Refl .
+Hint Resolve P_Refl S_Refl SO_Refl.
+
+Ltac tryT :=
+  first [(eapply T_Const) |
+        (eapply T_Num) |
+        (eapply T_True) |
+        (eapply T_False) |
+        (eapply T_Var) |
+        (eapply T_Abs) |
+        (eapply T_If) |
+        (eapply T_Cons) |
+        (eapply T_Car) |
+        (eapply T_Cdr) |
+        (eapply T_App) |
+        (eapply T_Abs) |
+        (eapply T_Let) |
+        (eapply T_If)].
+
+Ltac tryS :=
+  first [(eapply S_Refl) |
+        (eapply S_Top) |
+        (eapply S_UnionSub) |
+        (eapply S_Abs) |
+        (eapply S_Pair) |
+        (match goal with
+         | |- Subtype ?t1 (tUnion ?t1 ?t2) =>
+           eapply S_UnionSuper_l
+         | |- Subtype ?t2 (tUnion ?t1 ?t2) =>
+           eapply S_UnionSuper_r
+         | |- Subtype ?t1 (tUnion (tUnion ?t1 ?t2) ?t3) =>
+           eapply S_UnionSuper_l; eapply S_UnionSuper_l
+         | |- Subtype ?t2 (tUnion (tUnion ?t1 ?t2) ?t3) =>
+           eapply S_UnionSuper_l; eapply S_UnionSuper_r
+         | |- Subtype ?t2 (tUnion ?t1 (tUnion ?t2 ?t3)) =>
+           eapply S_UnionSuper_r; eapply S_UnionSuper_l
+         | |- Subtype ?t3 (tUnion ?t1 (tUnion ?t2 ?t3)) =>
+           eapply S_UnionSuper_r; eapply S_UnionSuper_r
+        end) |
+        (eapply S_Refl)].
+
+Ltac tryP :=
+  match goal with
+  | |- Proves FF _ =>
+    solve [eapply P_False]
+  | |- Proves _ TT =>
+    solve [eapply P_True]
+  | |- Proves (?o1 ::= ?τ1) (?o1 ::~ ?τ1)  => 
+    eapply P_Update_IsNot
+  | |- Proves ?p1 ?p1 => 
+    solve [eapply P_Refl]
+  | |- Proves ?p1 (?p2 & ?p3) =>
+    solve [(eapply P_AndI; tryP)]
+  | |- Proves ?p1 (?p2 + ?p3) =>
+    solve [first [(eapply P_OrI_lhs; tryP) | (eapply P_OrI_rhs; tryP)]]
+  | |- Proves (?p1 & ?p2) ?p3 => 
+    solve [first [(eapply P_AndE_lhs; tryP) | (eapply P_AndE_rhs; tryP)]]
+  | |- Proves (?p1 + ?p2) ?p3 => 
+    solve [eapply P_Or; tryP]
+  | |- Proves (?o1 ::= ?τ1) (?o2 ::= ?τ1) =>
+    solve [eapply P_Refl]
+  | |- Proves (?o1 ::= ?τ1) (?o1 ::= ?τ2) =>
+    solve [eapply P_Sub; (tryS; crush); tryP]
+  end.
+(* tryP currently will just do a recursive logical fact check, it does not
+   yet reason about implication or subtyping *)
 
 
-
-
+Ltac crushTR :=
+  repeat 
+    (try 
+       (repeat 
+          ((tryT
+              || tryS
+              || tryP
+              || auto
+              || eauto
+              || crush)))).
 
 (** * Example TypeOf Judgements *)
 
@@ -754,26 +826,130 @@ Example example1:
            tNum
            (TT,TT)
            None.
-Proof with crush. 
-  intros x.
-  eapply T_If...
-  eapply T_App...
-  eapply T_Const...
-  eapply T_Var...
-  eapply T_App...
-  eapply T_Const... 
-  eapply T_Var...
-  eapply P_AndE_rhs...
-  crush.
-  eapply P_Or...
-  eapply P_Or...
-  eapply P_False.
-  eapply P_False.
-  crush.
-  eapply S_UnionSub...
+Proof with crushTR.
+  crushTR...
 Grab Existential Variables.
-crush. crush.
+crush. crush. crush. crush. crush.
 Qed.
+
+
+Example example2a:
+  forall x,
+    TypeOf
+      ((var x) ::= (tUnion tBool tNum))
+      (eIf (eApp IsBool' (eVar x))
+           eFalse
+           (eApp IsZero' (eVar x)))
+      tBool
+      (TT,TT)
+      None.
+Proof with crushTR.
+  intros x...  Admitted.
+  (* BOOKMARK: narrowing down the problem... *)
+
+Example example2b:
+  forall x,
+    TypeOf
+      TT
+      (eλ x (tUnion tBool tNum)
+            (eIf (eApp IsBool' (eVar x))
+                   eFalse
+                   (eApp IsZero' (eVar x))))
+      (tAbs x 
+            ((tUnion tBool tNum), tBool) 
+            (TT, TT) 
+            None)
+      (TT,TT)
+      None.
+Proof with crushTR. Admitted.
+(*
+Example example3:
+  forall x y,
+    x <> y ->
+    SimpleTypeOf
+      (expLet x (expApp isnum' (expVar y))
+              (expIf (expVar x)
+                     (expVar y)
+                     (expNum 0)))
+      tNum.
+Proof with crushTR. Admitted.
+
+Example example4:
+  forall x,
+  SimpleTypeOf
+  (expIf (expIf (expApp isnum' (expVar x)) expT (expApp isbool' (expVar x)))
+         (expApp (f' x) (expVar x))
+         expF)
+  tBool.
+Proof with crushTR. Admitted.
+
+
+(* usage of an and (nested ifs) to illustrate the conjunction of
+the predicates from the and being true *)
+Example example7:
+  forall x y,
+    SimpleTypeOf
+      (expIf (and' (expApp isnum' (expVar x)) (expApp isbool' (expVar y)))
+             (and' (expApp iszero' (expVar x)) (expVar y))
+             expF)
+      tBool.
+Proof with crushTR. Admitted.
+
+
+(* usage of function to identify (U Bool Num) type *)
+Example example8:
+  forall x,
+    SimpleTypeOf
+      (expIf (expApp (expλ x tTop (* strbool? *)
+                           (or' (expApp isbool' (expVar x))
+                                (expApp isnum' (expVar x))))
+                     (expVar x))
+             (expVar x)
+             expT)
+      (tUnion tBool tNum).
+Proof with crushTR. Admitted.
+
+(* Results of tests on structure-accessors (car)
+for typing *)
+Example example10:
+  forall p,
+    SimpleTypeOf
+    (expIf (expApp isnum' (expApp car' p))
+           (expApp add1' (expApp car' p))
+           42)
+    tNum.
+Proof with crushTR. Admitted.
+
+
+(* Results of tests on structure-accessors (car & cdr)
+for typing *)
+Example example11:
+  forall p,
+    SimpleTypeOf
+    (expIf (and' (expApp isnum' (expApp car' p)) (expApp isnum' (expApp cdr' p)))
+           p
+           (expCons (expNum 19) (expNum 84)))
+    (tPair tNum tNum).
+Proof with crushTR. Admitted.
+
+(* Reasons about the else branch of an if whose predicate is a conjuction
+and must use this to typecheck (in the else branch, if x is a bool then
+y must be a bool since it cannot be a num being that
+(and (bool? x) (number? y)) produced #f ) *)
+Example example13:
+  forall x y,
+    FunctionTypeOf
+      (expλ y (tUnion tNum tBool) (* strbool? *)
+            (expIf (and' (expApp isbool' (expVar x))
+                         (expApp isnum' (expVar y)))
+                   (and' (expVar x) (expApp 'iszero (expVar y)))
+                   (expIf (expApp isbool' (expVar x))
+                          (and' (expVar x) (expVar y))
+                          expF)))
+      (tUnion tNum tBool)
+      (tBool).
+Proof with crushTR. Admitted.
+
 
 (*
 Thoughts during & after the long, long proof:
@@ -817,6 +993,6 @@ The rules for Proves are still somewhat tied to the idea of an "environment"
 of properties instead of just 1 big property... this could be improved.
 
 *)
-
+*)
 
 End LTR.

@@ -43,7 +43,7 @@ Inductive type : Type :=
 | tFalse : type
 | tUnion : type -> type -> type
 | tPair : type -> type -> type
-| tFun : id -> (type * type) -> (prop * prop) -> opt object -> type
+| tAbs : id -> (type * type) -> (prop * prop) -> opt object -> type
 
 with prop : Type :=
 | Is    : object -> type -> prop
@@ -86,9 +86,10 @@ Inductive exp : Type :=
 | eFalse   : exp
 | eNum : nat -> exp
 | eIf  : exp -> exp -> exp -> exp
-| eAbs : id -> type -> exp -> exp
+| eλ : id -> type -> exp -> exp
 | eApp : exp -> exp -> exp
-| eLet : id -> exp -> exp.
+| eLet : id -> exp -> exp -> exp
+| eCons : exp -> exp -> exp.
 Hint Constructors exp.
 
 Notation Car' := (eOp (p_op opCar)).
@@ -104,33 +105,33 @@ Notation IsCons' := (eOp (c_op opIsCons)).
 Definition const_type (c : const_op) (x:id) : type :=
   match c with
     | opIsNum =>
-      (tFun x 
+      (tAbs x 
             (tTop, tBool) 
             (((var x) ::= tNum), ((var x) ::~ tNum)) 
             None)
     | opIsProc =>
-      (tFun x 
+      (tAbs x 
             (tTop, tBool) 
-            (((var x) ::= (tFun x (tBot, tTop) (TT, FF) None)), 
-             ((var x) ::~ (tFun x (tBot, tTop) (TT, FF) None)))
+            (((var x) ::= (tAbs x (tBot, tTop) (TT, FF) None)), 
+             ((var x) ::~ (tAbs x (tBot, tTop) (TT, FF) None)))
             None)
     | opIsBool =>
-      (tFun x 
+      (tAbs x 
             (tTop, tBool) 
             (((var x) ::= tBool), ((var x) ::~ tBool)) 
             None)
     | opIsCons =>
-      (tFun x 
+      (tAbs x 
             (tTop, tBool) 
             (((var x) ::= (tPair tTop tTop)), ((var x) ::~ (tPair tTop tTop)))
             None)
     | opAdd1 =>
-      (tFun x 
+      (tAbs x 
             (tNum, tNum) 
             (TT, FF)
             None)
     | opIsZero =>
-      (tFun x 
+      (tAbs x 
             (tNum, tBool) 
             (TT, TT)
             None)
@@ -200,7 +201,7 @@ Fixpoint fv_set_t (t : type) : set id :=
   match t with
     | tUnion lhs rhs =>
       set_union id_eqdec (fv_set_t lhs) (fv_set_t rhs)
-    | tFun x (t1, t2) (p1, p2) o =>
+    | tAbs x (t1, t2) (p1, p2) o =>
       setU id_eqdec
            [[x];
              (fv_set_t t1);
@@ -245,7 +246,7 @@ Definition truth (b:bool) : prop :=
   end.
 
 (** _we use true/false instead of +/- for substitution_ *)
-Fixpoint subst_p (b:bool)
+Fixpoint subst_p' (b:bool)
          (p:prop)
          (opto:opt object)
          (x:id) : prop :=
@@ -256,7 +257,7 @@ Fixpoint subst_p (b:bool)
           match opto with
             | None => (truth b)
             | Some (obj pth2 y) =>
-              Is (obj (pth1 ++ pth2) y) (subst_t b t opto x)
+              Is (obj (pth1 ++ pth2) y) (subst_t' b t opto x)
           end
         | right _, false => p
         | right _, true => (truth b)
@@ -267,36 +268,41 @@ Fixpoint subst_p (b:bool)
           match opto with
             | None => (truth b)
             | Some (obj pth2 y) =>
-              Is (obj (pth1 ++ pth2) y) (subst_t b t opto x)
+              Is (obj (pth1 ++ pth2) y) (subst_t' b t opto x)
           end
         | right _, false => p
         | right _, true => (truth b)
       end
-    | P =-> Q => (subst_p (negb b) P opto x) =-> (subst_p b Q opto x)
-    | P + Q => (subst_p b P opto x) + (subst_p b Q opto x)
-    | P & Q => (subst_p b P opto x) & (subst_p b Q opto x)
+    | P =-> Q => (subst_p' (negb b) P opto x) =-> (subst_p' b Q opto x)
+    | P + Q => (subst_p' b P opto x) + (subst_p' b Q opto x)
+    | P & Q => (subst_p' b P opto x) & (subst_p' b Q opto x)
     | _ => p
   end
 
-with subst_t (b:bool)
+with subst_t' (b:bool)
              (t:type)
              (opto:opt object)
              (x:id) : type :=
   match t with
-    | tUnion lhs rhs => tUnion (subst_t b lhs opto x) (subst_t b rhs opto x)
-    | tFun y (t1, t2) (p1, p2) opto2 =>
+    | tUnion lhs rhs => tUnion (subst_t' b lhs opto x) (subst_t' b rhs opto x)
+    | tAbs y (t1, t2) (p1, p2) opto2 =>
       if id_eqdec x y
       then t
-      else tFun y
-                ((subst_t b t1 opto x),
-                 (subst_t b t2 opto x))
-                ((subst_p b p1 opto x),
-                 (subst_p b p2 opto x))
+      else tAbs y
+                ((subst_t' b t1 opto x),
+                 (subst_t' b t2 opto x))
+                ((subst_p' b p1 opto x),
+                 (subst_p' b p2 opto x))
                 (subst_o opto2 opto x)
-    | tPair t1 t2 => tPair (subst_t b t1 opto x)
-                           (subst_t b t2 opto x)
+    | tPair t1 t2 => tPair (subst_t' b t1 opto x)
+                           (subst_t' b t2 opto x)
     | _ => t
   end.
+
+(** All uses of subst_p' and subst_t' "in the wild" call the positive case, from
+which the negative case may then be called.  *) 
+Definition subst_p := subst_p' true.
+Definition subst_t := subst_t' true.
 
 (** A few helpers to reason about subtyping: *)
 
@@ -307,7 +313,7 @@ Fixpoint typestructuralsize (t:type) : nat :=
   match t with
     | tUnion t1 t2 =>
       S (plus (typestructuralsize t1) (typestructuralsize t2))
-    | tFun x (t1, t2) _ _ => S (plus (typestructuralsize t1) (typestructuralsize t2))
+    | tAbs x (t1, t2) _ _ => S (plus (typestructuralsize t1) (typestructuralsize t2))
     | tPair t1 t2 => S (plus (typestructuralsize t1) (typestructuralsize t2))
     | _ => 1
   end.
@@ -329,8 +335,8 @@ Program Fixpoint common_subtype (type1 type2:type)
     | tTrue, _ => false
     | tFalse, tFalse => true
     | tFalse, _ => false
-    | tFun _ _ _ _, tFun _ _ _ _ => true
-    | tFun _ _ _ _, _ => false
+    | tAbs _ _ _ _, tAbs _ _ _ _ => true
+    | tAbs _ _ _ _, _ => false
     | tPair t1 t2, tPair t3 t4 => andb (common_subtype t1 t3)
                                        (common_subtype t2 t4)
     | tPair _ _, _ => false
@@ -363,10 +369,10 @@ Program Fixpoint possible_subtype (pos_sub pos_super:type)
     | tUnion t1 t2, _ =>
       andb (possible_subtype t1 pos_super)
            (possible_subtype t2 pos_super)
-    | tFun _ (t1,t2) _ _, tFun _ (t3, t4) _ _ =>
+    | tAbs _ (t1,t2) _ _, tAbs _ (t3, t4) _ _ =>
       andb (possible_subtype t1 t3)
            (possible_subtype t2 t4)
-    | tFun _ _ _ _, _ => false
+    | tAbs _ _ _ _, _ => false
     | tPair t1 t2, tPair t3 t4 =>
       andb (possible_subtype t1 t3)
            (possible_subtype t2 t4)
@@ -542,263 +548,134 @@ with TypeOf : prop -> exp -> type -> (prop * prop) -> opt object -> Prop :=
       -> SubObj None o'
       -> TypeOf Γ eFalse τ' (tP', fP') o'
 | T_Var :
-    forall τ' τ Γ tP' fP' ox ox',
+    forall τ' τ Γ tP' fP' ox ox' x,
       Proves Γ (ox ::= τ)
       -> Subtype τ τ'
       -> Proves (ox ::~ tFalse) tP'
       -> Proves (ox ::= tFalse) fP'
       -> SubObj (Some ox) ox'
-      -> TypeOf Γ eFalse τ' (tP', fP') ox'
-(* IN PROG
-| T_Abs
-         forall σ' t' σ t Γ x e tE fE o tE' fE' o',
-           TypeOf (Γ & (σ ::= (var x))) e τ tE fE o ->
-           Subtype t t' ->
-           Subtype σ' σ ->
-           SubObj o o' ->
-           Proves tE tE' ->
-           Proves fE fE' ->
-           TypeOf E
-                  (expλ x σ e)
-                  (tλ x σ' tE fE o t')
-                  tE'
-                  fE'
-                  o'
-*)    
-(* TODO *)
+      -> TypeOf Γ (eVar x) τ' (tP', fP') ox'
+| T_Abs :
+    forall σ' τ' σ τ Γ x e tP fP o tP' fP' o' tP'' fP'' o'',
+      TypeOf (Γ & ((var x) ::= σ)) e τ (tP, fP) o
+      -> Subtype τ τ'
+      -> Subtype σ' σ
+      -> SubObj o o'
+      -> Proves tP tP'
+      -> Proves fP fP'
+      -> SubObj None o''
+      -> Proves TT tP''
+      -> Proves FF fP''
+      -> TypeOf Γ 
+                (eλ x σ e) 
+                (tAbs x (σ', τ') (tP', fP') o') 
+                (tP'', fP'') 
+                o''
+| T_App :
+    forall τ'' σ τ σ' Γ e x tPf fPf of tP fP o e' tP' fP' o' tPf'' fPf'' o'',
+      TypeOf Γ e (tAbs x (σ, τ) (tPf, fPf) of) (tP, fP) o
+      -> TypeOf Γ e' σ' (tP', fP') o'
+      -> Subtype σ' σ
+      -> Subtype (subst_t τ o' x) τ''
+      -> Proves (subst_p tPf o' x) tPf''
+      -> Proves (subst_p fPf o' x) fPf''
+      -> SubObj (subst_o of o' x) o''
+      -> TypeOf Γ (eApp e e') τ'' (tPf'', fPf'') o''
+| T_If :
+    forall τ' τ1 τ2 τ3 Γ e1 tP1 fP1 o1 e2 tP2 fP2 o e3 tP3 fP3 o' tP' fP',
+      TypeOf Γ e1 τ1 (tP1, fP1) o1
+      -> TypeOf (Γ & tP1) e2 τ2 (tP2, fP2) o
+      -> TypeOf (Γ & fP1) e3 τ3 (tP3, fP3) o
+      -> Proves (tP2 + tP3) tP'
+      -> Proves (fP2 + fP3) fP'
+      -> Subtype (tUnion τ2 τ3) τ'
+      -> SubObj o o'
+      -> TypeOf Γ (eIf e1 e2 e3) τ' (tP', fP') o'
+| T_Cons :
+    forall τ' τ1 τ2 Γ e1 tP1 fP1 o1 e2 tP2 fP2 o2 o' fP' tP',
+      TypeOf Γ e1 τ1 (tP1, fP1) o1
+      -> TypeOf Γ e2 τ2 (tP2, fP2) o2
+      -> Subtype (tPair τ1 τ2) τ'
+      -> Proves TT tP'
+      -> Proves FF fP'
+      -> SubObj None o'
+      -> TypeOf Γ (eCons e1 e2) τ' (tP', fP') o'
+| T_Car :
+    forall τ1 τ2 Γ e tP0 fP0 o o' tP fP x,
+      TypeOf Γ e (tPair τ1 τ2) (tP0, fP0) o
+      -> Proves (subst_p ((obj [car] x) ::~ tFalse) o x) tP
+      -> Proves (subst_p ((obj [car] x) ::= tFalse) o x) fP
+      -> SubObj (subst_o (Some (obj [car] x)) o x) o'
+      -> TypeOf Γ (eApp Car' e) τ1 (tP, fP) o'
+| T_Cdr :
+    forall τ1 τ2 Γ e tP0 fP0 o o' tP fP x,
+      TypeOf Γ e (tPair τ1 τ2) (tP0, fP0) o
+      -> Proves (subst_p ((obj [cdr] x) ::~ tFalse) o x) tP
+      -> Proves (subst_p ((obj [cdr] x) ::= tFalse) o x) fP
+      -> SubObj (subst_o (Some (obj [cdr] x)) o x) o'
+      -> TypeOf Γ (eApp Cdr' e) τ2 (tP, fP) o'
+| T_Let :
+    forall σ' τ σ Γ e0 tP0 fP0 o0 e1 tP1 fP1 o1 x tP1' fP1' o1',
+      TypeOf Γ e0 τ (tP0, fP0) o0
+      -> TypeOf (Γ & ((var x) ::= τ)
+                   & (((var x) ::~ tFalse) =-> tP0)
+                   & (((var x) ::= tFalse) =-> fP0)) 
+                e1
+                σ
+                (tP1, fP1)
+                o1
+      -> Subtype (subst_t σ o0 x) σ'
+      -> Proves (subst_p tP1 o0 x) tP1'
+      -> Proves (subst_p fP1 o0 x) fP1'
+      -> SubObj (subst_o o1 o0 x) o1'
+      -> TypeOf Γ (eLet x e0 e1) σ' (tP1', fP1') o1'
+
 (** ** Subtype *)
 
 with Subtype : relation type :=
-| S_Refl : forall x, Subtype x x.
+| S_Refl : 
+    forall τ, Subtype τ τ
+| S_Top : 
+    forall τ, Subtype τ tTop
+| S_UnionSuper :
+    forall τ σ1 σ2,
+      (Subtype τ σ1 \/ Subtype τ σ2)
+      -> Subtype τ (tUnion σ1 σ2)
+| S_UnionSub :
+    forall τ1 τ2 σ,
+      Subtype τ1 σ
+      -> Subtype τ2 σ
+      -> Subtype (tUnion τ1 τ2) σ
+| S_Abs :
+    forall x x' τ τ' σ σ' tP tP' fP fP' o o',
+      Subtype (subst_t τ (Some (var x')) x) τ'
+      -> Subtype σ' (subst_t σ (Some (var x')) x) 
+      -> Proves (subst_p tP (Some (var x')) x) tP'
+      -> Proves (subst_p fP (Some (var x')) x) fP'
+      -> SubObj (subst_o o (Some (var x')) x) o'
+      -> Subtype (tAbs x (σ, τ) (tP, fP) o)
+                 (tAbs x' (σ', τ') (tP', fP') o')
+| S_Pair :
+    forall τ1 σ1 τ2 σ2,
+      Subtype τ1 τ2
+      -> Subtype σ1 σ2
+      -> Subtype (tPair τ1 σ1) (tPair τ2 σ2).
 
-(* TypeOf Rules 
-with TypeOf : env -> exp -> type -> env -> env -> obj -> Prop :=
-     | T_isnum :
-         forall t' E x tE' fE' o',
-           Subtype (tλ x
-                       tTop
-                       (envFact true tNum (var x) envEmpty)
-                       (envFact false tNum (var x) envEmpty)
-                       objnil
-                       tBool)
-                   t' ->
-           Proves tt tE' ->
-           Proves ff fE' ->
-           SubObj objnil o' ->
-           TypeOf E isnum' t' tE' fE' o'
-     | T_isproc :
-         forall t' E x tE' fE' o',
-           Subtype (tλ x
-                       tTop
-                       (envFact true (tλ x tBot tt ff objnil tTop) (var x) envEmpty)
-                       (envFact false (tλ x tBot tt ff objnil tTop) (var x) envEmpty)
-                       objnil
-                       tBool)
-                   t' ->
-           Proves tt tE' ->
-           Proves ff fE' ->
-           SubObj objnil o' ->
-           TypeOf E isproc' t' tE' fE' o'
-     | T_isbool :
-         forall t' E x tE' fE' o',
-           Subtype (tλ x
-                       tTop
-                       (envFact true tBool (var x) envEmpty)
-                       (envFact false tBool (var x) envEmpty)
-                       objnil
-                       tBool)
-                   t' ->
-           Proves tt tE' ->
-           Proves ff fE' ->
-           SubObj objnil o' ->
-           TypeOf E isbool' t' tE' fE' o'
-     | T_iscons :
-         forall t' E x tE' fE' o',
-           Subtype (tλ x
-                       tTop
-                       (envFact true (tPair tTop tTop) (var x) envEmpty)
-                       (envFact false (tPair tTop tTop) (var x) envEmpty)
-                       objnil
-                       tBool)
-                   t' ->
-           Proves tt tE' ->
-           Proves ff fE' ->
-           SubObj objnil o' ->
-           TypeOf E iscons' t' tE' fE' o'
-     | T_add1 :
-         forall t' E x tE' fE' o',
-           Subtype (tλ x
-                       tNum
-                       tt
-                       ff
-                       objnil
-                       tNum)
-                   t' ->
-           Proves tt tE' ->
-           Proves ff fE' ->
-           SubObj objnil o' ->
-           TypeOf E add1' t' tE' fE' o'
 
-     | T_iszero :
-         forall t' E x tE' fE' o',
-           Subtype (tλ x
-                       tTop
-                       tt
-                       tt
-                       objnil
-                       tBool)
-                   t' ->
-           Proves tt tE' ->
-           Proves ff fE' ->
-           SubObj objnil o' ->
-           TypeOf E iszero' t' tE' fE' o'
+(** * Example TypeOf Judgements *)
 
-     | T_Num :
-         forall t' E tE' fE' o' n,
-           Subtype tNum t' ->
-           Proves tt tE' ->
-           Proves ff fE' ->
-           SubObj objnil o' ->
-           TypeOf E (expNum n) t' tE' fE' o'
-     | T_True :
-         forall t' E tE' fE' o',
-           Subtype tTrue t' ->
-           Proves tt tE' ->
-           Proves ff fE' ->
-           SubObj objnil o' ->
-           TypeOf E expT t' tE' fE' o'
-     | T_False :
-         forall t' E tE' fE' o',
-           Subtype tFalse t' ->
-           Proves ff tE' ->
-           Proves tt fE' ->
-           SubObj objnil o' ->
-           TypeOf E expF t' tE' fE' o'
-     | T_Var :
-         forall t' t E x tE' fE' o',
-           Proves E (envFact true t (var x) envEmpty) ->
-           Subtype t t' ->
-           Proves (envFact false tFalse (var x) envEmpty) tE' ->
-           Proves (envFact true tFalse (var x) envEmpty) fE' ->
-           SubObj (var x) o' ->
-           TypeOf E
-                  (expVar x)
-                  t'
-                  tE'
-                  fE'
-                  (var x)
-     | T_Abs :
-         forall σ' t' σ t E x e tE fE o tE' fE' o',
-           TypeOf (envFact true σ (var x) E) e t tE fE o ->
-           Subtype t t' ->
-           Subtype σ' σ ->
-           SubObj o o' ->
-           Proves tE tE' ->
-           Proves fE fE' ->
-           TypeOf E
-                  (expλ x σ e)
-                  (tλ x σ' tE fE o t')
-                  tE'
-                  fE'
-                  o'
-     | T_App :
-         forall t'' σ t σ' E e x tEλ fEλ oλ tE fE o e' tE' fE' o' tEλ'' fEλ'' o'',
-           TypeOf E e (tλ x σ tEλ fEλ oλ t) tE fE o ->
-           TypeOf E e' σ' tE' fE' o' ->
-           Subtype σ' σ ->
-           Subtype (subst_t t o' x) t'' ->
-           Proves (subst_env tEλ o' x) tEλ'' ->
-           Proves (subst_env fEλ o' x) fEλ'' ->
-           SubObj (subst_o oλ o' x) o'' ->
-           TypeOf E (expApp e e') t'' tEλ'' fEλ'' o''
-                  
-     | T_If :
-         forall t' t1 t2 t3 E e1 tE1 fE1 o1 e2 tE2 fE2 o e3 tE3 fE3 o',
-           TypeOf E e1 t1 tE1 fE1 o1 ->
-           TypeOf (env_app E tE1) e2 t2 tE2 fE2 o ->
-           TypeOf (env_app E fE1) e3 t3 tE3 fE3 o ->
-           Subtype (tUnion t2 t3) t' ->
-           (* Subtype t2 t' ->
-Subtype t3 t' -> *)
-           SubObj o o' ->
-           TypeOf E (expIf e1 e2 e3) t' (envOr tE2 tE3) (envOr fE2 fE3) o
-     | T_Cons :
-         forall t1' t2' t1 t2 E e1 tE1 fE1 o1 e2 tE2 fE2 o2 o' fE' tE',
-           TypeOf E e1 t1 tE1 fE1 o1 ->
-           TypeOf E e2 t2 tE2 fE2 o2 ->
-           Subtype t1 t1' ->
-           Subtype t2 t2' ->
-           Proves tt tE' ->
-           Proves ff fE' ->
-           SubObj objnil o' ->
-           TypeOf E (expCons e1 e2) (tPair t1' t2') tE' fE' o'
-     | T_Car :
-         forall t1 t2 E e tE0 fE0 o o' tE fE x,
-           TypeOf E e (tPair t1 t2) tE0 fE0 o ->
-           tE = (subst_env (envFact false tFalse (objπ [car] x) envEmpty) o x) ->
-           fE = (subst_env (envFact true tFalse (objπ [car] x) envEmpty) o x) ->
-           o' = subst_o (objπ [car] x) o x ->
-           TypeOf E (expApp car' e) t1 tE fE o'
-     | T_Cdr :
-         forall t2 t1 E e tE0 fE0 o o' tE fE x,
-           TypeOf E e (tPair t1 t2) tE0 fE0 o ->
-           tE = (subst_env (envFact false tFalse (objπ [cdr] x) envEmpty) o x) ->
-           fE = (subst_env (envFact true tFalse (objπ [cdr] x) envEmpty) o x) ->
-           o' = subst_o (objπ [cdr] x) o x ->
-           TypeOf E (expApp cdr' e) t2 tE fE o'
-     | T_Let :
-         forall σ' t σ E e0 tE0 fE0 o0 e1 tE1 fE1 o1 x tE1' fE1' o1',
-           TypeOf E e0 t tE0 fE0 o0 ->
-           TypeOf (env_app (envFact true t (var x) envEmpty)
-                           (env_app (envOr (envFact true tFalse (var x) envEmpty)
-                                           tE0)
-                                    (envOr (envFact false tFalse (var x) envEmpty)
-                                           fE0)))
-                  e1
-                  σ
-                  tE1
-                  fE1
-                  o1 ->
-           Subtype (subst_t σ o0 x) σ'->
-           Proves (subst_env tE1 o0 x) tE1' ->
-           Proves (subst_env fE1 o0 x) fE1' ->
-           SubObj (subst_o o1 o0 x) o1' ->
-           TypeOf E (expLet x e0 e1) σ' tE1' fE1' o1'
-
-(* subtyping *)
-with Subtype : relation type :=
-     | S_Refl : forall x, Subtype x x
-     | S_Top : forall x, Subtype x tTop
-     | S_UnionSuper_l :
-         forall t t1 t2,
-           Subtype t t1 ->
-           Subtype t (tUnion t1 t2)
-     | S_UnionSuper_r :
-         forall t t1 t2,
-           Subtype t t2 ->
-           Subtype t (tUnion t1 t2)
-     | S_UnionSub :
-         forall t t1 t2,
-           Subtype t1 t ->
-           Subtype t2 t ->
-           Subtype (tUnion t1 t2) t
-     | S_Fun :
-         forall x t t' σ σ' tE tE' fE fE' o o',
-           Subtype t t' ->
-           Subtype σ' σ ->
-           Proves tE tE' ->
-           Proves fE fE' ->
-           SubObj o o' ->
-           Subtype (tλ x σ tE fE o t)
-                   (tλ x σ' tE' fE' o' t')
-     | S_Pair :
-         forall t1 t2 t1' t2',
-           Subtype t1 t1' ->
-           Subtype t2 t2' ->
-           Subtype (tPair t1 t2) (tPair t1' t2').
-*)
+Example example1:
+  forall x,
+    TypeOf ((var x) ::= tTop)
+           (eIf (eApp IsNum' (eVar x))
+                (eApp Add1' (eVar x))
+                (eNum 0))
+           tNum
+           (TT,TT)
+           None.
+Proof. Admitted.
 
 
 
 
-  End LTR.
+End LTR.

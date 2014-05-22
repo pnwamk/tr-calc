@@ -301,8 +301,8 @@ with subst_t' (b:bool)
 
 (** All uses of subst_p' and subst_t' "in the wild" call the positive case, from
 which the negative case may then be called.  *) 
-Definition subst_p := subst_p' true.
-Definition subst_t := subst_t' true.
+Notation subst_p := (subst_p' true).
+Notation subst_t := (subst_t' true).
 
 (** A few helpers to reason about subtyping: *)
 
@@ -387,7 +387,6 @@ Solve Obligations using crush.
 Inductive SubObj : relation (opt object) :=
 | SO_Refl : forall x, SubObj x x
 | SO_Top : forall x, SubObj x None.
-Hint Constructors SubObj.
 
 (** ** Proves Relation *)
 (** "Proves P Q" means proposition "P implies Q" is tautilogical. *)
@@ -407,9 +406,13 @@ Inductive Proves : relation prop :=
       Proves P Q 
       -> Proves P R 
       -> Proves P (Q & R)
-| P_AndE :
+| P_AndE_lhs :
     forall P Q R,
-      (Proves P R \/ Proves Q R) 
+      Proves P R 
+      -> Proves (P & Q) R
+| P_AndE_rhs :
+    forall P Q R,
+      Proves Q R
       -> Proves (P & Q) R
 | P_ImpI :
     forall P Q R,
@@ -420,15 +423,24 @@ Inductive Proves : relation prop :=
       Proves P Q 
       -> Proves P (Q =-> R)
       -> Proves P R
-| P_OrI :
+| P_OrI_lhs :
     forall P Q R,
-      (Proves P Q \/ Proves P R) 
+      Proves P Q
+      -> Proves P (Q + R)
+| P_OrI_rhs :
+    forall P Q R,
+      Proves P R
       -> Proves P (Q + R)
 | P_OrE :
     forall P Q R Y,
       Proves (P & Q) Y
       -> Proves (P & R) Y
       -> Proves (P & (Q + R)) Y
+| P_Or :
+    forall P Q R,
+      Proves P R
+      -> Proves Q R
+      -> Proves (P + Q) R
 | P_Sub :
     forall P τ σ ox,
       Proves P (ox ::= τ)
@@ -662,6 +674,65 @@ with Subtype : relation type :=
       -> Subtype (tPair τ1 σ1) (tPair τ2 σ2).
 
 
+(** Proof Helpers/Lemmas *)
+Lemma then_else_eq : forall (T:Type) (P1 P2:Prop) (test: sumbool P1 P2) (Q:T),
+(if test then Q else Q) = Q.
+Proof.
+  crush.
+Qed.
+Hint Rewrite then_else_eq.
+
+
+Lemma if_eq_id : forall (T:Type) x (t1 t2: T),
+(if id_eqdec x x then t1 else t2) = t1.
+Proof.
+  intros T x t1 t2.
+  destruct (id_eqdec x x); auto. tryfalse.
+Qed.
+Hint Rewrite if_eq_id.
+
+Lemma if_eq_obj : forall (T:Type) x (t1 t2: T),
+(if obj_eqdec x x then t1 else t2) = t1.
+Proof.
+  intros T x t1 t2.
+  destruct (obj_eqdec x x); auto. tryfalse.
+Qed.
+Hint Rewrite if_eq_obj.
+
+Lemma neq_id_neq : forall (T:Type) x y (P Q:T),
+x <> y ->
+((if (id_eqdec x y) then P else Q) = Q).
+Proof.
+  intros.
+  destruct (id_eqdec x y); crush.
+Qed.
+
+Lemma neq_obj_neq : forall (T:Type) x y (P Q:T) pth1 pth2,
+x <> y ->
+((if (obj_eqdec (obj pth1 x) (obj pth2 y)) then P else Q) = Q).
+Proof.
+  intros.
+  destruct (obj_eqdec (obj pth1 x) (obj pth2 y)); crush.
+Qed.
+
+Lemma if_eq_type : forall (T:Type) x (t1 t2: T),
+(if type_eqdec x x then t1 else t2) = t1.
+Proof.
+  intros T x t1 t2.
+  destruct (type_eqdec x x); auto. tryfalse.
+Qed.
+Hint Rewrite if_eq_type.
+
+Lemma subst_Some_tNum : forall x y,
+(subst_p (var x ::= tNum) (Some (var y)) x)
+ = (var y ::= tNum).
+Proof.
+  intros x y.
+  simpl. destruct (id_eqdec x x); crush.
+Qed.  
+Hint Rewrite subst_Some_tNum.
+  
+
 (** * Example TypeOf Judgements *)
 
 Example example1:
@@ -673,9 +744,119 @@ Example example1:
            tNum
            (TT,TT)
            None.
-Proof. Admitted.
+Proof. 
+  intros x.
+  eapply T_If.
+  eapply T_App.
+  eapply T_Const.
+  eapply P_AndE_lhs.
+  eapply P_Refl.
+  eapply P_AndE_rhs.
+  eapply P_False.
+  simpl. eapply S_Abs. 
+  simpl. eapply S_Refl.
+  simpl. eapply S_Refl.
+  simpl. erewrite if_eq_id.
+  eapply P_Refl.
+  simpl. erewrite if_eq_id.
+  eapply P_Refl.
+  simpl. eapply SO_Refl.
+  eapply SO_Refl.
+  eapply T_Var.
+  eapply P_Refl.
+  eapply S_Refl.
+  eapply P_Refl.
+  eapply P_Refl.
+  eapply SO_Refl.
+  eapply S_Refl.
+  simpl. eapply S_Refl. (* Here I *was* applying S_Top -- yikes..? *)
+  simpl. erewrite if_eq_id. eapply P_Refl.
+  simpl. erewrite if_eq_id. eapply P_Refl.
+  simpl. eapply SO_Refl.
+  eapply T_App.
+  eapply T_Const.
+  eapply P_Refl.
+  eapply P_Refl.
+  simpl. eapply S_Abs.
+  simpl. eapply S_Refl.
+  simpl. eapply S_Refl.
+  simpl. eapply P_Refl.
+  simpl. eapply P_False.
+  simpl. eapply SO_Refl.
+  eapply SO_Refl.
+  eapply T_Var.
+  eapply P_AndE_rhs.
+  eapply P_Refl.
+  eapply S_Refl.
+  eapply P_Refl.
+  eapply P_Refl. 
+  eapply SO_Refl.
+  eapply S_Refl.
+  eapply S_Refl.
+  simpl. eapply P_Refl.
+  eapply P_Refl.
+  eapply SO_Refl.
+  eapply T_Num.
+  eapply S_Refl.
+  eapply P_Refl.
+  eapply P_Refl.
+  eapply SO_Refl.
+  eapply P_Or.
+  eapply P_Refl.
+  eapply P_Refl.
+  eapply P_True.
+  simpl.
+  eapply S_UnionSub.
+  eapply S_Refl.
+  eapply S_Refl.
+  simpl. eapply SO_Refl.
+Grab Existential Variables.
+crush. eapply TT. crush.
+crush. eapply TT. crush.
+Qed.
 
+(*
+Thoughts during & after the long, long proof:
 
+Subtype tTop _  => try S_Refl
+Proves (var x ::= tTop) (?120251 ::= ?120250) => must use P_Refl
+   since top can only prove top
+    - what does this imply for cases w/o Top? How can they behave?
+
+Proves (var x ::~ tFalse) ?120218 => these cases will always be
+  P_Refl since if *All* we know is it is not type X, we don't
+  know anything more (unless it's ~ tTop?? meh)
+
+Proves TT ?? must be P_Refl
+
+Can we prove P & TT = P?
+
+A functional equivalence for prop would be nice:
+Axiom: forall P Q, (forall Z, Proves P Z <-> Proves Q Z) -> P = Q
+OR! We could just make a rule in the auto rules that say
+if you see P & TT, apply P_AndE; left, and the flip for right
+
+Function for "Path to False" would be sweet. i.e., if we had
+the prop P & Q & FF & R proves Z, give me the path of
+tactics to get to the FF. OR just prove for some function
+"contains" that if contains lhs FF then it proves the rhs.
+
+ALWAYS!!! Try SO_Refl before SO_None!!!
+
+When Proving Proves P ?124353 or similar, be careful about losing information
+- perhaps P_Refl is *always* the best so *all* of the info is propogated,
+instead of trying to reason about what to keep and what to ignore
+
+Example of try always else
+ALWAYS try SO_REFL, if that fails, then try SO_None or whatever
+
+perhaps for Proves, ALWAYS TRY P_Refl, then if that fails start
+drilling down into how to prove each thing
+
+The rules for Proves are still somewhat tied to the idea of an "environment"
+of properties instead of just 1 big property... this could be improved.
+
+*)
 
 
 End LTR.

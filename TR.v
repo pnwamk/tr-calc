@@ -61,9 +61,9 @@ Notation tBool := (tUnion tTrue tFalse).
 
 Infix "::=" := Is (at level 30, right associativity).
 Infix "::~" := IsNot (at level 30, right associativity).
-Infix "&" := And (at level 40, left associativity).
-Infix "+" := Or (at level 50, left associativity).
-Infix "=->" := Imp (at level 90, right associativity).
+Notation "P '&&' Q" := (And P Q). 
+Notation "P '||' Q" := (Or P Q).
+Notation "P '=->' Q" := (Imp P Q) (at level 90).
 
 (** Expressions and primitive operations: *)
 Inductive const_op :=
@@ -221,17 +221,17 @@ with fv_set_p (p: prop) : set id :=
   match p with
     | o ::= t => set_union id_eqdec (fv_set_o (Some o)) (fv_set_t t)
     | o ::~ t => set_union id_eqdec (fv_set_o (Some o)) (fv_set_t t)
-    | p & q => set_union id_eqdec (fv_set_p p) (fv_set_p q)
-    | p + q => set_union id_eqdec (fv_set_p p) (fv_set_p q)
+    | p && q => set_union id_eqdec (fv_set_p p) (fv_set_p q)
+    | p || q => set_union id_eqdec (fv_set_p p) (fv_set_p q)
     | p =-> q => set_union id_eqdec (fv_set_p p) (fv_set_p q) 
     | _ => nil
   end.
 
 (** Substitution functions: *)
-Definition subst_o (o newobj: opt object) (x:id) : opt object :=
+Definition subst_o (o newobj: opt object) (z:id) : opt object :=
   match o with
     | None => None
-    | Some (obj pth1 z) =>
+    | Some (obj pth1 x) =>
       match id_eqdec x z, newobj with
         | left _, None => None
         | left _, Some (obj pth2 y) => Some (obj (pth1 ++ pth2) y)
@@ -268,14 +268,14 @@ Fixpoint subst_p' (b:bool)
           match opto with
             | None => (truth b)
             | Some (obj pth2 y) =>
-              Is (obj (pth1 ++ pth2) y) (subst_t' b t opto x)
+              IsNot (obj (pth1 ++ pth2) y) (subst_t' b t opto x)
           end
         | right _, false => p
         | right _, true => (truth b)
       end
     | P =-> Q => (subst_p' (negb b) P opto x) =-> (subst_p' b Q opto x)
-    | P + Q => (subst_p' b P opto x) + (subst_p' b Q opto x)
-    | P & Q => (subst_p' b P opto x) & (subst_p' b Q opto x)
+    | P || Q => (subst_p' b P opto x) || (subst_p' b Q opto x)
+    | P && Q => (subst_p' b P opto x) && (subst_p' b Q opto x)
     | _ => p
   end
 
@@ -405,18 +405,18 @@ Inductive Proves : relation prop :=
     forall P Q R,
       Proves P Q 
       -> Proves P R 
-      -> Proves P (Q & R)
+      -> Proves P (Q && R)
 | P_AndE_lhs :
     forall P Q R,
       Proves P R 
-      -> Proves (P & Q) R
+      -> Proves (P && Q) R
 | P_AndE_rhs :
     forall P Q R,
       Proves Q R
-      -> Proves (P & Q) R
+      -> Proves (P && Q) R
 | P_ImpI :
     forall P Q R,
-      Proves (P & Q) R
+      Proves (P && Q) R
       -> Proves P (Q =-> R)
 | P_ImpE :
     forall P Q R,
@@ -426,21 +426,21 @@ Inductive Proves : relation prop :=
 | P_OrI_lhs :
     forall P Q R,
       Proves P Q
-      -> Proves P (Q + R)
+      -> Proves P (Q || R)
 | P_OrI_rhs :
     forall P Q R,
       Proves P R
-      -> Proves P (Q + R)
+      -> Proves P (Q || R)
 | P_OrE :
     forall P Q R Y,
-      Proves (P & Q) Y
-      -> Proves (P & R) Y
-      -> Proves (P & (Q + R)) Y
+      Proves (P && Q) Y
+      -> Proves (P && R) Y
+      -> Proves (P && (Q || R)) Y
 | P_Or :
     forall P Q R,
       Proves P R
       -> Proves Q R
-      -> Proves (P + Q) R
+      -> Proves (P || Q) R
 | P_Sub :
     forall P τ σ ox,
       Proves P (ox ::= τ)
@@ -517,11 +517,14 @@ with Remove : type -> type -> type -> Prop :=
      | REM_Bottom_r :
          forall t,
            Remove t tBot t
-     | REM_Union :
-         forall t1 t2 t1' t2' σ,
-           Remove t1 σ t1' 
-           -> Remove t2 σ t2' 
-           -> Remove (tUnion t1 t2) σ (tUnion t1' t2')
+     | REM_Union_lhs :
+         forall t1 t1' t2 σ,
+           Remove t1 σ t1'
+           -> Remove (tUnion t1 t2) σ (tUnion t1' t2)
+     | REM_Union_rhs :
+         forall t1 t2 t2' σ,
+           Remove t2 σ t2'
+           -> Remove (tUnion t1 t2) σ (tUnion t1 t2')
      | REM_Sub :
          forall t σ,
            Subtype t σ 
@@ -540,8 +543,8 @@ with TypeOf : prop -> exp -> type -> (prop * prop) -> opt object -> Prop :=
       -> TypeOf Γ (eNum n) τ' (tP', fP') o'
 | T_Const :
     forall τ' Γ c x tP' fP' o',
-      Proves Γ tP'
-      -> Proves (Γ & FF) fP'
+      Proves TT tP'
+      -> Proves FF fP'
       -> Subtype (const_type c x) τ'
       -> SubObj None o'
       -> TypeOf Γ (eOp (c_op c)) τ' (tP', fP') o'
@@ -569,7 +572,7 @@ with TypeOf : prop -> exp -> type -> (prop * prop) -> opt object -> Prop :=
       -> TypeOf Γ (eVar x) τ' (tP', fP') ox'
 | T_Abs :
     forall σ' τ' σ τ Γ x e tP fP o tP' fP' o' tP'' fP'' o'',
-      TypeOf (Γ & ((var x) ::= σ)) e τ (tP, fP) o
+      TypeOf (Γ && ((var x) ::= σ)) e τ (tP, fP) o
       -> Subtype τ τ'
       -> Subtype σ' σ
       -> SubObj o o'
@@ -596,10 +599,10 @@ with TypeOf : prop -> exp -> type -> (prop * prop) -> opt object -> Prop :=
 | T_If :
     forall τ' τ1 τ2 τ3 Γ e1 tP1 fP1 o1 e2 tP2 fP2 o e3 tP3 fP3 o' tP' fP',
       TypeOf Γ e1 τ1 (tP1, fP1) o1
-      -> TypeOf (Γ & tP1) e2 τ2 (tP2, fP2) o
-      -> TypeOf (Γ & fP1) e3 τ3 (tP3, fP3) o
-      -> Proves (tP2 + tP3) tP'
-      -> Proves (fP2 + fP3) fP'
+      -> TypeOf (Γ && tP1) e2 τ2 (tP2, fP2) o
+      -> TypeOf (Γ && fP1) e3 τ3 (tP3, fP3) o
+      -> Proves (tP2 || tP3) tP'
+      -> Proves (fP2 || fP3) fP'
       -> Subtype (tUnion τ2 τ3) τ'
       -> SubObj o o'
       -> TypeOf Γ (eIf e1 e2 e3) τ' (tP', fP') o'
@@ -629,9 +632,9 @@ with TypeOf : prop -> exp -> type -> (prop * prop) -> opt object -> Prop :=
 | T_Let :
     forall σ' τ σ Γ e0 tP0 fP0 o0 e1 tP1 fP1 o1 x tP1' fP1' o1',
       TypeOf Γ e0 τ (tP0, fP0) o0
-      -> TypeOf (Γ & ((var x) ::= τ)
-                   & (((var x) ::~ tFalse) =-> tP0)
-                   & (((var x) ::= tFalse) =-> fP0)) 
+      -> TypeOf (Γ && ((var x) ::= τ)
+                   && (((var x) ::~ tFalse) =-> tP0)
+                   && (((var x) ::= tFalse) =-> fP0)) 
                 e1
                 σ
                 (tP1, fP1)
@@ -662,6 +665,14 @@ with Subtype : relation type :=
       Subtype τ1 σ
       -> Subtype τ2 σ
       -> Subtype (tUnion τ1 τ2) σ
+| S_UnionBot_lhs :
+    forall τ σ,
+      Subtype τ σ
+      -> Subtype (tUnion tBot τ) σ
+| S_UnionBot_rhs :
+    forall τ σ,
+      Subtype τ σ
+      -> Subtype (tUnion τ tBot) σ
 | S_Abs :
     forall x x' τ τ' σ σ' tP tP' fP fP' o o',
       Subtype (subst_t τ (Some (var x')) x) τ'
@@ -787,21 +798,32 @@ Ltac tryP :=
     eapply P_Update_IsNot
   | |- Proves ?p1 ?p1 => 
     solve [eapply P_Refl]
-  | |- Proves ?p1 (?p2 & ?p3) =>
+  | |- Proves ?p1 (?p2 && ?p3) =>
     solve [(eapply P_AndI; tryP)]
-  | |- Proves ?p1 (?p2 + ?p3) =>
+  | |- Proves ?p1 (?p2 || ?p3) =>
     solve [first [(eapply P_OrI_lhs; tryP) | (eapply P_OrI_rhs; tryP)]]
-  | |- Proves (?p1 & ?p2) ?p3 => 
+  | |- Proves (?p1 && ?p2) ?p3 => 
     solve [first [(eapply P_AndE_lhs; tryP) | (eapply P_AndE_rhs; tryP)]]
-  | |- Proves (?p1 + ?p2) ?p3 => 
+  | |- Proves (?p1 || ?p2) ?p3 => 
     solve [eapply P_Or; tryP]
   | |- Proves (?o1 ::= ?τ1) (?o2 ::= ?τ1) =>
     solve [eapply P_Refl]
   | |- Proves (?o1 ::= ?τ1) (?o1 ::= ?τ2) =>
     solve [eapply P_Sub; (tryS; crush); tryP]
+  | |- Proves (?o1 ::= (tUnion ?τ1 ?τ2)) (?o1 ::= ?τ2) =>
+    solve [eapply P_Sub; (tryS; crush); tryP]
+(*  | |- Proves (?o1 ::= (tUnion ?τ1 ?τ2) (?o1 ::~ ?τ1) =>
+    solve [eapply P_Sub; (tryS; crush); tryP] *)
+
   end.
 (* tryP currently will just do a recursive logical fact check, it does not
    yet reason about implication or subtyping *)
+
+(*
+Proves (var x ::= tUnion tBool tNum & var x ::~ tBool) (?120734 ::= tNum)
+*)
+
+
 
 
 Ltac crushTR :=
@@ -814,6 +836,49 @@ Ltac crushTR :=
               || auto
               || eauto
               || crush)))).
+
+Lemma union_not_lhs : forall Γ o τ1 τ2,
+Proves Γ (o ::= (tUnion τ1 τ2))
+-> Proves Γ (o ::~ τ1)
+-> Proves Γ (o ::= τ2).
+Proof with crushTR.
+  intros Γ [π x] τ1 τ2 H1 H2.
+  eapply P_Sub.
+  forwards: (@P_Update_IsNot 
+                Γ
+                (tUnion τ1 τ2) 
+                τ1 [] π x)...
+  eapply UP_IsNot.
+  eapply REM_Union_lhs.
+  eapply REM_Sub... 
+  eapply  S_UnionBot_lhs...
+Qed.
+
+Lemma union_not_rhs : forall Γ o τ1 τ2,
+Proves Γ (o ::= (tUnion τ1 τ2))
+-> Proves Γ (o ::~ τ2)
+-> Proves Γ (o ::= τ1).
+Proof with crushTR.
+  intros Γ [π x] τ1 τ2 H1 H2.
+  eapply P_Sub.
+  forwards: (@P_Update_IsNot 
+                Γ
+                (tUnion τ1 τ2) 
+                τ2 [] π x)...
+  eapply UP_IsNot.
+  eapply REM_Union_rhs.
+  eapply REM_Sub... 
+  eapply S_UnionBot_rhs...
+Qed.
+
+Lemma remove_TT_lhs : forall P Q,
+Proves P Q ->
+Proves (TT && P) Q.
+Proof.
+  intros P Q H.
+  eapply P_AndE_rhs; eauto.
+Qed.  
+Hint Resolve remove_TT_lhs.
 
 (** * Example TypeOf Judgements *)
 
@@ -844,8 +909,13 @@ Example example2a:
       (TT,TT)
       None.
 Proof with crushTR.
-  intros x...  Admitted.
-  (* BOOKMARK: narrowing down the problem... *)
+  intros x...
+  eapply union_not_lhs. 
+  eapply P_AndE_lhs...
+  eapply P_AndE_rhs...
+Grab Existential Variables.
+crush. crush. crush. crush. crush.
+Qed.
 
 Example example2b:
   forall x,
@@ -861,7 +931,32 @@ Example example2b:
             None)
       (TT,TT)
       None.
-Proof with crushTR. Admitted.
+Proof with crushTR. 
+  intros x...
+  eapply union_not_lhs. 
+  eapply P_AndE_lhs...
+  eapply P_AndE_rhs...
+Grab Existential Variables.
+crush. crush. crush. crush. crush.
+Qed.
+  
+Example example3:
+  forall x y,
+    x <> y ->
+    TypeOf
+      ((var y) ::= tTop)
+      (eLet x (eApp IsNum' (eVar y))
+              (eIf (eVar x)
+                     (eVar y)
+                     (eNum 0)))
+      tNum
+      (TT,TT)
+      (Some (var y)).
+Proof with crushTR. 
+  intros x y Hneq...
+Admitted.
+
+
 (*
 Example example3:
   forall x y,
@@ -944,7 +1039,7 @@ Example example13:
                          (expApp isnum' (expVar y)))
                    (and' (expVar x) (expApp 'iszero (expVar y)))
                    (expIf (expApp isbool' (expVar x))
-                          (and' (expVar x) (expVar y))
+                           (and' (expVar x) (expVar y))
                           expF)))
       (tUnion tNum tBool)
       (tBool).
@@ -996,3 +1091,5 @@ of properties instead of just 1 big property... this could be improved.
 *)
 
 End LTR.
+
+        

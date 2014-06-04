@@ -9,7 +9,6 @@ Require Import Coq.Program.Wf.
 
 Import ListNotations.
 Open Scope list_scope.
-Set Implicit Arguments.
 (* end hide *)
 
 Section LTR.
@@ -108,7 +107,7 @@ Definition const_type (c : const_op) (x:id) : type :=
       (tAbs x 
             (tTop, tBool) 
             (((var x) ::= tNum), ((var x) ::~ tNum)) 
-            None)
+            (Some (var x)))
     | opIsProc =>
       (tAbs x 
             (tTop, tBool) 
@@ -557,14 +556,14 @@ with SubType : relation type :=
       SubType τ σ
       -> SubType (tUnion τ tBot) σ
 | S_Abs :
-    forall x x' τ τ' σ σ' tP tP' fP fP' o o',
-      SubType (subst_t τ (Some (var x')) x) τ'
-      -> SubType σ' (subst_t σ (Some (var x')) x) 
-      -> Proves (subst_p tP (Some (var x')) x) tP'
-      -> Proves (subst_p fP (Some (var x')) x) fP'
-      -> SubObj (subst_o o (Some (var x')) x) o'
+    forall x y τ τ' σ σ' tP tP' fP fP' o o',
+      SubType (subst_t τ (Some (var y)) x) τ'
+      -> SubType σ' (subst_t σ (Some (var y)) x) 
+      -> Proves (subst_p tP (Some (var y)) x) tP'
+      -> Proves (subst_p fP (Some (var y)) x) fP'
+      -> SubObj (subst_o o (Some (var y)) x) o'
       -> SubType (tAbs x (σ, τ) (tP, fP) o)
-                 (tAbs x' (σ', τ') (tP', fP') o')
+                 (tAbs y (σ', τ') (tP', fP') o')
 | S_Pair :
     forall τ1 σ1 τ2 σ2,
       SubType τ1 τ2
@@ -579,8 +578,9 @@ Inductive TypeOf : prop -> exp -> type -> (prop * prop) -> opt object -> Prop :=
     forall Γ n,
       TypeOf Γ (eNum n) tNum (TT, FF) None
 | T_Const :
-    forall Γ c x,
-      TypeOf Γ (eOp (c_op c)) (const_type c x) (TT, FF) None
+    forall τ Γ c x,
+      τ = (const_type c x)
+      -> TypeOf Γ (eOp (c_op c)) τ (TT, FF) None
 | T_True :
     forall Γ,
       TypeOf Γ eTrue tTrue (TT, FF) None
@@ -592,7 +592,7 @@ Inductive TypeOf : prop -> exp -> type -> (prop * prop) -> opt object -> Prop :=
       Proves Γ ((var x) ::= τ)
       -> TypeOf Γ (eVar x) τ (((var x) ::~ tFalse), ((var x) ::= tFalse)) (Some (var x))
 | T_Abs :
-    forall Γ τ σ x o tP fP e,
+    forall σ τ Γ x o tP fP e,
       TypeOf (Γ && ((var x) ::= σ)) e τ (tP, fP) o
       -> TypeOf Γ 
                 (eλ x σ e) 
@@ -609,8 +609,8 @@ Inductive TypeOf : prop -> exp -> type -> (prop * prop) -> opt object -> Prop :=
       -> (subst_o of o' x) = o''
       -> TypeOf Γ (eApp e e') τ'' (tPf'', fPf'') o''
 | T_If :
-    forall τ Γ e1 tP1 fP1 o1 e2 tP2 fP2 o e3 tP3 fP3,
-      TypeOf Γ e1 τ (tP1, fP1) o1
+    forall τ τ' Γ e1 tP1 fP1 o1 e2 tP2 fP2 o e3 tP3 fP3,
+      TypeOf Γ e1 τ' (tP1, fP1) o1
       -> TypeOf (Γ && tP1) e2 τ (tP2, fP2) o
       -> TypeOf (Γ && fP1) e3 τ (tP3, fP3) o
       -> TypeOf Γ (eIf e1 e2 e3) τ ((tP2 || tP3), (fP2 || fP3)) o
@@ -716,7 +716,6 @@ Qed.
 Hint Rewrite subst_Some_tNum.
   
 Hint Constructors TypeOf Update.
-Hint Resolve P_Refl S_Refl SO_Refl.
 
 Ltac tryT :=
   first [(eapply T_Const) |
@@ -732,7 +731,8 @@ Ltac tryT :=
         (eapply T_App) |
         (eapply T_Abs) |
         (eapply T_Let) |
-        (eapply T_If)].
+        (eapply T_If)  |
+        (eapply T_Subsume)].
 
 Ltac tryS :=
   first [(eapply S_Refl) |
@@ -805,12 +805,12 @@ Ltac crushTR :=
               || eauto
               || crush)))).
 
-Lemma union_not_lhs : forall Γ o τ1 τ2,
+Lemma union_not_lhs : forall τ1 τ2 Γ o,
 Proves Γ (o ::= (tUnion τ1 τ2))
 -> Proves Γ (o ::~ τ1)
 -> Proves Γ (o ::= τ2).
 Proof with crushTR.
-  intros Γ [π x] τ1 τ2 H1 H2.
+  intros τ1 τ2 Γ [π x] H1 H2.
   eapply P_Sub.
   forwards: (@P_Update_IsNot 
                 Γ
@@ -822,12 +822,12 @@ Proof with crushTR.
   eapply  S_UnionBot_lhs...
 Qed.
 
-Lemma union_not_rhs : forall Γ o τ1 τ2,
+Lemma union_not_rhs : forall τ1 τ2 Γ o,
 Proves Γ (o ::= (tUnion τ1 τ2))
 -> Proves Γ (o ::~ τ2)
 -> Proves Γ (o ::= τ1).
 Proof with crushTR.
-  intros Γ [π x] τ1 τ2 H1 H2.
+  intros τ1 τ2 Γ [π x]  H1 H2.
   eapply P_Sub.
   forwards: (@P_Update_IsNot 
                 Γ
@@ -860,11 +860,12 @@ Example example1:
            (TT,TT)
            None.
 Proof with crushTR.
-  crushTR...
+  intros x... eapply SO_Refl. 
 Grab Existential Variables.
-crush. crush. crush. crush. crush.
+crush. crush.
 Qed.
 
+Hint Resolve P_Sub P_True.
 
 Example example2a:
   forall x,
@@ -877,12 +878,22 @@ Example example2a:
       (TT,TT)
       None.
 Proof with crushTR.
-  intros x...
-  eapply union_not_lhs. 
-  eapply P_AndE_lhs...
-  eapply P_AndE_rhs...
+  intros x.
+  eapply T_Subsume.
+  eapply T_If.
+  eapply T_App...
+  eapply P_Sub... eapply P_Sub.
+  eapply P_Refl. eapply S_Top.
+  eapply (T_Subsume tBool)...
+  eapply SO_Refl.
+  eapply T_App...
+  eapply (union_not_lhs tBool tNum)...
+  eapply P_True.
+  eapply P_True.
+  eapply S_Refl.
+  eapply SO_Refl.
 Grab Existential Variables.
-crush. crush. crush. crush. crush.
+crush. crush. crush.
 Qed.
 
 Example example2b:
@@ -900,12 +911,16 @@ Example example2b:
       (TT,TT)
       None.
 Proof with crushTR. 
-  intros x...
-  eapply union_not_lhs. 
-  eapply P_AndE_lhs...
-  eapply P_AndE_rhs...
+  intros x.
+  eapply T_Subsume.
+  eapply (T_Abs (tUnion tBool tNum) tBool)...
+  eapply P_Sub. eapply P_AndE_rhs; eapply P_Refl...
+  eapply S_Top. eapply SO_Refl.
+  eapply (union_not_lhs tBool tNum)...
+  crushTR. crushTR. crushTR.
+  eapply SO_Refl. eapply SO_Refl.
 Grab Existential Variables.
-crush. crush. crush. crush. crush.
+crush. crush. crush.
 Qed.
   
 Example example3:
@@ -919,144 +934,36 @@ Example example3:
                      (eNum 0)))
       tNum
       (TT,TT)
-      (Some (var y)).
+      None.
 Proof with crushTR. 
-  intros x y Hneq...
-Admitted.
+  intros x y Hneq.
+  eapply T_Subsume.
+  eapply T_Let.
+  eapply T_App.
+  eapply T_Const.
+  reflexivity.
+  eapply T_Var...
+  eauto.  eauto.
+  eauto.
+  eauto.
+  eapply T_If.
+  eapply T_Var...
+  eapply P_AndE_lhs. eapply P_AndE_lhs.
+  eapply P_AndE_rhs... eapply P_Refl.
+  eapply T_Subsume.
+  eapply T_Var...
+  eapply P_ImpE. eapply P_AndE_rhs. eapply P_Refl.
+  eapply P_AndE_lhs. eapply P_AndE_lhs.
+  eapply P_AndE_rhs... eapply P_Refl.
+  eapply P_Refl. eapply P_Refl.
+  eapply S_Refl. eapply SO_Top.
+  eapply T_Num...
+  eauto. eauto. eauto. eauto.
+  crushTR. crushTR. crushTR. eapply SO_Top.
+Grab Existential Variables.
+crush.
+Qed.
 
-
-(*
-Example example3:
-  forall x y,
-    x <> y ->
-    SimpleTypeOf
-      (expLet x (expApp isnum' (expVar y))
-              (expIf (expVar x)
-                     (expVar y)
-                     (expNum 0)))
-      tNum.
-Proof with crushTR. Admitted.
-
-Example example4:
-  forall x,
-  SimpleTypeOf
-  (expIf (expIf (expApp isnum' (expVar x)) expT (expApp isbool' (expVar x)))
-         (expApp (f' x) (expVar x))
-         expF)
-  tBool.
-Proof with crushTR. Admitted.
-
-
-(* usage of an and (nested ifs) to illustrate the conjunction of
-the predicates from the and being true *)
-Example example7:
-  forall x y,
-    SimpleTypeOf
-      (expIf (and' (expApp isnum' (expVar x)) (expApp isbool' (expVar y)))
-             (and' (expApp iszero' (expVar x)) (expVar y))
-             expF)
-      tBool.
-Proof with crushTR. Admitted.
-
-
-(* usage of function to identify (U Bool Num) type *)
-Example example8:
-  forall x,
-    SimpleTypeOf
-      (expIf (expApp (expλ x tTop (* strbool? *)
-                           (or' (expApp isbool' (expVar x))
-                                (expApp isnum' (expVar x))))
-                     (expVar x))
-             (expVar x)
-             expT)
-      (tUnion tBool tNum).
-Proof with crushTR. Admitted.
-
-(* Results of tests on structure-accessors (car)
-for typing *)
-Example example10:
-  forall p,
-    SimpleTypeOf
-    (expIf (expApp isnum' (expApp car' p))
-           (expApp add1' (expApp car' p))
-           42)
-    tNum.
-Proof with crushTR. Admitted.
-
-
-(* Results of tests on structure-accessors (car & cdr)
-for typing *)
-Example example11:
-  forall p,
-    SimpleTypeOf
-    (expIf (and' (expApp isnum' (expApp car' p)) (expApp isnum' (expApp cdr' p)))
-           p
-           (expCons (expNum 19) (expNum 84)))
-    (tPair tNum tNum).
-Proof with crushTR. Admitted.
-
-(* Reasons about the else branch of an if whose predicate is a conjuction
-and must use this to typecheck (in the else branch, if x is a bool then
-y must be a bool since it cannot be a num being that
-(and (bool? x) (number? y)) produced #f ) *)
-Example example13:
-  forall x y,
-    FunctionTypeOf
-      (expλ y (tUnion tNum tBool) (* strbool? *)
-            (expIf (and' (expApp isbool' (expVar x))
-                         (expApp isnum' (expVar y)))
-                   (and' (expVar x) (expApp 'iszero (expVar y)))
-                   (expIf (expApp isbool' (expVar x))
-                           (and' (expVar x) (expVar y))
-                          expF)))
-      (tUnion tNum tBool)
-      (tBool).
-Proof with crushTR. Admitted.
-
-
-(*
-Thoughts during & after the long, long proof:
-
-SubType tTop _  => try S_Refl
-Proves (var x ::= tTop) (?120251 ::= ?120250) => must use P_Refl
-   since top can only prove top
-    - what does this imply for cases w/o Top? How can they behave?
-
-Proves (var x ::~ tFalse) ?120218 => these cases will always be
-  P_Refl since if *All* we know is it is not type X, we don't
-  know anything more (unless it's ~ tTop?? meh)
-
-Proves TT ?? must be P_Refl
-
-Can we prove P & TT = P?
-
-A functional equivalence for prop would be nice:
-Axiom: forall P Q, (forall Z, Proves P Z <-> Proves Q Z) -> P = Q
-OR! We could just make a rule in the auto rules that say
-if you see P & TT, apply P_AndE; left, and the flip for right
-
-Function for "Path to False" would be sweet. i.e., if we had
-the prop P & Q & FF & R proves Z, give me the path of
-tactics to get to the FF. OR just prove for some function
-"contains" that if contains lhs FF then it proves the rhs.
-
-ALWAYS!!! Try SO_Refl before SO_None!!!
-
-When Proving Proves P ?124353 or similar, be careful about losing information
-- perhaps P_Refl is *always* the best so *all* of the info is propogated,
-instead of trying to reason about what to keep and what to ignore
-
-Example of try always else
-ALWAYS try SO_REFL, if that fails, then try SO_None or whatever
-
-perhaps for Proves, ALWAYS TRY P_Refl, then if that fails start
-drilling down into how to prove each thing
-
-The rules for Proves are still somewhat tied to the idea of an "environment"
-of properties instead of just 1 big property... this could be improved.
-
-*)
-*)
 
 End LTR.
 

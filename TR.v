@@ -63,7 +63,7 @@ Infix "::=" := Is (at level 30, right associativity).
 Infix "::~" := IsNot (at level 30, right associativity).
 Notation "P '&&' Q" := (And P Q). 
 Notation "P '||' Q" := (Or P Q).
-Notation "P '=->' Q" := (Imp P Q) (at level 90).
+Notation "P '-->' Q" := (Imp P Q) (at level 90).
 
 (** Expressions and primitive operations: *)
 Inductive const_op :=
@@ -223,7 +223,7 @@ with fv_set_p (p: prop) : set id :=
     | o ::~ t => set_union id_eqdec (fv_set_o (Some o)) (fv_set_t t)
     | p && q => set_union id_eqdec (fv_set_p p) (fv_set_p q)
     | p || q => set_union id_eqdec (fv_set_p p) (fv_set_p q)
-    | p =-> q => set_union id_eqdec (fv_set_p p) (fv_set_p q) 
+    | p --> q => set_union id_eqdec (fv_set_p p) (fv_set_p q) 
     | _ => nil
   end.
 
@@ -273,7 +273,7 @@ Fixpoint subst_p' (b:bool)
         | right _, false => p
         | right _, true => (truth b)
       end
-    | P =-> Q => (subst_p' (negb b) P opto x) =-> (subst_p' b Q opto x)
+    | P --> Q => (subst_p' (negb b) P opto x) --> (subst_p' b Q opto x)
     | P || Q => (subst_p' b P opto x) || (subst_p' b Q opto x)
     | P && Q => (subst_p' b P opto x) && (subst_p' b Q opto x)
     | _ => p
@@ -417,11 +417,11 @@ Inductive Proves : relation prop :=
 | P_ImpI :
     forall P Q R,
       Proves (P && Q) R
-      -> Proves P (Q =-> R)
+      -> Proves P (Q --> R)
 | P_ImpE :
     forall P Q R,
       Proves P Q 
-      -> Proves P (Q =-> R)
+      -> Proves P (Q --> R)
       -> Proves P R
 | P_OrI_lhs :
     forall P Q R,
@@ -530,10 +530,51 @@ with Remove : type -> type -> type -> Prop :=
            Subtype t σ 
            -> Remove t σ tBot
 
+with Subtype : relation type :=
+| S_Refl : 
+    forall τ, Subtype τ τ
+| S_Top : 
+    forall τ, Subtype τ tTop
+| S_UnionSuper_l :
+    forall τ σ1 σ2,
+      Subtype τ σ1
+      -> Subtype τ (tUnion σ1 σ2)
+| S_UnionSuper_r :
+    forall τ σ1 σ2,
+      Subtype τ σ2
+      -> Subtype τ (tUnion σ1 σ2)
+| S_UnionSub :
+    forall τ1 τ2 σ,
+      Subtype τ1 σ
+      -> Subtype τ2 σ
+      -> Subtype (tUnion τ1 τ2) σ
+| S_UnionBot_lhs :
+    forall τ σ,
+      Subtype τ σ
+      -> Subtype (tUnion tBot τ) σ
+| S_UnionBot_rhs :
+    forall τ σ,
+      Subtype τ σ
+      -> Subtype (tUnion τ tBot) σ
+| S_Abs :
+    forall x x' τ τ' σ σ' tP tP' fP fP' o o',
+      Subtype (subst_t τ (Some (var x')) x) τ'
+      -> Subtype σ' (subst_t σ (Some (var x')) x) 
+      -> Proves (subst_p tP (Some (var x')) x) tP'
+      -> Proves (subst_p fP (Some (var x')) x) fP'
+      -> SubObj (subst_o o (Some (var x')) x) o'
+      -> Subtype (tAbs x (σ, τ) (tP, fP) o)
+                 (tAbs x' (σ', τ') (tP', fP') o')
+| S_Pair :
+    forall τ1 σ1 τ2 σ2,
+      Subtype τ1 τ2
+      -> Subtype σ1 σ2
+      -> Subtype (tPair τ1 σ1) (tPair τ2 σ2).
+
 (* TODO *)
 (** ** TypeOf *)
 
-with TypeOf : prop -> exp -> type -> (prop * prop) -> opt object -> Prop :=
+Inductive TypeOf : prop -> exp -> type -> (prop * prop) -> opt object -> Prop :=
 | T_Num :
     forall τ' Γ tP' fP' o' n,
       Subtype tNum τ'
@@ -633,8 +674,8 @@ with TypeOf : prop -> exp -> type -> (prop * prop) -> opt object -> Prop :=
     forall σ' τ σ Γ e0 tP0 fP0 o0 e1 tP1 fP1 o1 x tP1' fP1' o1',
       TypeOf Γ e0 τ (tP0, fP0) o0
       -> TypeOf (Γ && ((var x) ::= τ)
-                   && (((var x) ::~ tFalse) =-> tP0)
-                   && (((var x) ::= tFalse) =-> fP0)) 
+                   && (((var x) ::~ tFalse) --> tP0)
+                   && (((var x) ::= tFalse) --> fP0)) 
                 e1
                 σ
                 (tP1, fP1)
@@ -643,50 +684,11 @@ with TypeOf : prop -> exp -> type -> (prop * prop) -> opt object -> Prop :=
       -> Proves (subst_p tP1 o0 x) tP1'
       -> Proves (subst_p fP1 o0 x) fP1'
       -> SubObj (subst_o o1 o0 x) o1'
-      -> TypeOf Γ (eLet x e0 e1) σ' (tP1', fP1') o1'
+      -> TypeOf Γ (eLet x e0 e1) σ' (tP1', fP1') o1'.
 
 (** ** Subtype *)
 
-with Subtype : relation type :=
-| S_Refl : 
-    forall τ, Subtype τ τ
-| S_Top : 
-    forall τ, Subtype τ tTop
-| S_UnionSuper_l :
-    forall τ σ1 σ2,
-      Subtype τ σ1
-      -> Subtype τ (tUnion σ1 σ2)
-| S_UnionSuper_r :
-    forall τ σ1 σ2,
-      Subtype τ σ2
-      -> Subtype τ (tUnion σ1 σ2)
-| S_UnionSub :
-    forall τ1 τ2 σ,
-      Subtype τ1 σ
-      -> Subtype τ2 σ
-      -> Subtype (tUnion τ1 τ2) σ
-| S_UnionBot_lhs :
-    forall τ σ,
-      Subtype τ σ
-      -> Subtype (tUnion tBot τ) σ
-| S_UnionBot_rhs :
-    forall τ σ,
-      Subtype τ σ
-      -> Subtype (tUnion τ tBot) σ
-| S_Abs :
-    forall x x' τ τ' σ σ' tP tP' fP fP' o o',
-      Subtype (subst_t τ (Some (var x')) x) τ'
-      -> Subtype σ' (subst_t σ (Some (var x')) x) 
-      -> Proves (subst_p tP (Some (var x')) x) tP'
-      -> Proves (subst_p fP (Some (var x')) x) fP'
-      -> SubObj (subst_o o (Some (var x')) x) o'
-      -> Subtype (tAbs x (σ, τ) (tP, fP) o)
-                 (tAbs x' (σ', τ') (tP', fP') o')
-| S_Pair :
-    forall τ1 σ1 τ2 σ2,
-      Subtype τ1 τ2
-      -> Subtype σ1 σ2
-      -> Subtype (tPair τ1 σ1) (tPair τ2 σ2).
+
 
 
 (** * Proof Helpers/Lemmas and Automation *)

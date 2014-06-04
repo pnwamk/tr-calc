@@ -444,12 +444,12 @@ Inductive Proves : relation prop :=
 | P_Sub :
     forall P τ σ ox,
       Proves P (ox ::= τ)
-      -> Subtype τ σ
+      -> SubType τ σ
       -> Proves P (ox ::= σ)
 | P_SubNot :
     forall P τ σ ox,
       Proves P (ox ::~ σ)
-      -> Subtype τ σ
+      -> SubType τ σ
       -> Proves P (ox ::~ τ)
 | P_Bot : 
     forall P Q ox,
@@ -527,148 +527,111 @@ with Remove : type -> type -> type -> Prop :=
            -> Remove (tUnion t1 t2) σ (tUnion t1 t2')
      | REM_Sub :
          forall t σ,
-           Subtype t σ 
+           SubType t σ 
            -> Remove t σ tBot
 
-with Subtype : relation type :=
+with SubType : relation type :=
 | S_Refl : 
-    forall τ, Subtype τ τ
+    forall τ, SubType τ τ
 | S_Top : 
-    forall τ, Subtype τ tTop
+    forall τ, SubType τ tTop
 | S_UnionSuper_l :
     forall τ σ1 σ2,
-      Subtype τ σ1
-      -> Subtype τ (tUnion σ1 σ2)
+      SubType τ σ1
+      -> SubType τ (tUnion σ1 σ2)
 | S_UnionSuper_r :
     forall τ σ1 σ2,
-      Subtype τ σ2
-      -> Subtype τ (tUnion σ1 σ2)
+      SubType τ σ2
+      -> SubType τ (tUnion σ1 σ2)
 | S_UnionSub :
     forall τ1 τ2 σ,
-      Subtype τ1 σ
-      -> Subtype τ2 σ
-      -> Subtype (tUnion τ1 τ2) σ
+      SubType τ1 σ
+      -> SubType τ2 σ
+      -> SubType (tUnion τ1 τ2) σ
 | S_UnionBot_lhs :
     forall τ σ,
-      Subtype τ σ
-      -> Subtype (tUnion tBot τ) σ
+      SubType τ σ
+      -> SubType (tUnion tBot τ) σ
 | S_UnionBot_rhs :
     forall τ σ,
-      Subtype τ σ
-      -> Subtype (tUnion τ tBot) σ
+      SubType τ σ
+      -> SubType (tUnion τ tBot) σ
 | S_Abs :
     forall x x' τ τ' σ σ' tP tP' fP fP' o o',
-      Subtype (subst_t τ (Some (var x')) x) τ'
-      -> Subtype σ' (subst_t σ (Some (var x')) x) 
+      SubType (subst_t τ (Some (var x')) x) τ'
+      -> SubType σ' (subst_t σ (Some (var x')) x) 
       -> Proves (subst_p tP (Some (var x')) x) tP'
       -> Proves (subst_p fP (Some (var x')) x) fP'
       -> SubObj (subst_o o (Some (var x')) x) o'
-      -> Subtype (tAbs x (σ, τ) (tP, fP) o)
+      -> SubType (tAbs x (σ, τ) (tP, fP) o)
                  (tAbs x' (σ', τ') (tP', fP') o')
 | S_Pair :
     forall τ1 σ1 τ2 σ2,
-      Subtype τ1 τ2
-      -> Subtype σ1 σ2
-      -> Subtype (tPair τ1 σ1) (tPair τ2 σ2).
+      SubType τ1 τ2
+      -> SubType σ1 σ2
+      -> SubType (tPair τ1 σ1) (tPair τ2 σ2).
 
 (* TODO *)
 (** ** TypeOf *)
 
 Inductive TypeOf : prop -> exp -> type -> (prop * prop) -> opt object -> Prop :=
 | T_Num :
-    forall τ' Γ tP' fP' o' n,
-      Subtype tNum τ'
-      -> Proves TT tP'
-      -> Proves FF fP'
-      -> SubObj None o'
-      -> TypeOf Γ (eNum n) τ' (tP', fP') o'
+    forall Γ n,
+      TypeOf Γ (eNum n) tNum (TT, FF) None
 | T_Const :
-    forall τ' Γ c x tP' fP' o',
-      Proves TT tP'
-      -> Proves FF fP'
-      -> Subtype (const_type c x) τ'
-      -> SubObj None o'
-      -> TypeOf Γ (eOp (c_op c)) τ' (tP', fP') o'
+    forall Γ c x,
+      TypeOf Γ (eOp (c_op c)) (const_type c x) (TT, FF) None
 | T_True :
-    forall τ' Γ tP' fP' o',
-      Subtype tTrue τ'
-      -> Proves TT tP'
-      -> Proves FF fP'
-      -> SubObj None o'
-      -> TypeOf Γ eTrue τ' (tP', fP') o'
+    forall Γ,
+      TypeOf Γ eTrue tTrue (TT, FF) None
 | T_False :
-    forall τ' Γ tP' fP' o',
-      Subtype tFalse τ'
-      -> Proves FF tP'
-      -> Proves TT fP'
-      -> SubObj None o'
-      -> TypeOf Γ eFalse τ' (tP', fP') o'
+    forall Γ,
+      TypeOf Γ eFalse tFalse (FF, TT) None
 | T_Var :
-    forall τ' τ Γ tP' fP' ox ox' x,
-      Proves Γ (ox ::= τ)
-      -> Subtype τ τ'
-      -> Proves (ox ::~ tFalse) tP'
-      -> Proves (ox ::= tFalse) fP'
-      -> SubObj (Some ox) ox'
-      -> TypeOf Γ (eVar x) τ' (tP', fP') ox'
+    forall τ Γ x,
+      Proves Γ ((var x) ::= τ)
+      -> TypeOf Γ (eVar x) τ (((var x) ::~ tFalse), ((var x) ::= tFalse)) (Some (var x))
 | T_Abs :
-    forall σ' τ' σ τ Γ x e tP fP o tP' fP' o' tP'' fP'' o'',
+    forall Γ τ σ x o tP fP e,
       TypeOf (Γ && ((var x) ::= σ)) e τ (tP, fP) o
-      -> Subtype τ τ'
-      -> Subtype σ' σ
-      -> SubObj o o'
-      -> Proves tP tP'
-      -> Proves fP fP'
-      -> SubObj None o''
-      -> Proves TT tP''
-      -> Proves FF fP''
       -> TypeOf Γ 
                 (eλ x σ e) 
-                (tAbs x (σ', τ') (tP', fP') o') 
-                (tP'', fP'') 
-                o''
+                (tAbs x (σ, τ) (tP, fP) o) 
+                (TT, FF) 
+                None
 | T_App :
-    forall τ'' σ τ σ' Γ e x tPf fPf of tP fP o e' tP' fP' o' tPf'' fPf'' o'',
+    forall τ'' σ τ Γ e x tPf fPf of tP fP o e' tP' fP' o' tPf'' fPf'' o'',
       TypeOf Γ e (tAbs x (σ, τ) (tPf, fPf) of) (tP, fP) o
-      -> TypeOf Γ e' σ' (tP', fP') o'
-      -> Subtype σ' σ
-      -> Subtype (subst_t τ o' x) τ''
-      -> Proves (subst_p tPf o' x) tPf''
-      -> Proves (subst_p fPf o' x) fPf''
-      -> SubObj (subst_o of o' x) o''
+      -> TypeOf Γ e' σ (tP', fP') o'
+      -> (subst_t τ o' x) = τ''
+      -> (subst_p tPf o' x) = tPf''
+      -> (subst_p fPf o' x) = fPf''
+      -> (subst_o of o' x) = o''
       -> TypeOf Γ (eApp e e') τ'' (tPf'', fPf'') o''
 | T_If :
-    forall τ' τ1 τ2 τ3 Γ e1 tP1 fP1 o1 e2 tP2 fP2 o e3 tP3 fP3 o' tP' fP',
-      TypeOf Γ e1 τ1 (tP1, fP1) o1
-      -> TypeOf (Γ && tP1) e2 τ2 (tP2, fP2) o
-      -> TypeOf (Γ && fP1) e3 τ3 (tP3, fP3) o
-      -> Proves (tP2 || tP3) tP'
-      -> Proves (fP2 || fP3) fP'
-      -> Subtype (tUnion τ2 τ3) τ'
-      -> SubObj o o'
-      -> TypeOf Γ (eIf e1 e2 e3) τ' (tP', fP') o'
+    forall τ Γ e1 tP1 fP1 o1 e2 tP2 fP2 o e3 tP3 fP3,
+      TypeOf Γ e1 τ (tP1, fP1) o1
+      -> TypeOf (Γ && tP1) e2 τ (tP2, fP2) o
+      -> TypeOf (Γ && fP1) e3 τ (tP3, fP3) o
+      -> TypeOf Γ (eIf e1 e2 e3) τ ((tP2 || tP3), (fP2 || fP3)) o
 | T_Cons :
-    forall τ' τ1 τ2 Γ e1 tP1 fP1 o1 e2 tP2 fP2 o2 o' fP' tP',
+    forall τ1 τ2 Γ e1 tP1 fP1 o1 e2 tP2 fP2 o2,
       TypeOf Γ e1 τ1 (tP1, fP1) o1
       -> TypeOf Γ e2 τ2 (tP2, fP2) o2
-      -> Subtype (tPair τ1 τ2) τ'
-      -> Proves TT tP'
-      -> Proves FF fP'
-      -> SubObj None o'
-      -> TypeOf Γ (eCons e1 e2) τ' (tP', fP') o'
+      -> TypeOf Γ (eCons e1 e2) (tPair τ1 τ2) (TT, FF) None
 | T_Car :
     forall τ1 τ2 Γ e tP0 fP0 o o' tP fP x,
       TypeOf Γ e (tPair τ1 τ2) (tP0, fP0) o
-      -> Proves (subst_p ((obj [car] x) ::~ tFalse) o x) tP
-      -> Proves (subst_p ((obj [car] x) ::= tFalse) o x) fP
-      -> SubObj (subst_o (Some (obj [car] x)) o x) o'
+      -> (subst_p ((obj [car] x) ::~ tFalse) o x) = tP
+      -> (subst_p ((obj [car] x) ::= tFalse) o x) = fP
+      -> (subst_o (Some (obj [car] x)) o x) = o'
       -> TypeOf Γ (eApp Car' e) τ1 (tP, fP) o'
 | T_Cdr :
     forall τ1 τ2 Γ e tP0 fP0 o o' tP fP x,
       TypeOf Γ e (tPair τ1 τ2) (tP0, fP0) o
-      -> Proves (subst_p ((obj [cdr] x) ::~ tFalse) o x) tP
-      -> Proves (subst_p ((obj [cdr] x) ::= tFalse) o x) fP
-      -> SubObj (subst_o (Some (obj [cdr] x)) o x) o'
+      -> (subst_p ((obj [cdr] x) ::~ tFalse) o x) = tP
+      -> (subst_p ((obj [cdr] x) ::= tFalse) o x) = fP
+      -> (subst_o (Some (obj [cdr] x)) o x) = o'
       -> TypeOf Γ (eApp Cdr' e) τ2 (tP, fP) o'
 | T_Let :
     forall σ' τ σ Γ e0 tP0 fP0 o0 e1 tP1 fP1 o1 x tP1' fP1' o1',
@@ -680,16 +643,19 @@ Inductive TypeOf : prop -> exp -> type -> (prop * prop) -> opt object -> Prop :=
                 σ
                 (tP1, fP1)
                 o1
-      -> Subtype (subst_t σ o0 x) σ'
-      -> Proves (subst_p tP1 o0 x) tP1'
-      -> Proves (subst_p fP1 o0 x) fP1'
-      -> SubObj (subst_o o1 o0 x) o1'
-      -> TypeOf Γ (eLet x e0 e1) σ' (tP1', fP1') o1'.
-
-(** ** Subtype *)
-
-
-
+      -> (subst_t σ o0 x) = σ'
+      -> (subst_p tP1 o0 x) = tP1'
+      -> (subst_p fP1 o0 x) = fP1'
+      -> (subst_o o1 o0 x) = o1'
+      -> TypeOf Γ (eLet x e0 e1) σ' (tP1', fP1') o1'
+| T_Subsume :
+    forall τ' τ Γ e tP fP o tP' fP' o',
+      TypeOf Γ e τ (tP, fP) o
+      -> Proves (Γ && tP) tP'
+      -> Proves (Γ && fP) fP'
+      -> SubType τ τ'
+      -> SubObj o o'
+      -> TypeOf Γ e τ' (tP', fP') o'.
 
 (** * Proof Helpers/Lemmas and Automation *)
 Lemma then_else_eq : forall (T:Type) (P1 P2:Prop) (test: sumbool P1 P2) (Q:T),
@@ -775,17 +741,17 @@ Ltac tryS :=
         (eapply S_Abs) |
         (eapply S_Pair) |
         (match goal with
-         | |- Subtype ?t1 (tUnion ?t1 ?t2) =>
+         | |- SubType ?t1 (tUnion ?t1 ?t2) =>
            eapply S_UnionSuper_l
-         | |- Subtype ?t2 (tUnion ?t1 ?t2) =>
+         | |- SubType ?t2 (tUnion ?t1 ?t2) =>
            eapply S_UnionSuper_r
-         | |- Subtype ?t1 (tUnion (tUnion ?t1 ?t2) ?t3) =>
+         | |- SubType ?t1 (tUnion (tUnion ?t1 ?t2) ?t3) =>
            eapply S_UnionSuper_l; eapply S_UnionSuper_l
-         | |- Subtype ?t2 (tUnion (tUnion ?t1 ?t2) ?t3) =>
+         | |- SubType ?t2 (tUnion (tUnion ?t1 ?t2) ?t3) =>
            eapply S_UnionSuper_l; eapply S_UnionSuper_r
-         | |- Subtype ?t2 (tUnion ?t1 (tUnion ?t2 ?t3)) =>
+         | |- SubType ?t2 (tUnion ?t1 (tUnion ?t2 ?t3)) =>
            eapply S_UnionSuper_r; eapply S_UnionSuper_l
-         | |- Subtype ?t3 (tUnion ?t1 (tUnion ?t2 ?t3)) =>
+         | |- SubType ?t3 (tUnion ?t1 (tUnion ?t2 ?t3)) =>
            eapply S_UnionSuper_r; eapply S_UnionSuper_r
         end) |
         (eapply S_Refl)].
@@ -1051,7 +1017,7 @@ Proof with crushTR. Admitted.
 (*
 Thoughts during & after the long, long proof:
 
-Subtype tTop _  => try S_Refl
+SubType tTop _  => try S_Refl
 Proves (var x ::= tTop) (?120251 ::= ?120250) => must use P_Refl
    since top can only prove top
     - what does this imply for cases w/o Top? How can they behave?

@@ -592,7 +592,7 @@ Inductive TypeOf : prop -> exp -> type -> (prop * prop) -> opt object -> Prop :=
       Proves Γ ((var x) ::= τ)
       -> TypeOf Γ (eVar x) τ (((var x) ::~ tFalse), ((var x) ::= tFalse)) (Some (var x))
 | T_Abs :
-    forall σ τ Γ x o tP fP e,
+    forall σ τ o Γ x tP fP e,
       TypeOf (Γ && ((var x) ::= σ)) e τ (tP, fP) o
       -> TypeOf Γ 
                 (eλ x σ e) 
@@ -600,7 +600,7 @@ Inductive TypeOf : prop -> exp -> type -> (prop * prop) -> opt object -> Prop :=
                 (TT, FF) 
                 None
 | T_App :
-    forall τ'' σ τ Γ e x tPf fPf of tP fP o e' tP' fP' o' tPf'' fPf'' o'',
+    forall τ'' σ τ o'' o o' Γ e x tPf fPf of tP fP e' tP' fP' tPf'' fPf'',
       TypeOf Γ e (tAbs x (σ, τ) (tPf, fPf) of) (tP, fP) o
       -> TypeOf Γ e' σ (tP', fP') o'
       -> (subst_t τ o' x) = τ''
@@ -609,32 +609,32 @@ Inductive TypeOf : prop -> exp -> type -> (prop * prop) -> opt object -> Prop :=
       -> (subst_o of o' x) = o''
       -> TypeOf Γ (eApp e e') τ'' (tPf'', fPf'') o''
 | T_If :
-    forall τ τ' Γ e1 tP1 fP1 o1 e2 tP2 fP2 o e3 tP3 fP3,
+    forall τ τ' o o1 Γ e1 tP1 fP1 e2 tP2 fP2 e3 tP3 fP3,
       TypeOf Γ e1 τ' (tP1, fP1) o1
       -> TypeOf (Γ && tP1) e2 τ (tP2, fP2) o
       -> TypeOf (Γ && fP1) e3 τ (tP3, fP3) o
       -> TypeOf Γ (eIf e1 e2 e3) τ ((tP2 || tP3), (fP2 || fP3)) o
 | T_Cons :
-    forall τ1 τ2 Γ e1 tP1 fP1 o1 e2 tP2 fP2 o2,
+    forall τ1 τ2 o1 o2 Γ e1 tP1 fP1 e2 tP2 fP2,
       TypeOf Γ e1 τ1 (tP1, fP1) o1
       -> TypeOf Γ e2 τ2 (tP2, fP2) o2
       -> TypeOf Γ (eCons e1 e2) (tPair τ1 τ2) (TT, FF) None
 | T_Car :
-    forall τ1 τ2 Γ e tP0 fP0 o o' tP fP x,
+    forall τ1 τ2 o' o Γ e tP0 fP0 tP fP x,
       TypeOf Γ e (tPair τ1 τ2) (tP0, fP0) o
       -> (subst_p ((obj [car] x) ::~ tFalse) o x) = tP
       -> (subst_p ((obj [car] x) ::= tFalse) o x) = fP
       -> (subst_o (Some (obj [car] x)) o x) = o'
       -> TypeOf Γ (eApp Car' e) τ1 (tP, fP) o'
 | T_Cdr :
-    forall τ1 τ2 Γ e tP0 fP0 o o' tP fP x,
+    forall τ1 τ2 o' o Γ e tP0 fP0 tP fP x,
       TypeOf Γ e (tPair τ1 τ2) (tP0, fP0) o
       -> (subst_p ((obj [cdr] x) ::~ tFalse) o x) = tP
       -> (subst_p ((obj [cdr] x) ::= tFalse) o x) = fP
       -> (subst_o (Some (obj [cdr] x)) o x) = o'
       -> TypeOf Γ (eApp Cdr' e) τ2 (tP, fP) o'
 | T_Let :
-    forall σ' τ σ Γ e0 tP0 fP0 o0 e1 tP1 fP1 o1 x tP1' fP1' o1',
+    forall σ' τ σ o1' o0 o1 Γ e0 tP0 fP0 e1 tP1 fP1 x tP1' fP1',
       TypeOf Γ e0 τ (tP0, fP0) o0
       -> TypeOf (Γ && ((var x) ::= τ)
                    && (((var x) ::~ tFalse) --> tP0)
@@ -649,7 +649,7 @@ Inductive TypeOf : prop -> exp -> type -> (prop * prop) -> opt object -> Prop :=
       -> (subst_o o1 o0 x) = o1'
       -> TypeOf Γ (eLet x e0 e1) σ' (tP1', fP1') o1'
 | T_Subsume :
-    forall τ' τ Γ e tP fP o tP' fP' o',
+    forall τ' τ o' o Γ e tP fP tP' fP',
       TypeOf Γ e τ (tP, fP) o
       -> Proves (Γ && tP) tP'
       -> Proves (Γ && fP) fP'
@@ -787,20 +787,25 @@ Ltac tryP :=
 (* tryP currently will just do a recursive logical fact check, it does not
    yet reason about implication or subtyping *)
 
-(*
-Proves (var x ::= tUnion tBool tNum & var x ::~ tBool) (?120734 ::= tNum)
-*)
-
+Ltac trySO :=
+  match goal with
+    | |- SubObj None ?o => eapply SO_Refl
+    | |- SubObj ?o None => eapply SO_Top
+  end.
 
 
 
 Ltac crushTR :=
   repeat 
-    (try 
+    (try simpl; 
        (repeat 
-          ((tryT
+          (((erewrite if_eq_id)
+              || (erewrite if_eq_obj)
+              || (erewrite if_eq_type)
+              || tryT
               || tryS
               || tryP
+              || trySO
               || auto
               || eauto
               || crush)))).
@@ -839,6 +844,16 @@ Proof with crushTR.
   eapply S_UnionBot_rhs...
 Qed.
 
+Lemma proves_top : forall x τ,
+Proves (x ::=τ) (x ::= tTop).
+Proof.
+  intros x t.
+  eapply P_Sub.
+  eapply P_Refl.
+  eapply S_Top.
+Qed.  
+Hint Resolve proves_top.
+
 Lemma remove_TT_lhs : forall P Q,
 Proves P Q ->
 Proves (TT && P) Q.
@@ -860,7 +875,7 @@ Example example1:
            (TT,TT)
            None.
 Proof with crushTR.
-  intros x... eapply SO_Refl. 
+  intros x...
 Grab Existential Variables.
 crush. crush.
 Qed.
@@ -880,18 +895,9 @@ Example example2a:
 Proof with crushTR.
   intros x.
   eapply T_Subsume.
-  eapply T_If.
-  eapply T_App...
-  eapply P_Sub... eapply P_Sub.
-  eapply P_Refl. eapply S_Top.
-  eapply (T_Subsume tBool)...
-  eapply SO_Refl.
-  eapply T_App...
+  eapply (T_If tBool)...
   eapply (union_not_lhs tBool tNum)...
-  eapply P_True.
-  eapply P_True.
-  eapply S_Refl.
-  eapply SO_Refl.
+  crushTR. crushTR. crushTR. crushTR.
 Grab Existential Variables.
 crush. crush. crush.
 Qed.
@@ -914,11 +920,8 @@ Proof with crushTR.
   intros x.
   eapply T_Subsume.
   eapply (T_Abs (tUnion tBool tNum) tBool)...
-  eapply P_Sub. eapply P_AndE_rhs; eapply P_Refl...
-  eapply S_Top. eapply SO_Refl.
   eapply (union_not_lhs tBool tNum)...
-  crushTR. crushTR. crushTR.
-  eapply SO_Refl. eapply SO_Refl.
+  crushTR. crushTR. crushTR. crushTR.
 Grab Existential Variables.
 crush. crush. crush.
 Qed.
@@ -943,25 +946,78 @@ Proof with crushTR.
   eapply T_Const.
   reflexivity.
   eapply T_Var...
-  eauto.  eauto.
-  eauto.
-  eauto.
+  eauto. eauto. eauto. eauto.
   eapply T_If.
   eapply T_Var...
   eapply P_AndE_lhs. eapply P_AndE_lhs.
-  eapply P_AndE_rhs... eapply P_Refl.
-  eapply T_Subsume.
-  eapply T_Var...
+  eapply P_AndE_rhs...
+  eapply T_Subsume...
   eapply P_ImpE. eapply P_AndE_rhs. eapply P_Refl.
   eapply P_AndE_lhs. eapply P_AndE_lhs.
   eapply P_AndE_rhs... eapply P_Refl.
-  eapply P_Refl. eapply P_Refl.
-  eapply S_Refl. eapply SO_Top.
+  eapply SO_Top...
   eapply T_Num...
   eauto. eauto. eauto. eauto.
-  crushTR. crushTR. crushTR. eapply SO_Top.
+  crushTR. crushTR. crushTR. crushTR.
 Grab Existential Variables.
 crush.
+Qed.
+
+
+
+
+
+Definition eAnd' (e1 e2 : exp) : exp :=
+(eIf e1 e2 eFalse).
+
+Definition eOr' (e1 e2 : exp) : exp :=
+(eIf e1 e1 e2).
+
+
+Example example4:
+  forall x,
+    TypeOf (((var x) ::= tTop))
+           (eIf (eOr' (eApp IsNum' (eVar x)) 
+                      (eApp IsBool' (eVar x)))
+                (eApp 
+                   (eλ x (tUnion tBool tNum)
+                       (eIf (eApp IsBool' (eVar x))
+                            eFalse
+                            (eApp IsZero' (eVar x))))
+                   (eVar x))
+                eFalse)
+           tBool
+           (TT,TT)
+           None.
+Proof with crushTR.
+  intros x.
+  eapply (T_Subsume tBool tBool).
+  eapply (T_If tBool tBool).
+  eapply (T_If tBool tBool).
+  eapply T_App.
+  eapply T_Const...
+  eapply T_Subsume.
+  eapply T_Var...
+  crushTR. crushTR. crushTR. eapply SO_Top. crushTR.
+  crushTR. crushTR. crushTR.
+  eapply T_Subsume.
+  eapply T_App... eapply P_Refl. eapply P_Refl. 
+  crushTR. eapply SO_Top. crushTR.
+  eapply T_Subsume.
+  eapply T_App.
+  eapply (T_Abs (tUnion tBool tNum) tBool)...
+  eapply (union_not_lhs tBool tNum)...
+  crushTR. 
+  eapply P_AndE_rhs. 
+  eapply P_Or.
+    eapply P_Sub. eapply P_AndE_rhs. eapply P_Refl. crushTR.
+    eapply P_Sub. eapply P_Refl. crushTR.
+
+  crushTR. crushTR. crushTR. crushTR.
+  eapply P_Refl. eapply P_Refl. crushTR. eapply SO_Top.
+  crushTR. crushTR. crushTR. crushTR. crushTR.
+Grab Existential Variables.
+crush. crush. crush. crush. crush. crush. crush.
 Qed.
 
 

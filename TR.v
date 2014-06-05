@@ -496,10 +496,12 @@ with Restrict : type -> type -> type -> Prop :=
            -> Restrict τ σ tBot
      | RES_Lhs :
          forall τ σ,
-           Restrict τ σ τ
+           common_subtype τ σ = true
+           -> Restrict τ σ τ
      | RES_Rhs :
          forall τ σ,
-           Restrict τ σ σ
+           common_subtype τ σ = true
+           -> Restrict τ σ σ
      | RES_U :
          forall τ1 τ2 σ τ1' τ2',
            common_subtype (tUnion τ1 τ2) σ = true
@@ -1041,7 +1043,7 @@ Proof with crushTR.
   rewrite <- (app_nil_l [car]).
   eapply UP_Car.
   eapply UP_Is.
-  eapply RES_Rhs.
+  eapply RES_Rhs...
 Grab Existential Variables.
 crush. crush. crush. crush.
 Qed.
@@ -1065,7 +1067,7 @@ Proof with crushTR.
   rewrite <- (app_nil_l [cdr]).
   eapply UP_Cdr.
   eapply UP_Is.
-  eapply RES_Rhs.
+  eapply RES_Rhs...
 Grab Existential Variables.
 crush. crush. crush. crush.
 Qed.

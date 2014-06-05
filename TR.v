@@ -349,36 +349,6 @@ if we're going to use this for Removed *)
 (* NOTE: Our lookup models an environment where every variable in scope
 has some type present (even if its only tTop). *)
 
-Program Fixpoint possible_subtype (pos_sub pos_super:type)
-        {measure (plus (typestructuralsize pos_sub) (typestructuralsize pos_super))} : bool :=
-  match pos_sub, pos_super with
-    | _, tUnion t1 t2 =>
-      orb (possible_subtype pos_sub t1)
-          (possible_subtype pos_sub t2)
-    | tTop , tTop => true
-    | tTop , _ => false
-    | tBot , tBot => true
-    | tBot , _ => false
-    | tNum , tNum => true
-    | tNum , _ => false
-    | tTrue , tTrue => true
-    | tTrue , _ => false
-    | tFalse , tFalse => true
-    | tFalse , _ => false
-    | tUnion t1 t2, _ =>
-      andb (possible_subtype t1 pos_super)
-           (possible_subtype t2 pos_super)
-    | tAbs _ (t1,t2) _ _, tAbs _ (t3, t4) _ _ =>
-      andb (possible_subtype t1 t3)
-           (possible_subtype t2 t4)
-    | tAbs _ _ _ _, _ => false
-    | tPair t1 t2, tPair t3 t4 =>
-      andb (possible_subtype t1 t3)
-           (possible_subtype t2 t4)
-    | tPair _ _, _ => false
-  end.
-Solve Obligations using crush.
-
 (** * λTR Core Relations 
    Logic, TypeOf, Subtyping, etc... *)
 
@@ -572,7 +542,7 @@ with SubType : relation type :=
       -> SubType σ1 σ2
       -> SubType (tPair τ1 σ1) (tPair τ2 σ2).
 
-(* TODO *)
+
 (** ** TypeOf *)
 
 Inductive TypeOf : prop -> exp -> type -> (prop * prop) -> opt object -> Prop :=
@@ -966,9 +936,6 @@ crush.
 Qed.
 
 
-
-
-
 Definition eAnd' (e1 e2 : exp) : exp :=
 (eIf e1 e2 eFalse).
 
@@ -1072,6 +1039,99 @@ Grab Existential Variables.
 crush. crush. crush. crush.
 Qed.
 
+(** * λTR Values & Big Step Semantics *)
+
+Inductive value : Type :=
+| vPrim  : op -> value
+| vTrue  : value
+| vFalse : value
+| vNum   : nat -> value
+| vλ     : (object -> opt value) -> id -> type -> exp -> value
+| vCons  : value -> value -> value.
+
+Definition closure := object -> opt value.
+Definition extend (ρ:closure) (o: object) (v:value) :=
+fun x =>
+  if (obj_eqdec o x) 
+  then Some v
+  else (ρ x).
+
+Definition δ (o:op) (v:value) : opt value :=
+  match o, v with
+    | c_op opAdd1, vNum n => Some (vNum (n + 1))
+    | c_op opAdd1, _ => None
+    | c_op opIsZero, vNum 0 => Some vTrue
+    | c_op opIsZero, vNum (S n) => Some vFalse
+    | c_op opIsZero, _ => None
+    | c_op opIsNum, vNum _ => Some vTrue
+    | c_op opIsNum, _ => Some vFalse
+    | c_op opIsBool, vTrue => Some vTrue
+    | c_op opIsBool, vFalse => Some vTrue
+    | c_op opIsBool, _ => Some vFalse
+    | c_op opIsProc, vλ _ _ _ _ => Some vTrue
+    | c_op opIsProc, _ => Some vFalse
+    | c_op opIsCons, vCons _ _ => Some vTrue
+    | c_op opIsCons, _ => Some vFalse
+    | p_op opCar, vCons v1 _ => Some v1
+    | p_op opCar, _ => None
+    | p_op opCdr, vCons _ v2 => Some v2
+    | p_op opCdr, _ => None
+  end.
+
+Reserved Notation "ρ |- e ==>* v" (at level 50, left associativity).
+
+Inductive BStep : closure -> exp -> value -> Prop :=
+| B_Var : 
+    forall ρ x v,
+      (ρ (var x)) = Some v
+      -> ρ |- (eVar x) ==>* v
+| B_Op : 
+    forall ρ e c e' v v',
+      ρ |- e ==>* (vPrim c)
+      -> ρ |- e' ==>* v
+      -> (δ c v) = Some v'
+      -> ρ |- (eApp e e') ==>* v'
+| B_True :
+    forall ρ,
+      ρ |- eTrue ==>* vTrue
+| B_False :
+    forall ρ,
+      ρ |- eFalse ==>* vFalse
+| B_Num :
+    forall ρ n,
+      ρ |- (eNum n) ==>* (vNum n)
+| B_Let :
+    forall ρ e1 e2 v1 v2 x,
+      ρ |- e1 ==>* v1
+      -> (extend ρ (var x) v1) |- e2 ==>* v2
+      -> ρ |- (eLet x e1 e2) ==>* v2
+| B_Abs :
+    forall x τ e ρ,
+       ρ |- (eλ x τ e) ==>* (vλ ρ x τ e)
+| B_Beta :
+    forall ef ρ' x τ eb ea va ρ v,
+      ρ |- ef ==>* (vλ ρ' x τ eb)
+      -> ρ |- ea ==>* va
+      -> (extend ρ' (var x) va) |- eb ==>* v
+      -> ρ |- (eApp ef ea) ==>* v
+| B_Cons :
+    forall ρ e1 e2 v1 v2,
+      ρ |- e1 ==>* v1
+      -> ρ |- e2 ==>* v2
+      -> ρ |- (eCons e1 e2) ==>* (vCons v1 v2)
+| B_IfTrue :
+    forall ρ e1 v1 e2 v e3,
+      ρ |- e1 ==>* v1
+      -> v1 <> vFalse
+      -> ρ |- e2 ==>* v
+      -> ρ |- (eIf e1 e2 e3) ==>* v
+| B_IfFalse :
+    forall ρ e1 e2 v e3,
+      ρ |- e1 ==>* vFalse
+      -> ρ |- e3 ==>* v
+      -> ρ |- (eIf e1 e2 e3) ==>* v
+
+where " ρ |- e ==>* v" := (BStep ρ e v).
 
 End LTR.
 

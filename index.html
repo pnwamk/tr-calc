@@ -31,7 +31,7 @@
 <td>J</td>
 <td>K</td>
 <td><a href="index.html#global_L">L</a></td>
-<td>M</td>
+<td><a href="index.html#global_M">M</a></td>
 <td><a href="index.html#global_N">N</a></td>
 <td><a href="index.html#global_O">O</a></td>
 <td><a href="index.html#global_P">P</a></td>
@@ -47,7 +47,7 @@
 <td>Z</td>
 <td>_</td>
 <td><a href="index.html#global_*">other</a></td>
-<td>(192 entries)</td>
+<td>(206 entries)</td>
 </tr>
 <tr>
 <td>Notation Index</td>
@@ -79,7 +79,7 @@
 <td>Z</td>
 <td>_</td>
 <td>other</td>
-<td>(6 entries)</td>
+<td>(7 entries)</td>
 </tr>
 <tr>
 <td>Library Index</td>
@@ -127,7 +127,7 @@
 <td>J</td>
 <td>K</td>
 <td>L</td>
-<td>M</td>
+<td><a href="index.html#constructor_M">M</a></td>
 <td>N</td>
 <td><a href="index.html#constructor_O">O</a></td>
 <td><a href="index.html#constructor_P">P</a></td>
@@ -143,7 +143,7 @@
 <td>Z</td>
 <td>_</td>
 <td>other</td>
-<td>(111 entries)</td>
+<td>(122 entries)</td>
 </tr>
 <tr>
 <td>Lemma Index</td>
@@ -207,7 +207,7 @@
 <td>Z</td>
 <td>_</td>
 <td>other</td>
-<td>(19 entries)</td>
+<td>(21 entries)</td>
 </tr>
 <tr>
 <td>Section Index</td>
@@ -329,7 +329,6 @@
 <a href="TR.html#Car'">Car'</a> [abbreviation, in <a href="TR.html">TR</a>]<br/>
 <a href="TR.html#cdr">cdr</a> [constructor, in <a href="TR.html">TR</a>]<br/>
 <a href="TR.html#Cdr'">Cdr'</a> [abbreviation, in <a href="TR.html">TR</a>]<br/>
-<a href="TR.html#closure">closure</a> [definition, in <a href="TR.html">TR</a>]<br/>
 <a href="TR.html#common_subtype">common_subtype</a> [definition, in <a href="TR.html">TR</a>]<br/>
 <a href="TR.html#const_type">const_type</a> [definition, in <a href="TR.html">TR</a>]<br/>
 <a href="TR.html#const_op">const_op</a> [inductive, in <a href="TR.html">TR</a>]<br/>
@@ -342,6 +341,7 @@
 <a href="TR.html#eIf">eIf</a> [constructor, in <a href="TR.html">TR</a>]<br/>
 <a href="TR.html#eLet">eLet</a> [constructor, in <a href="TR.html">TR</a>]<br/>
 <a href="TR.html#eNum">eNum</a> [constructor, in <a href="TR.html">TR</a>]<br/>
+<a href="TR.html#env">env</a> [definition, in <a href="TR.html">TR</a>]<br/>
 <a href="TR.html#eOp">eOp</a> [constructor, in <a href="TR.html">TR</a>]<br/>
 <a href="TR.html#eOr'">eOr'</a> [definition, in <a href="TR.html">TR</a>]<br/>
 <a href="TR.html#eTrue">eTrue</a> [constructor, in <a href="TR.html">TR</a>]<br/>
@@ -371,6 +371,8 @@
 <a href="TR.html#Imp">Imp</a> [constructor, in <a href="TR.html">TR</a>]<br/>
 <a href="TR.html#Is">Is</a> [constructor, in <a href="TR.html">TR</a>]<br/>
 <a href="TR.html#IsBool'">IsBool'</a> [abbreviation, in <a href="TR.html">TR</a>]<br/>
+<a href="TR.html#isclos">isclos</a> [constructor, in <a href="TR.html">TR</a>]<br/>
+<a href="TR.html#IsClosure">IsClosure</a> [inductive, in <a href="TR.html">TR</a>]<br/>
 <a href="TR.html#IsCons'">IsCons'</a> [abbreviation, in <a href="TR.html">TR</a>]<br/>
 <a href="TR.html#IsNot">IsNot</a> [constructor, in <a href="TR.html">TR</a>]<br/>
 <a href="TR.html#IsNum'">IsNum'</a> [abbreviation, in <a href="TR.html">TR</a>]<br/>
@@ -380,12 +382,24 @@
 <a href="TR.html#IsZero'">IsZero'</a> [abbreviation, in <a href="TR.html">TR</a>]<br/>
 <br/><br/><a name="global_L"></a><h2>L </h2>
 <a href="TR.html#LTR">LTR</a> [section, in <a href="TR.html">TR</a>]<br/>
+<a href="TR.html#LTR.::x_'|='_x">_ |= _</a> [notation, in <a href="TR.html">TR</a>]<br/>
 <a href="TR.html#LTR.::x_'|-'_x_'==>*'_x">_ |- _ ==>* _</a> [notation, in <a href="TR.html">TR</a>]<br/>
 <a href="TR.html#LTR.::x_'-->'_x">_ --> _</a> [notation, in <a href="TR.html">TR</a>]<br/>
 <a href="TR.html#LTR.::x_'||'_x">_ || _</a> [notation, in <a href="TR.html">TR</a>]<br/>
 <a href="TR.html#LTR.::x_'&&'_x">_ && _</a> [notation, in <a href="TR.html">TR</a>]<br/>
 <a href="TR.html#LTR.::x_'::~'_x">_ ::~ _</a> [notation, in <a href="TR.html">TR</a>]<br/>
 <a href="TR.html#LTR.::x_'::='_x">_ ::= _</a> [notation, in <a href="TR.html">TR</a>]<br/>
+<br/><br/><a name="global_M"></a><h2>M </h2>
+<a href="TR.html#M_Type_Cons">M_Type_Cons</a> [constructor, in <a href="TR.html">TR</a>]<br/>
+<a href="TR.html#M_Type_Closure">M_Type_Closure</a> [constructor, in <a href="TR.html">TR</a>]<br/>
+<a href="TR.html#M_Type_Num">M_Type_Num</a> [constructor, in <a href="TR.html">TR</a>]<br/>
+<a href="TR.html#M_Type_False">M_Type_False</a> [constructor, in <a href="TR.html">TR</a>]<br/>
+<a href="TR.html#M_Type_True">M_Type_True</a> [constructor, in <a href="TR.html">TR</a>]<br/>
+<a href="TR.html#M_Type_Prim">M_Type_Prim</a> [constructor, in <a href="TR.html">TR</a>]<br/>
+<a href="TR.html#M_Top">M_Top</a> [constructor, in <a href="TR.html">TR</a>]<br/>
+<a href="TR.html#M_And">M_And</a> [constructor, in <a href="TR.html">TR</a>]<br/>
+<a href="TR.html#M_Or_rhs">M_Or_rhs</a> [constructor, in <a href="TR.html">TR</a>]<br/>
+<a href="TR.html#M_Or_lhs">M_Or_lhs</a> [constructor, in <a href="TR.html">TR</a>]<br/>
 <br/><br/><a name="global_N"></a><h2>N </h2>
 <a href="TR.html#neq_obj_neq">neq_obj_neq</a> [lemma, in <a href="TR.html">TR</a>]<br/>
 <a href="TR.html#neq_id_neq">neq_id_neq</a> [lemma, in <a href="TR.html">TR</a>]<br/>
@@ -444,6 +458,7 @@
 <a href="TR.html#RES_Lhs">RES_Lhs</a> [constructor, in <a href="TR.html">TR</a>]<br/>
 <a href="TR.html#RES_NoCommon">RES_NoCommon</a> [constructor, in <a href="TR.html">TR</a>]<br/>
 <br/><br/><a name="global_S"></a><h2>S </h2>
+<a href="TR.html#Satisfies">Satisfies</a> [inductive, in <a href="TR.html">TR</a>]<br/>
 <a href="TR.html#setU">setU</a> [definition, in <a href="TR.html">TR</a>]<br/>
 <a href="TR.html#SO_Top">SO_Top</a> [constructor, in <a href="TR.html">TR</a>]<br/>
 <a href="TR.html#SO_Refl">SO_Refl</a> [constructor, in <a href="TR.html">TR</a>]<br/>
@@ -519,6 +534,7 @@
 <br/><br/><hr/>
 <h1>Notation Index</h1>
 <a name="notation_L"></a><h2>L </h2>
+<a href="TR.html#LTR.::x_'|='_x">_ |= _</a> [in <a href="TR.html">TR</a>]<br/>
 <a href="TR.html#LTR.::x_'|-'_x_'==>*'_x">_ |- _ ==>* _</a> [in <a href="TR.html">TR</a>]<br/>
 <a href="TR.html#LTR.::x_'-->'_x">_ --> _</a> [in <a href="TR.html">TR</a>]<br/>
 <a href="TR.html#LTR.::x_'||'_x">_ || _</a> [in <a href="TR.html">TR</a>]<br/>
@@ -566,8 +582,20 @@
 <a href="TR.html#Id">Id</a> [in <a href="TR.html">TR</a>]<br/>
 <a href="TR.html#Imp">Imp</a> [in <a href="TR.html">TR</a>]<br/>
 <a href="TR.html#Is">Is</a> [in <a href="TR.html">TR</a>]<br/>
+<a href="TR.html#isclos">isclos</a> [in <a href="TR.html">TR</a>]<br/>
 <a href="TR.html#IsNot">IsNot</a> [in <a href="TR.html">TR</a>]<br/>
 <a href="TR.html#isU">isU</a> [in <a href="TR.html">TR</a>]<br/>
+<br/><br/><a name="constructor_M"></a><h2>M </h2>
+<a href="TR.html#M_Type_Cons">M_Type_Cons</a> [in <a href="TR.html">TR</a>]<br/>
+<a href="TR.html#M_Type_Closure">M_Type_Closure</a> [in <a href="TR.html">TR</a>]<br/>
+<a href="TR.html#M_Type_Num">M_Type_Num</a> [in <a href="TR.html">TR</a>]<br/>
+<a href="TR.html#M_Type_False">M_Type_False</a> [in <a href="TR.html">TR</a>]<br/>
+<a href="TR.html#M_Type_True">M_Type_True</a> [in <a href="TR.html">TR</a>]<br/>
+<a href="TR.html#M_Type_Prim">M_Type_Prim</a> [in <a href="TR.html">TR</a>]<br/>
+<a href="TR.html#M_Top">M_Top</a> [in <a href="TR.html">TR</a>]<br/>
+<a href="TR.html#M_And">M_And</a> [in <a href="TR.html">TR</a>]<br/>
+<a href="TR.html#M_Or_rhs">M_Or_rhs</a> [in <a href="TR.html">TR</a>]<br/>
+<a href="TR.html#M_Or_lhs">M_Or_lhs</a> [in <a href="TR.html">TR</a>]<br/>
 <br/><br/><a name="constructor_O"></a><h2>O </h2>
 <a href="TR.html#obj">obj</a> [in <a href="TR.html">TR</a>]<br/>
 <a href="TR.html#opAdd1">opAdd1</a> [in <a href="TR.html">TR</a>]<br/>
@@ -690,6 +718,7 @@
 <a href="TR.html#exp">exp</a> [in <a href="TR.html">TR</a>]<br/>
 <br/><br/><a name="inductive_I"></a><h2>I </h2>
 <a href="TR.html#id">id</a> [in <a href="TR.html">TR</a>]<br/>
+<a href="TR.html#IsClosure">IsClosure</a> [in <a href="TR.html">TR</a>]<br/>
 <a href="TR.html#isUnion">isUnion</a> [in <a href="TR.html">TR</a>]<br/>
 <br/><br/><a name="inductive_O"></a><h2>O </h2>
 <a href="TR.html#object">object</a> [in <a href="TR.html">TR</a>]<br/>
@@ -702,6 +731,7 @@
 <a href="TR.html#Remove">Remove</a> [in <a href="TR.html">TR</a>]<br/>
 <a href="TR.html#Restrict">Restrict</a> [in <a href="TR.html">TR</a>]<br/>
 <br/><br/><a name="inductive_S"></a><h2>S </h2>
+<a href="TR.html#Satisfies">Satisfies</a> [in <a href="TR.html">TR</a>]<br/>
 <a href="TR.html#step">step</a> [in <a href="TR.html">TR</a>]<br/>
 <a href="TR.html#SubObj">SubObj</a> [in <a href="TR.html">TR</a>]<br/>
 <a href="TR.html#SubType">SubType</a> [in <a href="TR.html">TR</a>]<br/>
@@ -741,11 +771,11 @@
 <br/><br/><hr/>
 <h1>Definition Index</h1>
 <a name="definition_C"></a><h2>C </h2>
-<a href="TR.html#closure">closure</a> [in <a href="TR.html">TR</a>]<br/>
 <a href="TR.html#common_subtype">common_subtype</a> [in <a href="TR.html">TR</a>]<br/>
 <a href="TR.html#const_type">const_type</a> [in <a href="TR.html">TR</a>]<br/>
 <br/><br/><a name="definition_E"></a><h2>E </h2>
 <a href="TR.html#eAnd'">eAnd'</a> [in <a href="TR.html">TR</a>]<br/>
+<a href="TR.html#env">env</a> [in <a href="TR.html">TR</a>]<br/>
 <a href="TR.html#eOr'">eOr'</a> [in <a href="TR.html">TR</a>]<br/>
 <a href="TR.html#example1">example1</a> [in <a href="TR.html">TR</a>]<br/>
 <a href="TR.html#example10">example10</a> [in <a href="TR.html">TR</a>]<br/>
@@ -788,7 +818,7 @@
 <td>J</td>
 <td>K</td>
 <td><a href="index.html#global_L">L</a></td>
-<td>M</td>
+<td><a href="index.html#global_M">M</a></td>
 <td><a href="index.html#global_N">N</a></td>
 <td><a href="index.html#global_O">O</a></td>
 <td><a href="index.html#global_P">P</a></td>
@@ -804,7 +834,7 @@
 <td>Z</td>
 <td>_</td>
 <td><a href="index.html#global_*">other</a></td>
-<td>(192 entries)</td>
+<td>(206 entries)</td>
 </tr>
 <tr>
 <td>Notation Index</td>
@@ -836,7 +866,7 @@
 <td>Z</td>
 <td>_</td>
 <td>other</td>
-<td>(6 entries)</td>
+<td>(7 entries)</td>
 </tr>
 <tr>
 <td>Library Index</td>
@@ -884,7 +914,7 @@
 <td>J</td>
 <td>K</td>
 <td>L</td>
-<td>M</td>
+<td><a href="index.html#constructor_M">M</a></td>
 <td>N</td>
 <td><a href="index.html#constructor_O">O</a></td>
 <td><a href="index.html#constructor_P">P</a></td>
@@ -900,7 +930,7 @@
 <td>Z</td>
 <td>_</td>
 <td>other</td>
-<td>(111 entries)</td>
+<td>(122 entries)</td>
 </tr>
 <tr>
 <td>Lemma Index</td>
@@ -964,7 +994,7 @@
 <td>Z</td>
 <td>_</td>
 <td>other</td>
-<td>(19 entries)</td>
+<td>(21 entries)</td>
 </tr>
 <tr>
 <td>Section Index</td>

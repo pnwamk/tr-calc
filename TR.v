@@ -1040,7 +1040,7 @@ crush. crush. crush. crush.
 Qed.
 
 (** * λTR Values & Big Step Semantics *)
-
+(** ** Values *)
 Inductive value : Type :=
 | vPrim  : op -> value
 | vTrue  : value
@@ -1049,8 +1049,12 @@ Inductive value : Type :=
 | vλ     : (object -> opt value) -> id -> type -> exp -> value
 | vCons  : value -> value -> value.
 
-Definition closure := object -> opt value.
-Definition extend (ρ:closure) (o: object) (v:value) :=
+Inductive IsClosure : value -> Prop :=
+| isclos : forall ρ x τ e,
+             IsClosure (vλ ρ x τ e).
+
+Definition env := object -> opt value.
+Definition extend (ρ:env) (o: object) (v:value) :=
 fun x =>
   if (obj_eqdec o x) 
   then Some v
@@ -1078,9 +1082,10 @@ Definition δ (o:op) (v:value) : opt value :=
     | p_op opCdr, _ => None
   end.
 
+(** ** Big-Step Semantics *)
 Reserved Notation "ρ |- e ==>* v" (at level 50, left associativity).
 
-Inductive BStep : closure -> exp -> value -> Prop :=
+Inductive BStep : env -> exp -> value -> Prop :=
 | B_Var : 
     forall ρ x v,
       (ρ (var x)) = Some v
@@ -1131,7 +1136,62 @@ Inductive BStep : closure -> exp -> value -> Prop :=
       -> ρ |- e3 ==>* v
       -> ρ |- (eIf e1 e2 e3) ==>* v
 
-where " ρ |- e ==>* v" := (BStep ρ e v).
+where "ρ |- e ==>* v" := (BStep ρ e v).
+
+
+Reserved Notation "ρ |= q " (at level 50, left associativity).
+
+(** ** Satisfaction Relation *)
+Inductive Satisfies : env -> prop -> Prop :=
+| M_Or_lhs :
+    forall ρ P Q,
+      ρ |= P
+      -> ρ |= (P || Q)
+| M_Or_rhs :
+    forall ρ P Q,
+      ρ |= Q
+      -> ρ |= (P || Q)
+(* | M_Imp ??? *)
+| M_And :
+    forall ρ P Q,
+      ρ |= P
+      -> ρ |= Q
+      -> ρ |= (P && Q)
+| M_Top :
+    forall ρ,
+      ρ |= TT
+| M_Type_Prim : 
+    forall c ρ π x y τ,
+      (ρ (obj π x)) = Some (vPrim (c_op c))
+      -> τ = (const_type c y)
+      -> ρ |= ((obj π x) ::= τ)
+| M_Type_True :
+    forall ρ π x,
+      (ρ (obj π x)) = Some vTrue
+      -> ρ |= ((obj π x) ::= tTrue)
+| M_Type_False :
+    forall ρ π x,
+      (ρ (obj π x)) = Some vFalse
+      -> ρ |= ((obj π x) ::= tFalse)
+| M_Type_Num :
+    forall ρ π x n,
+      (ρ (obj π x)) = Some (vNum n)
+      -> ρ |= ((obj π x) ::= tNum)
+| M_Type_Closure : 
+    forall ρ π x τ σ e o Γ ρ' tP fP tPf fPf of,
+      (ρ (obj π x)) = Some (vλ ρ' x σ e)
+      -> ρ' |= Γ
+      -> TypeOf Γ (eλ x σ e) (tAbs x (σ, τ) (tPf, fPf) of) (tP, fP) o
+      -> ρ |= ((obj π x) ::= (tAbs x (σ, τ) (tPf, fPf) of))
+| M_Type_Cons :
+    forall v1 v2 ρ π x τ1 τ2,
+      (ρ (obj π x)) = Some (vCons v1 v2)
+      -> ρ |= ((obj (π ++ [car]) x) ::= τ1)
+      -> ρ |= ((obj (π ++ [cdr]) x) ::= τ2)
+      -> ρ |= ((obj π x) ::= (tPair τ1 τ2))
+
+where "ρ |= q" := (Satisfies ρ q).
+
 
 End LTR.
 

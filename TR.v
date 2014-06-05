@@ -475,9 +475,9 @@ with Update : type -> (bool * type) -> path -> type -> Prop :=
       Update τ ν π updated 
       -> Update (tPair τ σ) ν (π ++ [car]) (tPair updated σ)
 | UP_Cdr :
-    forall τ ν pth updated σ, (* BOOKMARK *)
-      Update σ ν pth updated
-      -> Update (tPair τ σ) ν (pth ++ [car]) (tPair updated σ)
+    forall τ ν π updated σ,
+      Update σ ν π updated
+      -> Update (tPair τ σ) ν (π ++ [cdr]) (tPair τ updated)
 | UP_Is :
     forall τ σ restricted,
       Restrict τ σ restricted 
@@ -494,12 +494,12 @@ with Restrict : type -> type -> type -> Prop :=
          forall τ σ,
            common_subtype τ σ = false 
            -> Restrict τ σ tBot
-     | RES_Bottom_l :
-         forall σ,
-           Restrict tBot σ tBot
-     | RES_Bottom_r :
-         forall σ,
-           Restrict σ tBot tBot
+     | RES_Lhs :
+         forall τ σ,
+           Restrict τ σ τ
+     | RES_Rhs :
+         forall τ σ,
+           Restrict τ σ σ
      | RES_U :
          forall τ1 τ2 σ τ1' τ2',
            common_subtype (tUnion τ1 τ2) σ = true
@@ -1018,6 +1018,56 @@ Proof with crushTR.
   crushTR. crushTR. crushTR. crushTR. crushTR.
 Grab Existential Variables.
 crush. crush. crush. crush. crush. crush. crush.
+Qed.
+
+
+
+Example example10:
+  forall p,
+    TypeOf (((var p) ::= (tPair tTop tTop)))
+           (eIf (eApp IsNum' (eApp Car' (eVar p)))
+                (eApp Add1' (eApp Car' (eVar p)))
+                (eNum 42))
+           tNum
+           (TT,TT)
+           None.
+Proof with crushTR.
+  intros p...
+  eapply P_Refl.
+  eapply P_Update_Is.
+  eapply P_AndE_lhs. eapply P_Refl.
+  eapply P_AndE_rhs. rewrite <- (app_nil_r [car]). 
+  eapply P_Refl.
+  rewrite <- (app_nil_l [car]).
+  eapply UP_Car.
+  eapply UP_Is.
+  eapply RES_Rhs.
+Grab Existential Variables.
+crush. crush. crush. crush.
+Qed.
+  
+Example example10':
+  forall p,
+    TypeOf (((var p) ::= (tPair tTop tTop)))
+           (eIf (eApp IsNum' (eApp Cdr' (eVar p)))
+                (eApp Add1' (eApp Cdr' (eVar p)))
+                (eNum 42))
+           tNum
+           (TT,TT)
+           None.
+Proof with crushTR.
+  intros p...
+  eapply P_Refl.
+  eapply P_Update_Is.
+  eapply P_AndE_lhs. eapply P_Refl.
+  eapply P_AndE_rhs. rewrite <- (app_nil_r [cdr]). 
+  eapply P_Refl.
+  rewrite <- (app_nil_l [cdr]).
+  eapply UP_Cdr.
+  eapply UP_Is.
+  eapply RES_Rhs.
+Grab Existential Variables.
+crush. crush. crush. crush.
 Qed.
 
 

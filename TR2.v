@@ -69,7 +69,7 @@ Fixpoint Not (p : prop) : prop :=
 
 Hint Resolve eq_nat_dec.
 
-Notation τB := (tU tT tF).
+Notation tBool := (tU tT tF).
 
 Infix "::=" := Is (at level 30, right associativity).
 Infix "::~" := IsNot (at level 30, right associativity).
@@ -134,22 +134,22 @@ Definition const_type (c : const_op) (x:id) : type :=
   match c with
     | opIsNum =>
       (tλ x 
-          (tTop, τB) 
+          (tTop, tBool) 
           ((var x) ::= tNat)
           (Some (var x)))
     | opIsProc =>
       (tλ x 
-          (tTop, τB) 
+          (tTop, tBool) 
           ((var x) ::= (tλ x (tBot, tTop) TT None)) 
           None)
     | opIsBool =>
       (tλ x 
-          (tTop, τB) 
-          ((var x) ::= τB)
+          (tTop, tBool) 
+          ((var x) ::= tBool)
           None)
     | opIsCons =>
       (tλ x 
-          (tTop, τB) 
+          (tTop, tBool) 
           ((var x) ::= (tCons tTop tTop))
           None)
     | opAdd1 =>
@@ -159,12 +159,12 @@ Definition const_type (c : const_op) (x:id) : type :=
           None)
     | opIsZero =>
       (tλ x 
-          (tNat, τB) 
+          (tNat, tBool) 
           TT
           None)
     | opIsStr =>
       (tλ x 
-          (tTop, τB) 
+          (tTop, tBool) 
           ((var x) ::= tStr)
           None)
     | opStrLen =>
@@ -509,7 +509,7 @@ with SubType : relation type :=
 (** ** TypeOf *)
 
 Inductive TypeOf : prop -> exp -> type -> prop -> opt object -> Prop :=
-| T_Num :
+| T_Nat :
     forall Γ n,
       TypeOf Γ (#n) tNat TT None
 | T_Str :
@@ -591,6 +591,140 @@ Inductive TypeOf : prop -> exp -> type -> prop -> opt object -> Prop :=
       -> TypeOf Γ e τ' ψ' o'.
 
 
+(** * Proof Helpers *)
+
+(** * Proof Helpers/Lemmas and Automation *)
+
+Lemma then_else_eq : forall (T:Type) (P1 P2:Prop) (test: sumbool P1 P2) (Q:T),
+(if test then Q else Q) = Q.
+Proof.
+  crush.
+Qed.
+Hint Rewrite then_else_eq.
+
+
+Lemma if_eq_id : forall (T:Type) x (t1 t2: T),
+(if id_eqdec x x then t1 else t2) = t1.
+Proof.
+  intros T x t1 t2.
+  destruct (id_eqdec x x); auto. tryfalse.
+Qed.
+Hint Rewrite if_eq_id.
+
+Lemma if_eq_obj : forall (T:Type) x (t1 t2: T),
+(if obj_eqdec x x then t1 else t2) = t1.
+Proof.
+  intros T x t1 t2.
+  destruct (obj_eqdec x x); auto. tryfalse.
+Qed.
+Hint Rewrite if_eq_obj.
+
+Lemma neq_id_neq : forall (T:Type) x y (P Q:T),
+x <> y ->
+((if (id_eqdec x y) then P else Q) = Q).
+Proof.
+  intros.
+  destruct (id_eqdec x y); crush.
+Qed.
+
+Lemma neq_obj_neq : forall (T:Type) x y (P Q:T) pth1 pth2,
+x <> y ->
+((if (obj_eqdec (obj pth1 x) (obj pth2 y)) then P else Q) = Q).
+Proof.
+  intros.
+  destruct (obj_eqdec (obj pth1 x) (obj pth2 y)); crush.
+Qed.
+
+Lemma if_eq_type : forall (T:Type) x (t1 t2: T),
+(if type_eqdec x x then t1 else t2) = t1.
+Proof.
+  intros T x t1 t2.
+  destruct (type_eqdec x x); auto. tryfalse.
+Qed.
+Hint Rewrite if_eq_type.
+
+Lemma subst_Some_tNat : forall x y,
+(subst_p (var x ::= tNat) (Some (var y)) x)
+ = (var y ::= tNat).
+Proof.
+  intros x y.
+  simpl. destruct (id_eqdec x x); crush.
+Qed.  
+Hint Rewrite subst_Some_tNat.
+
+
+Fixpoint in_prop (q p : prop) : bool :=
+  if prop_eqdec q p then true else
+    match p with
+      | And p1 p2 => orb (in_prop q p1) (in_prop q p2)
+      | Or  p1 p2 => andb (in_prop q p1) (in_prop q p2)
+      | _ => false
+    end.
+
+Lemma in_prop_Proves : forall p q,
+in_prop q p = true
+-> Proves p q.
+Proof with crush.
+  Hint Constructors Proves.
+  Hint Rewrite orb_true_iff.
+  Hint Rewrite andb_true_iff.
+  intros p; induction p...
+  destruct (prop_eqdec q (o ::= t))...
+  destruct (prop_eqdec q (o ::~ t))...
+  destruct (prop_eqdec q (p1 && p2))...
+  destruct (prop_eqdec q (p1 || p2))...
+  destruct (prop_eqdec q TT)...
+  destruct (prop_eqdec q Unk)...
+Qed.
+
+Lemma true_tBool : 
+SubType tT tBool.
+Proof. 
+  Hint Constructors SubType.
+  crush.
+Qed.
+
+Lemma false_tBool : 
+SubType tF tBool.
+Proof. 
+  Hint Constructors SubType.
+  crush.
+Qed.
+Hint Resolve true_tBool false_tBool.
+
+Ltac simple_subobject :=
+  match goal with
+    | |- SubObj ?o ?o => solve [eapply SO_Refl]
+    | |- SubObj None ?o => solve [eapply SO_Refl]
+    | |- SubObj ?o None => solve [eapply SO_Top]
+  end.
+
+Ltac simple_proves :=
+  match goal with
+  | |- Proves FF ?P => solve [eapply P_False]
+  | |- Proves ?P TT => solve [eapply P_True]
+  | |- Proves ?P ?P => solve [eapply P_Refl]
+  | |- Proves ?P ?Q => solve [eapply in_prop_Proves; crush]
+  end.
+
+Ltac simple_subtype :=
+  match goal with
+  | |- SubType ?P tTop => solve [eapply S_Top]
+  | |- SubType ?P ?P => solve [eapply P_Refl]
+  | |- SubType ?t1 (tU ?t1 ?t2) =>
+    solve [eapply S_UnionSuper_l; eapply S_Refl]
+  | |- SubType ?t2 (tU ?t1 ?t2) =>
+    solve [eapply S_UnionSuper_r ; eapply S_Refl]
+  | |- SubType ?t1 (tU (tU ?t1 ?t2) ?t3) =>
+    solve [eapply S_UnionSuper_l; eapply S_UnionSuper_l; eapply S_Refl]
+  | |- SubType ?t2 (tU (tU ?t1 ?t2) ?t3) =>
+    solve [eapply S_UnionSuper_l; eapply S_UnionSuper_r; eapply S_Refl]
+  | |- SubType ?t2 (tU ?t1 (tU ?t2 ?t3)) =>
+    solve [eapply S_UnionSuper_r; eapply S_UnionSuper_l; eapply S_Refl]
+  | |- SubType ?t3 (tU ?t1 (tU ?t2 ?t3)) =>
+    solve [eapply S_UnionSuper_r; eapply S_UnionSuper_r; eapply S_Refl]
+  end.
+
 (** *Typechecked Examples *)
 
 (** Unhygeinic Or macro *)
@@ -613,7 +747,41 @@ Example example1:
            tNat
            TT
            None.
-Proof. Admitted.
+Proof with crush. 
+  intros x.
+  eapply T_Subsume.
+  crush.
+  eapply T_If.
+  eapply T_App.
+  eapply T_Const...
+  eapply T_Var...
+  crush.
+  crush.
+  crush.
+  crush.
+  eapply T_App...
+  eapply T_Const...
+  eapply T_Var...
+  crush.
+  eapply T_Nat...
+  crush.
+  crush.
+  crush.
+  crush.
+  simple_subobject.
+Grab Existential Variables.
+crush. crush.
+Qed.
+
+
+(*
+ x = y   -- solve[reflexivity] -- possibly some rewrites?
+subst_p (var ?84152 ::= tNat) (Some (var x)) ?84152
+In Prop proves?
+
+*)
+
+Admitted.
 
 
 Example example2:

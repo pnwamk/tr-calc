@@ -80,7 +80,7 @@ Notation "P '-->' Q" := (Or (Not P) Q) (at level 90).
 (** Expressions and primitive operations: *)
 Inductive const_op :=
   opAdd1 | opIsZero | opIsNum | opIsBool | opIsProc | 
-  opIsCons | opIsStr | opStrLen.
+  opIsCons | opIsStr | opStrLen | opPlus.
 Hint Constructors const_op.
 
 Inductive poly_op :=
@@ -110,6 +110,7 @@ Notation "$" := eVar.
 Notation "#t" := eTrue.
 Notation "#f" := eFalse.
 Notation "#" := eNum.
+Notation λ := eλ.
 Notation Str := eStr.
 Notation If := eIf.
 Notation Let := eLet.
@@ -124,6 +125,8 @@ Notation "Cons?" := (eApp (eOp (c_op opIsCons))).
 Notation Cons := eCons.
 Notation "Str?" := (eApp (eOp (c_op opIsStr))).
 Notation StrLen := (eApp (eOp (c_op opStrLen))).
+Notation Plus := (fun x y =>
+                    (eApp (eApp (eOp (c_op opPlus)) x) y)).
 Notation Apply := eApp.
 
 (** Constant types: *)
@@ -167,6 +170,14 @@ Definition const_type (c : const_op) (x:id) : type :=
     | opStrLen =>
       (tλ x 
           (tStr, tNat) 
+          TT
+          None)
+    | opPlus =>
+      (tλ x 
+          (tNat, (tλ x 
+                     (tNat, tNat) 
+                     TT
+                     None))
           TT
           None)
   end.
@@ -579,603 +590,183 @@ Inductive TypeOf : prop -> exp -> type -> prop -> opt object -> Prop :=
       -> SubObj o o'
       -> TypeOf Γ e τ' ψ' o'.
 
-(** * Proof Helpers/Lemmas and Automation *)
-Lemma then_else_eq : forall (T:Type) (P1 P2:Prop) (test: sumbool P1 P2) (Q:T),
-(if test then Q else Q) = Q.
-Proof.
-  crush.
-Qed.
-Hint Rewrite then_else_eq.
 
+(** *Typechecked Examples *)
 
-Lemma if_eq_id : forall (T:Type) x (t1 t2: T),
-(if id_eqdec x x then t1 else t2) = t1.
-Proof.
-  intros T x t1 t2.
-  destruct (id_eqdec x x); auto. tryfalse.
-Qed.
-Hint Rewrite if_eq_id.
-
-Lemma if_eq_obj : forall (T:Type) x (t1 t2: T),
-(if obj_eqdec x x then t1 else t2) = t1.
-Proof.
-  intros T x t1 t2.
-  destruct (obj_eqdec x x); auto. tryfalse.
-Qed.
-Hint Rewrite if_eq_obj.
-
-Lemma neq_id_neq : forall (T:Type) x y (P Q:T),
-x <> y ->
-((if (id_eqdec x y) then P else Q) = Q).
-Proof.
-  intros.
-  destruct (id_eqdec x y); crush.
-Qed.
-
-Lemma neq_obj_neq : forall (T:Type) x y (P Q:T) pth1 pth2,
-x <> y ->
-((if (obj_eqdec (obj pth1 x) (obj pth2 y)) then P else Q) = Q).
-Proof.
-  intros.
-  destruct (obj_eqdec (obj pth1 x) (obj pth2 y)); crush.
-Qed.
-
-Lemma if_eq_type : forall (T:Type) x (t1 t2: T),
-(if τ_eqdec x x then t1 else t2) = t1.
-Proof.
-  intros T x t1 t2.
-  destruct (τ_eqdec x x); auto. tryfalse.
-Qed.
-Hint Rewrite if_eq_type.
-
-Lemma subst_Some_tNat : forall x y,
-(subst_p (var x ::= tNat) (Some (var y)) x)
- = (var y ::= tNat).
-Proof.
-  intros x y.
-  simpl. destruct (id_eqdec x x); crush.
-Qed.  
-Hint Rewrite subst_Some_tNat.
-  
-Hint Constructors TypeOf Update.
-
-Fixpoint inprop (p q:prop) : bool :=
-if prop_eqdec p q then true else
-match q with
-| And p' q' => orb (inprop p p')
-                   (inprop p q')
-| Or  p' q' => andb (inprop p p')
-                    (inprop p q')
-| _ => false
-end.
-
-Lemma inprop_proves : forall p q,
-inψ q p = true
--> Proves p q.
-Proof.
-  intros p. induction p; crush.
-  crush.
-
-
-Ltac tryT :=
-  first [(eapply T_Const) |
-        (eapply T_Num) |
-        (eapply T_True) |
-        (eapply T_False) |
-        (eapply T_Var) |
-        (eapply T_Abs) |
-        (eapply T_If) |
-        (eapply T_Cons) |
-        (eapply T_Car) |
-        (eapply T_Cdr) |
-        (eapply T_App) |
-        (eapply T_Abs) |
-        (eapply T_Let) |
-        (eapply T_If)  |
-        (eapply T_Subsume)].
-
-
-
-Ltac tryS :=
-  match goal with
-  | |- SubType ?t1 ?t1 =>
-    solve [eapply S_Refl]
-  | |- SubType ?t tTop =>
-    solve [eapply S_Top]
-  | |- Subtype
-
-
-
-  first [(eapply S_Refl) |
-        (eapply S_Top) |
-        (eapply S_UnionSub) |
-        (eapply S_Abs) |
-        (eapply S_Pair) |
-        (match goal with
-         | |- SubType ?t1 (tU ?t1 ?t2) =>
-           eapply S_UnionSuper_l
-         | |- SubType ?t2 (tU ?t1 ?t2) =>
-           eapply S_UnionSuper_r
-         | |- SubType ?t1 (tU (tU ?t1 ?t2) ?t3) =>
-           eapply S_UnionSuper_l; eapply S_UnionSuper_l
-         | |- SubType ?t2 (tU (tU ?t1 ?t2) ?t3) =>
-           eapply S_UnionSuper_l; eapply S_UnionSuper_r
-         | |- SubType ?t2 (tU ?t1 (tU ?t2 ?t3)) =>
-           eapply S_UnionSuper_r; eapply S_UnionSuper_l
-         | |- SubType ?t3 (tU ?t1 (tU ?t2 ?t3)) =>
-           eapply S_UnionSuper_r; eapply S_UnionSuper_r
-        end) |
-        (eapply S_Refl)].
-
-Ltac solveTR :=
-  match goal with
-
-
-Ltac tryP :=
-  match goal with
-  | |- Proves FF _ =>
-    solve [eapply P_False]
-  | |- Proves _ TT =>
-    solve [eapply P_True]
-  | |- Proves (?o1 ::= ?τ1) (?o1 ::~ ?τ1)  => 
-    eapply P_Update_IsNot
-  | |- Proves ?p1 ?p1 => 
-    solve [eapply P_Refl]
-  | |- Proves ?p1 (?p2 && ?p3) =>
-    solve [(eapply P_AndI; tryP)]
-  | |- Proves ?p1 (?p2 || ?p3) =>
-    solve [first [(eapply P_OrI_lhs; tryP) | (eapply P_OrI_rhs; tryP)]]
-  | |- Proves (?p1 && ?p2) ?p3 => 
-    solve [first [(eapply P_AndE_lhs; tryP) | (eapply P_AndE_rhs; tryP)]]
-  | |- Proves (?p1 || ?p2) ?p3 => 
-    solve [eapply P_Or; tryP]
-  | |- Proves (?o1 ::= ?τ1) (?o2 ::= ?τ1) =>
-    solve [eapply P_Refl]
-  | |- Proves (?o1 ::= ?τ1) (?o1 ::= ?τ2) =>
-    solve [eapply P_Sub; (tryS; crush); tryP]
-  | |- Proves (?o1 ::= (tU ?τ1 ?τ2)) (?o1 ::= ?τ2) =>
-    solve [eapply P_Sub; (tryS; crush); tryP]
-(*  | |- Proves (?o1 ::= (tU ?τ1 ?τ2) (?o1 ::~ ?τ1) =>
-    solve [eapply P_Sub; (tryS; crush); tryP] *)
-
-  end.
-(* tryP currently will just do a recursive logical fact check, it does not
-   yet reason about implication or subtyping *)
-
-Ltac trySO :=
-  match goal with
-    | |- SubObj o? o?   => eapply SO_Refl
-    | |- SubObj None ?o => eapply SO_Refl
-    | |- SubObj ?o None => eapply SO_Top
-  end.
-
-
-
-Ltac crushTR :=
-  repeat 
-    (try simpl; 
-       (repeat 
-          (((erewrite if_eq_id)
-              || (erewrite if_eq_obj)
-              || (erewrite if_eq_type)
-              || tryT
-              || tryS
-              || tryP
-              || trySO
-              || auto
-              || eauto
-              || crush)))).
-
-Lemma union_not_lhs : forall τ1 τ2 Γ o,
-Proves Γ (o ::= (tU τ1 τ2))
--> Proves Γ (o ::~ τ1)
--> Proves Γ (o ::= τ2).
-Proof with crushTR.
-  intros τ1 τ2 Γ [π x] H1 H2.
-  eapply P_Sub.
-  forwards: (@P_Update_IsNot 
-                Γ
-                (tU τ1 τ2) 
-                τ1 [] π x)...
-  eapply UP_IsNot.
-  eapply REM_Union_lhs.
-  eapply REM_Sub... 
-  eapply  S_UnionBot_lhs...
-Qed.
-
-Lemma union_not_rhs : forall τ1 τ2 Γ o,
-Proves Γ (o ::= (tU τ1 τ2))
--> Proves Γ (o ::~ τ2)
--> Proves Γ (o ::= τ1).
-Proof with crushTR.
-  intros τ1 τ2 Γ [π x]  H1 H2.
-  eapply P_Sub.
-  forwards: (@P_Update_IsNot 
-                Γ
-                (tU τ1 τ2) 
-                τ2 [] π x)...
-  eapply UP_IsNot.
-  eapply REM_Union_rhs.
-  eapply REM_Sub... 
-  eapply S_UnionBot_rhs...
-Qed.
-
-Lemma proves_top : forall x τ,
-Proves (x ::=τ) (x ::= tTop).
-Proof.
-  intros x t.
-  eapply P_Sub.
-  eapply P_Refl.
-  eapply S_Top.
-Qed.  
-Hint Resolve proves_top.
-
-Lemma remove_TT_lhs : forall P Q,
-Proves P Q ->
-Proves (TT && P) Q.
-Proof.
-  intros P Q H.
-  eapply P_AndE_rhs; eauto.
-Qed.  
-Hint Resolve remove_TT_lhs.
-
-(** * Example TypeOf Judgements *)
+(** Unhygeinic Or macro *)
+Notation tmp := (Id 1729).
+Notation OR := (fun p q => 
+                  (Let tmp p
+                       (If ($ tmp)
+                           ($ tmp)
+                           q))).
+(** And Macro *)
+Notation AND := (fun p q =>
+                (If p q #f)).
 
 Example example1:
   forall x,
     TypeOf ((var x) ::= tTop)
-           (eIf (eApp IsNum' (eVar x))
-                (eApp Add1' (eVar x))
-                (eNum 0))
+           (If (Nat? ($ x))
+               (Add1 ($ x))
+               (#0))
            tNat
-           (TT,TT)
+           TT
            None.
-Proof with crushTR.
-  intros x...
-Grab Existential Variables.
-crush. crush.
-Qed.
+Proof. Admitted.
 
-Hint Resolve P_Sub P_True.
 
-Example example2a:
+Example example2:
   forall x,
-    TypeOf
-      ((var x) ::= (tU τB tNat))
-      (eIf (eApp IsBool' (eVar x))
-           eFalse
-           (eApp IsZero' (eVar x)))
-      τB
-      (TT,TT)
-      None.
-Proof with crushTR.
-  intros x.
-  eapply T_Subsume.
-  eapply (T_If τB)...
-  eapply (union_not_lhs τB tNat)...
-  crushTR. crushTR. crushTR. crushTR.
-Grab Existential Variables.
-crush. crush. crush.
-Qed.
+    TypeOf TT
+           (λ x (tU tStr tNat)
+              (If (Nat? ($ x))
+                  (Add1 ($ x))
+                  (StrLen ($ x))))
+           (tλ x
+               ((tU tStr tNat), tNat)
+               TT
+               None)
+           TT
+           None.
+Proof. Admitted.
 
-Example example2b:
-  forall x,
-    TypeOf
-      TT
-      (eλ x (tU τB tNat)
-            (eIf (eApp IsBool' (eVar x))
-                   eFalse
-                   (eApp IsZero' (eVar x))))
-      (tλ x 
-            ((tU τB tNat), τB) 
-            (TT, TT) 
-            None)
-      (TT,TT)
-      None.
-Proof with crushTR. 
-  intros x.
-  eapply T_Subsume.
-  eapply (T_Abs (tU τB tNat) τB)...
-  eapply (union_not_lhs τB tNat)...
-  crushTR. crushTR. crushTR. crushTR.
-Grab Existential Variables.
-crush. crush. crush.
-Qed.
-  
 Example example3:
   forall x y,
     x <> y ->
     TypeOf
       ((var y) ::= tTop)
-      (eLet x (eApp IsNum' (eVar y))
-              (eIf (eVar x)
-                     (eVar y)
-                     (eNum 0)))
+      (Let x (Nat? ($ y))
+          (If ($ x)
+              ($ y)
+              (# 0)))
       tNat
-      (TT,TT)
+      TT
       None.
-Proof with crushTR. 
-  intros x y Hneq.
-  eapply T_Subsume.
-  eapply T_Let.
-  eapply T_App.
-  eapply T_Const.
-  reflexivity.
-  eapply T_Var...
-  eauto. eauto. eauto. eauto.
-  eapply T_If.
-  eapply T_Var...
-  eapply P_AndE_lhs. eapply P_AndE_lhs.
-  eapply P_AndE_rhs...
-  eapply T_Subsume...
-  eapply P_ImpE. eapply P_AndE_rhs. eapply P_Refl.
-  eapply P_AndE_lhs. eapply P_AndE_lhs.
-  eapply P_AndE_rhs... eapply P_Refl.
-  eapply SO_Top...
-  eapply T_Num...
-  eauto. eauto. eauto. eauto.
-  crushTR. crushTR. crushTR. crushTR.
-Grab Existential Variables.
-crush.
-Qed.
-
-
-Definition eAnd' (e1 e2 : exp) : exp :=
-(eIf e1 e2 eFalse).
-
-Definition eOr' (e1 e2 : exp) : exp :=
-(eIf e1 e1 e2).
-
+Proof. Admitted.
 
 Example example4:
-  forall x,
-    TypeOf (((var x) ::= tTop))
-           (eIf (eOr' (eApp IsNum' (eVar x)) 
-                      (eApp IsBool' (eVar x)))
-                (eApp 
-                   (eλ x (tU τB tNat)
-                       (eIf (eApp IsBool' (eVar x))
-                            eFalse
-                            (eApp IsZero' (eVar x))))
-                   (eVar x))
-                eFalse)
-           τB
-           (TT,TT)
+  forall x f,
+    TypeOf (((var x) ::= tTop) 
+              && ((var f) ::= (tλ x ((tU tStr tNat), tNat) TT None)))
+           (If (OR (Nat? ($ x)) (Str? ($ x)))
+               (Apply ($ f) ($ x))
+               (# 0))
+           tNat
+           TT
            None.
-Proof with crushTR.
-  intros x.
-  eapply (T_Subsume τB τB).
-  eapply (T_If τB τB).
-  eapply (T_If τB τB).
-  eapply T_App.
-  eapply T_Const...
-  eapply T_Subsume.
-  eapply T_Var...
-  crushTR. crushTR. crushTR. eapply SO_Top. crushTR.
-  crushTR. crushTR. crushTR.
-  eapply T_Subsume.
-  eapply T_App... eapply P_Refl. eapply P_Refl. 
-  crushTR. eapply SO_Top. crushTR.
-  eapply T_Subsume.
-  eapply T_App.
-  eapply (T_Abs (tU τB tNat) τB)...
-  eapply (union_not_lhs τB tNat)...
-  crushTR. 
-  eapply P_AndE_rhs. 
-  eapply P_Or.
-    eapply P_Sub. eapply P_AndE_rhs. eapply P_Refl. crushTR.
-    eapply P_Sub. eapply P_Refl. crushTR.
+Proof. Admitted.
 
-  crushTR. crushTR. crushTR. crushTR.
-  eapply P_Refl. eapply P_Refl. crushTR. eapply SO_Top.
-  crushTR. crushTR. crushTR. crushTR. crushTR.
-Grab Existential Variables.
-crush. crush. crush. crush. crush. crush. crush.
-Qed.
+Example example5:
+  forall x y,
+    TypeOf (((var x) ::= tTop) && ((var y) ::= tTop))
+           (If (AND (Nat? ($ x)) (Str? ($ y)))
+               (Plus ($ x) (StrLen ($ y)))
+               (# 0))
+           tNat
+           TT
+           None.
+Proof. Admitted.
 
+Example example7:
+  forall x y,
+    TypeOf (((var x) ::= tTop) && ((var y) ::= tTop))
+           (If (If (Nat? ($ x)) (Str? ($ y)) #f)
+               (Plus ($ x) (StrLen ($ y)))
+               (# 0))
+           tNat
+           TT
+           None.
+Proof. Admitted.
 
+Example example8:
+  forall x,
+    TypeOf TT
+           (λ x tTop
+              (OR (Str? ($ x)) (Nat? ($ x))))
+           (tλ x
+               (tTop, (tU tStr tNat))
+               ((var x) ::= (tU tStr tNat))
+               None)
+           TT
+           None.
+Proof. Admitted.
+
+Example example9:
+  forall x f,
+    TypeOf (((var x) ::= tTop)
+              && ((var f) ::= (tλ x ((tU tStr tNat), tNat) TT None)))
+           (If (Let tmp (Nat? ($ x))
+                    (If ($ tmp) ($ tmp) (Str? ($ x))))
+               (Apply ($ f) ($ x))
+               (# 0))
+           tNat
+           TT
+           None.
+Proof. Admitted.
 
 Example example10:
   forall p,
-    TypeOf (((var p) ::= (tCons tTop tTop)))
-           (eIf (eApp IsNum' (eApp Car' (eVar p)))
-                (eApp Add1' (eApp Car' (eVar p)))
-                (eNum 42))
+    TypeOf ((var p) ::= (tCons tTop tTop))
+           (If (Nat? (Car ($ p)))
+               (Add1 (Car ($ p)))
+               (# 7))
            tNat
-           (TT,TT)
+           TT
            None.
-Proof with crushTR.
-  intros p...
-  eapply P_Refl.
-  eapply P_Update_Is.
-  eapply P_AndE_lhs. eapply P_Refl.
-  eapply P_AndE_rhs. rewrite <- (app_nil_r [car]). 
-  eapply P_Refl.
-  rewrite <- (app_nil_l [car]).
-  eapply UP_Car.
-  eapply UP_Is.
-  eapply RES_Rhs...
-Grab Existential Variables.
-crush. crush. crush. crush.
-Qed.
-  
-Example example10':
-  forall p,
-    TypeOf (((var p) ::= (tCons tTop tTop)))
-           (eIf (eApp IsNum' (eApp Cdr' (eVar p)))
-                (eApp Add1' (eApp Cdr' (eVar p)))
-                (eNum 42))
+Proof. Admitted.
+
+Example example11:
+  forall p g x,
+    TypeOf ((var p) ::= (tCons tTop tTop)
+            && ((var g) ::= (tλ x ((tU tNat tNat), tNat) TT None)))
+           (If (AND (Nat? (Car ($ p))) (Nat? (Cdr ($ p))))
+               (Apply ($ g) ($ p))
+               (# 42))
            tNat
-           (TT,TT)
+           TT
            None.
-Proof with crushTR.
-  intros p...
-  eapply P_Refl.
-  eapply P_Update_Is.
-  eapply P_AndE_lhs. eapply P_Refl.
-  eapply P_AndE_rhs. rewrite <- (app_nil_r [cdr]). 
-  eapply P_Refl.
-  rewrite <- (app_nil_l [cdr]).
-  eapply UP_Cdr.
-  eapply UP_Is.
-  eapply RES_Rhs...
-Grab Existential Variables.
-crush. crush. crush. crush.
-Qed.
 
-(** * λTR Values & Big Step Semantics *)
-(** ** Values *)
-Inductive value : Type :=
-| vPrim  : op -> value
-| vTrue  : value
-| vFalse : value
-| vNum   : nat -> value
-| vλ     : (object -> opt value) -> id -> type -> exp -> value
-| vCons  : value -> value -> value.
+Example example12:
+  forall x y,
+    TypeOf TT
+           (λ x (tCons tTop tTop)
+              (Nat? (Car ($ x))))
+           (tλ y
+               ((tCons tTop tTop), (tCons tTop tTop))
+               ((var y) ::= (tCons tNat tTop))
+               None)
+           TT
+           None.
+Proof. Admitted.
 
-Inductive IsClosure : value -> Ψ :=
-| isclos : forall ρ x τ e,
-             IsClosure (vλ ρ x τ e).
+Example example13:
+  forall x y,
+    TypeOf (((var x) ::= tTop) && ((var y) ::= (tU tNat tStr)))
+           (If (AND (Nat? ($ x)) (Str? ($ y)))
+               (Plus ($ x) (StrLen ($ y)))
+               (If (Nat? ($ x))
+                   (Plus ($ x) ($ y))
+                   (# 42)))
+           tNat
+           TT
+           None.
+Proof. Admitted.
 
-Definition env := object -> opt value.
-Definition extend (ρ:env) (o: object) (v:value) :=
-fun x =>
-  if (obj_eqdec o x) 
-  then Some v
-  else (ρ x).
+Example example14:
+  forall x y,
+    TypeOf (((var x) ::= tTop) && ((var y) ::= (tCons tTop (tU tNat tStr))))
+           (If (AND (Nat? ($ x)) (Str? (Cdr ($ y))))
+               (Plus ($ x) (StrLen ($ y)))
+               (If (Nat? ($ x))
+                   (Plus ($ x) (Cdr ($ y)))
+                   (# 42)))
+           tNat
+           TT
+           None.
+Proof. Admitted.
 
-Definition δ (o:op) (v:value) : opt value :=
-  match o, v with
-    | c_op opAdd1, vNum n => Some (vNum (n + 1))
-    | c_op opAdd1, _ => None
-    | c_op opIsZero, vNum 0 => Some vTrue
-    | c_op opIsZero, vNum (S n) => Some vFalse
-    | c_op opIsZero, _ => None
-    | c_op opIsNum, vNum _ => Some vTrue
-    | c_op opIsNum, _ => Some vFalse
-    | c_op opIsBool, vTrue => Some vTrue
-    | c_op opIsBool, vFalse => Some vTrue
-    | c_op opIsBool, _ => Some vFalse
-    | c_op opIsProc, vλ _ _ _ _ => Some vTrue
-    | c_op opIsProc, _ => Some vFalse
-    | c_op opIsCons, vCons _ _ => Some vTrue
-    | c_op opIsCons, _ => Some vFalse
-    | p_op opCar, vCons v1 _ => Some v1
-    | p_op opCar, _ => None
-    | p_op opCdr, vCons _ v2 => Some v2
-    | p_op opCdr, _ => None
-  end.
-
-(** ** Big-Step Semantics *)
-Reserved Notation "ρ |- e ==>* v" (at level 50, left associativity).
-
-Inductive BStep : env -> exp -> value -> Ψ :=
-| B_Var : 
-    forall ρ x v,
-      (ρ (var x)) = Some v
-      -> ρ |- (eVar x) ==>* v
-| B_Op : 
-    forall ρ e c e' v v',
-      ρ |- e ==>* (vPrim c)
-      -> ρ |- e' ==>* v
-      -> (δ c v) = Some v'
-      -> ρ |- (eApp e e') ==>* v'
-| B_True :
-    forall ρ,
-      ρ |- eTrue ==>* vTrue
-| B_False :
-    forall ρ,
-      ρ |- eFalse ==>* vFalse
-| B_Num :
-    forall ρ n,
-      ρ |- (eNum n) ==>* (vNum n)
-| B_Let :
-    forall ρ e1 e2 v1 v2 x,
-      ρ |- e1 ==>* v1
-      -> (extend ρ (var x) v1) |- e2 ==>* v2
-      -> ρ |- (eLet x e1 e2) ==>* v2
-| B_Abs :
-    forall x τ e ρ,
-       ρ |- (eλ x τ e) ==>* (vλ ρ x τ e)
-| B_Beta :
-    forall ef ρ' x τ eb ea va ρ v,
-      ρ |- ef ==>* (vλ ρ' x τ eb)
-      -> ρ |- ea ==>* va
-      -> (extend ρ' (var x) va) |- eb ==>* v
-      -> ρ |- (eApp ef ea) ==>* v
-| B_Cons :
-    forall ρ e1 e2 v1 v2,
-      ρ |- e1 ==>* v1
-      -> ρ |- e2 ==>* v2
-      -> ρ |- (eCons e1 e2) ==>* (vCons v1 v2)
-| B_IfTrue :
-    forall ρ e1 v1 e2 v e3,
-      ρ |- e1 ==>* v1
-      -> v1 <> vFalse
-      -> ρ |- e2 ==>* v
-      -> ρ |- (eIf e1 e2 e3) ==>* v
-| B_IfFalse :
-    forall ρ e1 e2 v e3,
-      ρ |- e1 ==>* vFalse
-      -> ρ |- e3 ==>* v
-      -> ρ |- (eIf e1 e2 e3) ==>* v
-
-where "ρ |- e ==>* v" := (BStep ρ e v).
-
-
-Reserved Notation "ρ |= q " (at level 50, left associativity).
-
-(** ** Satisfaction Relation *)
-Inductive Satisfies : env -> prop -> prop :=
-| M_Or_lhs :
-    forall ρ P Q,
-      ρ |= P
-      -> ρ |= (P || Q)
-| M_Or_rhs :
-    forall ρ P Q,
-      ρ |= Q
-      -> ρ |= (P || Q)
-| M_And :
-    forall ρ P Q,
-      ρ |= P
-      -> ρ |= Q
-      -> ρ |= (P && Q)
-| M_Top :
-    forall ρ,
-      ρ |= TT
-| M_Type_Prim : 
-    forall c ρ π x y τ,
-      (ρ (obj π x)) = Some (vPrim (c_op c))
-      -> τ = (const_type c y)
-      -> ρ |= ((obj π x) ::= τ)
-| M_Type_True :
-    forall ρ π x,
-      (ρ (obj π x)) = Some vTrue
-      -> ρ |= ((obj π x) ::= tT)
-| M_Type_False :
-    forall ρ π x,
-      (ρ (obj π x)) = Some vFalse
-      -> ρ |= ((obj π x) ::= tF)
-| M_Type_Num :
-    forall ρ π x n,
-      (ρ (obj π x)) = Some (vNum n)
-      -> ρ |= ((obj π x) ::= tNat)
-| M_Type_Closure : 
-    forall ρ π x τ σ e o Γ ρ' tP fP tPf fPf of,
-      (ρ (obj π x)) = Some (vλ ρ' x σ e)
-      -> ρ' |= Γ
-      -> TypeOf Γ (eλ x σ e) (tλ x (σ, τ) (tPf, fPf) of) (tP, fP) o
-      -> ρ |= ((obj π x) ::= (tλ x (σ, τ) (tPf, fPf) of))
-| M_Type_Cons :
-    forall v1 v2 ρ π x τ1 τ2,
-      (ρ (obj π x)) = Some (vCons v1 v2)
-      -> ρ |= ((obj (π ++ [car]) x) ::= τ1)
-      -> ρ |= ((obj (π ++ [cdr]) x) ::= τ2)
-      -> ρ |= ((obj π x) ::= (tCons τ1 τ2))
-
-where "ρ |= q" := (Satisfies ρ q).
-
-
+Abort All.
 End LTR.
 
         

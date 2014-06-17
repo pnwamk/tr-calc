@@ -1,0 +1,1396 @@
+Warning: Obsolete option "-emacs-U", use -emacs instead.
+Welcome to Coq 8.4pl3 (April 2014)
+
+<prompt>Coq < 1 || 0 < </prompt>Set Undo 500 . 
+
+<prompt>Coq < 2 || 0 < </prompt>Set Printing Depth 50 . 
+
+<prompt>Coq < 3 || 0 < </prompt>Set Undo 500 . 
+
+<prompt>Coq < 4 || 0 < </prompt>Set Silent. 
+
+<prompt>Coq < 5 || 0 < </prompt>Require Import LibTactics.
+
+<prompt>Coq < 6 || 0 < </prompt>Require Import List.
+
+<prompt>Coq < 7 || 0 < </prompt>Require Import ListSet.
+
+<prompt>Coq < 8 || 0 < </prompt>Require Import Arith.
+
+<prompt>Coq < 9 || 0 < </prompt>Require Import Relations.
+
+<prompt>Coq < 10 || 0 < </prompt>Require Import Bool.
+
+<prompt>Coq < 11 || 0 < </prompt>Require Import Coq.Program.Wf.
+
+<prompt>Coq < 12 || 0 < </prompt>Require Import String.
+
+<prompt>Coq < 13 || 0 < </prompt>Import ListNotations.
+
+<prompt>Coq < 14 || 0 < </prompt>Open Scope list_scope.
+
+<prompt>Coq < 15 || 0 < </prompt>Section LTR.
+
+<prompt>Coq < 16 || 0 < </prompt>Notation opt := option.
+
+<prompt>Coq < 17 || 0 < </prompt>Definition boolean {P Q:Prop} (sb: sumbool P Q) : bool := if sb then true else false.
+
+<prompt>Coq < 18 || 0 < </prompt>Inductive id : Type :=   Id : nat -> id.
+
+<prompt>Coq < 19 || 0 < </prompt>Inductive step : Type := car | cdr.
+
+<prompt>Coq < 20 || 0 < </prompt>Hint Constructors step.
+
+<prompt>Coq < 21 || 0 < </prompt>Definition path : Type := list step.
+
+<prompt>Coq < 22 || 0 < </prompt>Inductive object : Type := | obj : path -> id -> object.
+
+<prompt>Coq < 23 || 0 < </prompt>Hint Constructors object.
+
+<prompt>Coq < 24 || 0 < </prompt>Notation var := (obj []).
+
+<prompt>Coq < 25 || 0 < </prompt>Inductive type : Type := | tTop  : type | tBot  : type | tNat  : type | tStr  : type | tT    : type | tF    : type | tU    : type -> type -> type | tCons : type -> type -> type | tλ    : id -> (type * type) -> prop -> opt object -> type  with prop : Type := | Is    : object -> type -> prop | IsNot : object -> type -> prop | And   : prop -> prop -> prop | Or    : prop -> prop -> prop | TT    : prop | FF    : prop | Unk   : prop.
+�Warning: Ignoring recursive call�
+
+<prompt>Coq < 26 || 0 < </prompt>Hint Constructors type prop.
+
+<prompt>Coq < 27 || 0 < </prompt>Fixpoint Not (p : prop) : prop :=   match p with     | Is o t => IsNot o t     | IsNot o t => Is o t     | And p q => Or (Not p) (Not q)     | Or p q => And (Not p) (Not q)     | TT => FF     | FF => TT     | Unk => Unk   end.
+
+<prompt>Coq < 28 || 0 < </prompt>Hint Resolve eq_nat_dec.
+
+<prompt>Coq < 29 || 0 < </prompt>Notation tBool := (tU tT tF).
+
+<prompt>Coq < 30 || 0 < </prompt>Infix "::=" := Is (at level 30, right associativity).
+
+<prompt>Coq < 31 || 0 < </prompt>Infix "::~" := IsNot (at level 30, right associativity).
+
+<prompt>Coq < 32 || 0 < </prompt>Notation "P '&&' Q" := (And P Q).
+
+<prompt>Coq < 33 || 0 < </prompt>Notation "P '||' Q" := (Or P Q).
+
+<prompt>Coq < 34 || 0 < </prompt>Notation "P '-->' Q" := (Or (Not P) Q) (at level 90).
+
+<prompt>Coq < 35 || 0 < </prompt>Inductive const_op :=   opAdd1 | opIsZero | opIsNum | opIsBool | opIsProc |    opIsCons | opIsStr | opStrLen | opPlus.
+
+<prompt>Coq < 36 || 0 < </prompt>Hint Constructors const_op.
+
+<prompt>Coq < 37 || 0 < </prompt>Inductive poly_op :=  opCar | opCdr.
+
+<prompt>Coq < 38 || 0 < </prompt>Hint Constructors poly_op.
+
+<prompt>Coq < 39 || 0 < </prompt>Inductive op : Type := | c_op : const_op -> op | p_op : poly_op -> op.
+
+<prompt>Coq < 40 || 0 < </prompt>Hint Constructors op.
+
+<prompt>Coq < 41 || 0 < </prompt>Inductive exp : Type := | eVar : id -> exp | eOp  : op -> exp | eTrue  : exp | eFalse : exp | eNat : nat -> exp | eStr : string -> exp | eIf  : exp -> exp -> exp -> exp | eλ : id -> type -> exp -> exp | eApp : exp -> exp -> exp | eLet : id -> exp -> exp -> exp | eCons : exp -> exp -> exp.
+
+<prompt>Coq < 42 || 0 < </prompt>Hint Constructors exp.
+
+<prompt>Coq < 43 || 0 < </prompt>Notation "$" := eVar.
+
+<prompt>Coq < 44 || 0 < </prompt>Notation "#t" := eTrue.
+
+<prompt>Coq < 45 || 0 < </prompt>Notation "#f" := eFalse.
+
+<prompt>Coq < 46 || 0 < </prompt>Notation "#" := eNat.
+
+<prompt>Coq < 47 || 0 < </prompt>Notation λ := eλ.
+
+<prompt>Coq < 48 || 0 < </prompt>Notation Str := eStr.
+
+<prompt>Coq < 49 || 0 < </prompt>Notation If := eIf.
+
+<prompt>Coq < 50 || 0 < </prompt>Notation Let := eLet.
+
+<prompt>Coq < 51 || 0 < </prompt>Notation Car  := (eApp (eOp (p_op opCar))).
+
+<prompt>Coq < 52 || 0 < </prompt>Notation Cdr := (eApp (eOp (p_op opCdr))).
+
+<prompt>Coq < 53 || 0 < </prompt>Notation Add1 := (eApp (eOp (c_op opAdd1))).
+
+<prompt>Coq < 54 || 0 < </prompt>Notation "Zero?" := (eApp (eOp (c_op opIsZero))).
+
+<prompt>Coq < 55 || 0 < </prompt>Notation "Nat?" := (eApp (eOp (c_op opIsNum))).
+
+<prompt>Coq < 56 || 0 < </prompt>Notation "Bool?" := (eApp (eOp (c_op opIsBool))).
+
+<prompt>Coq < 57 || 0 < </prompt>Notation "Proc?" := (eApp (eOp (c_op opIsProc))).
+
+<prompt>Coq < 58 || 0 < </prompt>Notation "Cons?" := (eApp (eOp (c_op opIsCons))).
+
+<prompt>Coq < 59 || 0 < </prompt>Notation Cons := eCons.
+
+<prompt>Coq < 60 || 0 < </prompt>Notation "Str?" := (eApp (eOp (c_op opIsStr))).
+
+<prompt>Coq < 61 || 0 < </prompt>Notation StrLen := (eApp (eOp (c_op opStrLen))).
+
+<prompt>Coq < 62 || 0 < </prompt>Notation Plus := (fun x y =>                     (eApp (eApp (eOp (c_op opPlus)) x) y)).
+
+<prompt>Coq < 63 || 0 < </prompt>Notation Apply := eApp.
+
+<prompt>Coq < 64 || 0 < </prompt>Definition const_type (c : const_op) (x:id) : type :=   match c with     | opIsNum =>       (tλ x            (tTop, tBool)            ((var x) ::= tNat)           (Some (var x)))     | opIsProc =>       (tλ x            (tTop, tBool)            ((var x) ::= (tλ x (tBot, tTop) TT None))            None)     | opIsBool =>       (tλ x            (tTop, tBool)            ((var x) ::= tBool)           None)     | opIsCons =>       (tλ x            (tTop, tBool)            ((var x) ::= (tCons tTop tTop))           None)     | opAdd1 =>       (tλ x            (tNat, tNat)            TT           None)     | opIsZero =>       (tλ x            (tNat, tBool)            TT           None)     | opIsStr =>       (tλ x            (tTop, tBool)            ((var x) ::= tStr)           None)     | opStrLen =>       (tλ x            (tStr, tNat)            TT           None)     | opPlus =>       (tλ x            (tNat, (tλ x                       (tNat, tNat)                       TT                      None))           TT           None)   end.
+
+<prompt>Coq < 65 || 0 < </prompt>Theorem id_eqdec :    forall (x y : id),     {x = y} + {x <> y}.
+
+<prompt>id_eqdec < 66 |id_eqdec| 1 < </prompt>Proof.
+
+<prompt>id_eqdec < 67 |id_eqdec| 1 < </prompt>decide equality.
+
+<prompt>id_eqdec < 68 |id_eqdec| 2 < </prompt>Defined.
+
+<prompt>Coq < 69 || 0 < </prompt>Hint Resolve id_eqdec.
+
+<prompt>Coq < 70 || 0 < </prompt>Theorem step_eqdec :    forall (x y: step),     {x = y} + {x <> y}.
+
+<prompt>step_eqdec < 71 |step_eqdec| 1 < </prompt>Proof.
+
+<prompt>step_eqdec < 72 |step_eqdec| 1 < </prompt>decide equality.
+
+<prompt>step_eqdec < 73 |step_eqdec| 2 < </prompt>Defined.
+
+<prompt>Coq < 74 || 0 < </prompt>Hint Resolve step_eqdec.
+
+<prompt>Coq < 75 || 0 < </prompt>Hint Resolve list_eq_dec.
+
+<prompt>Coq < 76 || 0 < </prompt>Theorem path_eqdec :    forall (x y: path),     {x = y} + {x <> y}.
+
+<prompt>path_eqdec < 77 |path_eqdec| 1 < </prompt>Proof.
+
+<prompt>path_eqdec < 78 |path_eqdec| 1 < </prompt>decide equality.
+
+<prompt>path_eqdec < 79 |path_eqdec| 2 < </prompt>Defined.
+
+<prompt>Coq < 80 || 0 < </prompt>Hint Resolve path_eqdec.
+
+<prompt>Coq < 81 || 0 < </prompt>Theorem obj_eqdec :    forall (x y: object),     {x = y} + {x <> y}.
+
+<prompt>obj_eqdec < 82 |obj_eqdec| 1 < </prompt>Proof.
+
+<prompt>obj_eqdec < 83 |obj_eqdec| 1 < </prompt>decide equality.
+
+<prompt>obj_eqdec < 84 |obj_eqdec| 2 < </prompt>Defined.
+
+<prompt>Coq < 85 || 0 < </prompt>Hint Resolve obj_eqdec.
+
+<prompt>Coq < 86 || 0 < </prompt>Fixpoint type_eqdec (x y : type) : {x=y}+{x<>y} with prop_eqdec (x y : prop) : {x=y}+{x<>y}.
+
+<prompt>type_eqdec < 87 |type_eqdec| 1 < </prompt>Proof.
+
+<prompt>type_eqdec < 88 |type_eqdec| 1 < </prompt>decide equality.
+
+<prompt>type_eqdec < 89 |type_eqdec| 2 < </prompt>decide equality.
+
+<prompt>type_eqdec < 90 |type_eqdec| 3 < </prompt>decide equality.
+
+<prompt>type_eqdec < 91 |type_eqdec| 4 < </prompt>decide equality.
+
+<prompt>type_eqdec < 92 |type_eqdec| 5 < </prompt>Defined.
+
+<prompt>Coq < 93 || 0 < </prompt>Hint Resolve type_eqdec prop_eqdec.
+
+<prompt>Coq < 94 || 0 < </prompt>Fixpoint setU {X:Type} (dec : forall x y : X, {x=y} + {x<>y})          (l:list (set X)) : set X :=   match l with     | nil => nil     | x :: xs => set_union dec x (setU dec xs)   end.
+
+<prompt>Coq < 95 || 0 < </prompt>Definition fv_set_o (opto : opt object) : set id :=   match opto with     | None => []     | Some (obj _ x) => [x]   end.
+
+<prompt>Coq < 96 || 0 < </prompt>Fixpoint fv_set_t (t : type) : set id :=   match t with     | tU lhs rhs =>       set_union id_eqdec (fv_set_t lhs) (fv_set_t rhs)     | tλ x (t1, t2) p1 o =>       setU id_eqdec            [[x];              (fv_set_t t1);              (fv_set_t t2);              (fv_set_p p1);              (fv_set_o o)]     | tCons t1 t2 =>       set_union id_eqdec                 (fv_set_t t1)                 (fv_set_t t2)     | _ => nil   end  (* free variables in propositions *) with fv_set_p (p: prop) : set id :=   match p with     | o ::= t => set_union id_eqdec (fv_set_o (Some o)) (fv_set_t t)     | o ::~ t => set_union id_eqdec (fv_set_o (Some o)) (fv_set_t t)     | p && q => set_union id_eqdec (fv_set_p p) (fv_set_p q)     | p || q => set_union id_eqdec (fv_set_p p) (fv_set_p q)     | _ => nil   end.
+
+<prompt>Coq < 97 || 0 < </prompt>Definition subst_o (o newobj: opt object) (z:id) : opt object :=   match o with     | None => None     | Some (obj pth1 x) =>       match id_eqdec x z, newobj with         | left _, None => None         | left _, Some (obj pth2 y) => Some (obj (pth1 ++ pth2) y)         | right _, _ => o       end   end.
+
+<prompt>Coq < 98 || 0 < </prompt>Fixpoint subst_p          (p:prop)          (opto:opt object)          (x:id) : prop :=   match p with     | (obj pth1 z) ::= t =>       match id_eqdec x z , set_mem id_eqdec z (fv_set_t t) with         | left _, _ =>           match opto with             | None => TT             | Some (obj pth2 y) =>               Is (obj (pth1 ++ pth2) y) (subst_t t opto x)           end         | right _, false => p         | right _, true => TT       end     | (obj pth1 z) ::~ t =>       match id_eqdec x z , set_mem id_eqdec z (fv_set_t t) with         | left _, _ =>           match opto with             | None => TT             | Some (obj pth2 y) =>               IsNot (obj (pth1 ++ pth2) y) (subst_t t opto x)           end         | right _, false => p         | right _, true => TT       end     | P || Q => (subst_p P opto x) || (subst_p Q opto x)     | P && Q => (subst_p P opto x) && (subst_p Q opto x)     | _ => p   end  with subst_t              (t:type)              (opto:opt object)              (x:id) : type :=   match t with     | tU lhs rhs => tU (subst_t lhs opto x) (subst_t rhs opto x)     | tλ y (t1, t2) p1 opto2 =>       if id_eqdec x y       then t       else tλ y                 ((subst_t t1 opto x),                  (subst_t t2 opto x))                 (subst_p p1 opto x)                 (subst_o opto2 opto x)     | tCons t1 t2 => tCons (subst_t t1 opto x)                            (subst_t t2 opto x)     | _ => t   end.
+
+<prompt>Coq < 99 || 0 < </prompt>Inductive isUnion : type -> Prop := | isU : forall t1 t2, isUnion (tU t1 t2).
+
+<prompt>Coq < 100 || 0 < </prompt>Fixpoint typestructuralsize (t:type) : nat :=   match t with     | tU t1 t2 =>       S (plus (typestructuralsize t1) (typestructuralsize t2))     | tλ x (t1, t2) _ _ => S (plus (typestructuralsize t1) (typestructuralsize t2))     | tCons t1 t2 => S (plus (typestructuralsize t1) (typestructuralsize t2))     | _ => 1   end.
+
+<prompt>Coq < 101 || 0 < </prompt>Program Fixpoint common_subtype (type1 type2:type)         {measure (plus (typestructuralsize type1) (typestructuralsize type2))} : bool :=   match type1, type2 with     | tTop , _ => true     | _, tTop => true     | tBot, _ => false     | _, tBot => false     | tU t1 t2, _ => orb (common_subtype t1 type2)                           (common_subtype t2 type2)     | _, tU t1 t2 => orb (common_subtype type1 t1)                           (common_subtype type1 t2)     | tNat, tNat => true     | tNat, _ => false     | tStr, tStr => true     | tStr, _ => false     | tT, tT => true     | tT, _ => false     | tF, tF => true     | tF, _ => false     | tλ _ _ _ _, tλ _ _ _ _ => true     | tλ _ _ _ _, _ => false     | tCons t1 t2, tCons t3 t4 => andb (common_subtype t1 t3)                                        (common_subtype t2 t4)     | tCons _ _, _ => false   end.
+
+<prompt>Coq < 102 || 0 < </prompt>Solve Obligations using crush.
+
+<prompt>Coq < 103 || 0 < </prompt>Inductive SubObj : relation (opt object) := | SO_Refl : forall x, SubObj x x | SO_Top : forall x, SubObj x None.
+
+<prompt>Coq < 104 || 0 < </prompt>Inductive Proves : relation prop := | P_Refl :     forall P,       Proves P P | P_False :     forall P,       Proves FF P | P_True :     forall P,       Proves P TT | P_Not :     forall P Q,       Proves (P && Q) FF       -> Proves P (Not Q) | P_AndI :     forall P Q R,       Proves P Q        -> Proves P R        -> Proves P (Q && R) | P_AndE_lhs :     forall P Q R,       Proves P R        -> Proves (P && Q) R | P_AndE_rhs :     forall P Q R,       Proves Q R       -> Proves (P && Q) R | P_OrI_lhs :     forall P Q R,       Proves P Q       -> Proves P (Q || R) | P_OrI_rhs :     forall P Q R,       Proves P R       -> Proves P (Q || R) | P_OrE :     forall P Q R Y,       Proves (P && Q) Y       -> Proves (P && R) Y       -> Proves (P && (Q || R)) Y | P_Or :     forall P Q R,       Proves P R       -> Proves Q R       -> Proves (P || Q) R | P_Sub :     forall τ σ ox P,       Proves P (ox ::= τ)       -> SubType τ σ       -> Proves P (ox ::= σ) | P_SubNot :     forall P τ σ ox,       Proves P (ox ::~ σ)       -> SubType τ σ       -> Proves P (ox ::~ τ) | P_RestrictBot :     forall P ox τ σ,       Proves P (ox ::= τ)       -> Proves P (ox ::= σ)       -> common_subtype τ σ = false       -> Proves P (ox ::= tBot) | P_RemoveBot :     forall P τ σ ox,       Proves P (ox ::= τ)       -> Proves P (ox ::~ σ)       -> SubType τ σ       -> Proves P (ox ::= tBot) | P_Bot :      forall P Q ox,       Proves P (ox ::= tBot)        -> Proves P Q | P_PairUpdate :     forall P π x τ σ,     Proves P ((obj (π ++ [car]) x) ::= τ)     -> Proves P ((obj (π ++ [cdr]) x) ::= σ)     -> Proves P ((obj π x) ::= (tCons τ σ)) | P_DisjSyl_lhs :     forall P o τ1 τ2,       Proves P (o ::~ τ2)       -> Proves P (o ::= (tU τ1 τ2))       -> Proves P (o ::= τ1) | P_DisjSyl_rhs :     forall P o τ1 τ2,       Proves P (o ::~ τ1)       -> Proves P (o ::= (tU τ1 τ2))       -> Proves P (o ::= τ2)  (** SubType *)  with SubType : relation type := | S_Refl :      forall τ, SubType τ τ | S_Top :      forall τ, SubType τ tTop | S_Bot :      forall τ, SubType tBot τ | S_UnionSuper_l :     forall τ σ1 σ2,       SubType τ σ1       -> SubType τ (tU σ1 σ2) | S_UnionSuper_r :     forall τ σ1 σ2,       SubType τ σ2       -> SubType τ (tU σ1 σ2) | S_UnionSub :     forall τ1 τ2 σ,       SubType τ1 σ       -> SubType τ2 σ       -> SubType (tU τ1 τ2) σ | S_Abs :     forall x y τ τ' σ σ' ψ ψ' o o',       SubType (subst_t τ (Some (var y)) x) τ'       -> SubType σ' (subst_t σ (Some (var y)) x)        -> Proves (subst_p ψ (Some (var y)) x) ψ'       -> SubObj (subst_o o (Some (var y)) x) o'       -> SubType (tλ x (σ, τ) ψ o)                  (tλ y (σ', τ') ψ' o') | S_Pair :     forall τ1 σ1 τ2 σ2,       SubType τ1 τ2       -> SubType σ1 σ2       -> SubType (tCons τ1 σ1) (tCons τ2 σ2).
+
+<prompt>Coq < 105 || 0 < </prompt>Inductive TypeOf : prop -> exp -> type -> prop -> opt object -> Prop := | T_Nat :     forall Γ n,       TypeOf Γ (#n) tNat TT None | T_Str :     forall Γ s,       TypeOf Γ (Str s) tStr TT None | T_Const :     forall τ Γ c x,       τ = (const_type c x)       -> TypeOf Γ (eOp (c_op c)) τ TT None | T_True :     forall Γ,       TypeOf Γ #t tT TT None | T_False :     forall Γ,       TypeOf Γ #f tF FF None | T_Var :     forall τ Γ x,       Proves Γ ((var x) ::= τ)       -> TypeOf Γ ($ x) τ ((var x) ::~ tF) (Some (var x)) | T_Abs :     forall σ τ o Γ x ψ e,       TypeOf (Γ && ((var x) ::= σ)) e τ ψ o       -> TypeOf Γ                  (eλ x σ e)                  (tλ x (σ, τ) ψ o)                  TT                  None | T_App :     forall τ'' σ τ o'' o o' Γ e x fψ fo ψ e' ψ' ψf'',       TypeOf Γ e (tλ x (σ, τ) fψ fo) ψ o       -> TypeOf Γ e' σ ψ' o'       -> (subst_t τ o' x) = τ''       -> (subst_p fψ o' x) = ψf''       -> (subst_o fo o' x) = o''       -> TypeOf Γ (Apply e e') τ'' ψf'' o'' | T_If :     forall τ τ' o o1 Γ e1 ψ1 e2 ψ2 e3 ψ3,       TypeOf Γ e1 τ' ψ1 o1       -> TypeOf (Γ && ψ1) e2 τ ψ2 o       -> TypeOf (Γ && (Not ψ1)) e3 τ ψ3 o       -> TypeOf Γ (If e1 e2 e3) τ (ψ2 || ψ3) o | T_Cons :     forall τ1 τ2 o1 o2 Γ e1 ψ1 e2 ψ2,       TypeOf Γ e1 τ1 ψ1 o1       -> TypeOf Γ e2 τ2 ψ2 o2       -> TypeOf Γ (Cons e1 e2) (tCons τ1 τ2) TT None | T_Car :     forall τ1 τ2 o' o Γ e ψ0 ψ x,       TypeOf Γ e (tCons τ1 τ2) ψ0 o       -> (subst_p ((obj [car] x) ::~ tF) o x) = ψ       -> (subst_o (Some (obj [car] x)) o x) = o'       -> TypeOf Γ (Car e) τ1 ψ o' | T_Cdr :     forall τ1 τ2 o' o Γ e ψ0 ψ x,       TypeOf Γ e (tCons τ1 τ2) ψ0 o       -> (subst_p ((obj [cdr] x) ::~ tF) o x) = ψ       -> (subst_o (Some (obj [cdr] x)) o x) = o'       -> TypeOf Γ (Cdr e) τ2 ψ o' | T_Let :     forall σ' τ σ o1' o0 o1 Γ e0 ψ0 e1 ψ1 x ψ1',       TypeOf Γ e0 τ ψ0 o0       -> TypeOf (Γ && ((var x) ::= τ)                    && (((var x) ::~ tF) --> ψ0)                    && (((var x) ::= tF) --> (Not ψ0)))                  e1                 σ                 ψ1                 o1       -> (subst_t σ o0 x) = σ'       -> (subst_p ψ1 o0 x) = ψ1'       -> (subst_o o1 o0 x) = o1'       -> TypeOf Γ (Let x e0 e1) σ' ψ1' o1' | T_Subsume :     forall τ' τ o' o Γ e ψ ψ',       TypeOf Γ e τ ψ o       -> Proves (Γ && ψ) ψ'       -> SubType τ τ'       -> SubObj o o'       -> TypeOf Γ e τ' ψ' o'.
+
+<prompt>Coq < 106 || 0 < </prompt>Hint Resolve P_Refl P_False P_True P_AndI P_OrE P_Or.
+
+<prompt>Coq < 107 || 0 < </prompt>Hint Resolve S_Refl S_Top S_Bot S_UnionSub S_Abs S_Pair.
+
+<prompt>Coq < 108 || 0 < </prompt>Hint Resolve T_Nat T_Str T_Const T_True T_False T_Var T_Abs T_App T_If T_Cons T_Car T_Cdr T_Let.
+
+<prompt>Coq < 109 || 0 < </prompt>Lemma USuper_l : forall t1 t2, SubType t1 (tU t1 t2).
+
+<prompt>USuper_l < 110 |USuper_l| 1 < </prompt>Proof with auto.
+
+<prompt>USuper_l < 111 |USuper_l| 1 < </prompt>intros.
+
+<prompt>USuper_l < 112 |USuper_l| 2 < </prompt>eapply S_UnionSuper_l...
+
+<prompt>USuper_l < 113 |USuper_l| 3 < </prompt>Qed.
+
+<prompt>Coq < 114 || 0 < </prompt>Hint Resolve USuper_l.
+
+<prompt>Coq < 115 || 0 < </prompt>Lemma USuper_r : forall t1 t2, SubType t2 (tU t1 t2).
+
+<prompt>USuper_r < 116 |USuper_r| 1 < </prompt>Proof with auto.
+
+<prompt>USuper_r < 117 |USuper_r| 1 < </prompt>intros.
+
+<prompt>USuper_r < 118 |USuper_r| 2 < </prompt>eapply S_UnionSuper_r...
+
+<prompt>USuper_r < 119 |USuper_r| 3 < </prompt>Qed.
+
+<prompt>Coq < 120 || 0 < </prompt>Hint Resolve USuper_r.
+
+<prompt>Coq < 121 || 0 < </prompt>Lemma USuper_ll : forall t1 t2 t3, SubType t1 (tU (tU t1 t2) t3).
+
+<prompt>USuper_ll < 122 |USuper_ll| 1 < </prompt>Proof with auto.
+
+<prompt>USuper_ll < 123 |USuper_ll| 1 < </prompt>intros.
+
+<prompt>USuper_ll < 124 |USuper_ll| 2 < </prompt>eapply S_UnionSuper_l...
+
+<prompt>USuper_ll < 125 |USuper_ll| 3 < </prompt>Qed.
+
+<prompt>Coq < 126 || 0 < </prompt>Hint Resolve USuper_ll.
+
+<prompt>Coq < 127 || 0 < </prompt>Lemma USuper_rl : forall t1 t2 t3, SubType t2 (tU (tU t1 t2) t3).
+
+<prompt>USuper_rl < 128 |USuper_rl| 1 < </prompt>Proof with auto.
+
+<prompt>USuper_rl < 129 |USuper_rl| 1 < </prompt>intros.
+
+<prompt>USuper_rl < 130 |USuper_rl| 2 < </prompt>eapply S_UnionSuper_l...
+
+<prompt>USuper_rl < 131 |USuper_rl| 3 < </prompt>Qed.
+
+<prompt>Coq < 132 || 0 < </prompt>Hint Resolve USuper_rl.
+
+<prompt>Coq < 133 || 0 < </prompt>Lemma USuper_lr : forall t1 t2 t3, SubType t2 (tU t1 (tU t2 t3)).
+
+<prompt>USuper_lr < 134 |USuper_lr| 1 < </prompt>Proof with auto.
+
+<prompt>USuper_lr < 135 |USuper_lr| 1 < </prompt>intros.
+
+<prompt>USuper_lr < 136 |USuper_lr| 2 < </prompt>eapply S_UnionSuper_r...
+
+<prompt>USuper_lr < 137 |USuper_lr| 3 < </prompt>Qed.
+
+<prompt>Coq < 138 || 0 < </prompt>Hint Resolve USuper_lr.
+
+<prompt>Coq < 139 || 0 < </prompt>Lemma USuper_rr : forall t1 t2 t3, SubType t3 (tU t1 (tU t2 t3)).
+
+<prompt>USuper_rr < 140 |USuper_rr| 1 < </prompt>Proof with auto.
+
+<prompt>USuper_rr < 141 |USuper_rr| 1 < </prompt>intros.
+
+<prompt>USuper_rr < 142 |USuper_rr| 2 < </prompt>eapply S_UnionSuper_r...
+
+<prompt>USuper_rr < 143 |USuper_rr| 3 < </prompt>Qed.
+
+<prompt>Coq < 144 || 0 < </prompt>Hint Resolve USuper_rr.
+
+<prompt>Coq < 145 || 0 < </prompt>Lemma USuper_lll : forall t1 t2 t3 t4, SubType t1 (tU (tU (tU t1 t2) t3) t4).
+
+<prompt>USuper_lll < 146 |USuper_lll| 1 < </prompt>Proof with auto.
+
+<prompt>USuper_lll < 147 |USuper_lll| 1 < </prompt>intros.
+
+<prompt>USuper_lll < 148 |USuper_lll| 2 < </prompt>eapply S_UnionSuper_l...
+
+<prompt>USuper_lll < 149 |USuper_lll| 3 < </prompt>Qed.
+
+<prompt>Coq < 150 || 0 < </prompt>Hint Resolve USuper_lll.
+
+<prompt>Coq < 151 || 0 < </prompt>Lemma USuper_rll : forall t1 t2 t3 t4, SubType t2 (tU (tU (tU t1 t2) t3) t4).
+
+<prompt>USuper_rll < 152 |USuper_rll| 1 < </prompt>Proof with auto.
+
+<prompt>USuper_rll < 153 |USuper_rll| 1 < </prompt>intros.
+
+<prompt>USuper_rll < 154 |USuper_rll| 2 < </prompt>eapply S_UnionSuper_l...
+
+<prompt>USuper_rll < 155 |USuper_rll| 3 < </prompt>Qed.
+
+<prompt>Coq < 156 || 0 < </prompt>Hint Resolve USuper_rll.
+
+<prompt>Coq < 157 || 0 < </prompt>Lemma USuper_lrl : forall t1 t2 t3 t4, SubType t2 (tU (tU t1 (tU t2 t3)) t4).
+
+<prompt>USuper_lrl < 158 |USuper_lrl| 1 < </prompt>Proof with auto.
+
+<prompt>USuper_lrl < 159 |USuper_lrl| 1 < </prompt>intros.
+
+<prompt>USuper_lrl < 160 |USuper_lrl| 2 < </prompt>eapply S_UnionSuper_l...
+
+<prompt>USuper_lrl < 161 |USuper_lrl| 3 < </prompt>Qed.
+
+<prompt>Coq < 162 || 0 < </prompt>Hint Resolve USuper_lrl.
+
+<prompt>Coq < 163 || 0 < </prompt>Lemma USuper_rrl : forall t1 t2 t3 t4,  SubType t3 (tU (tU t1 (tU t2 t3)) t4).
+
+<prompt>USuper_rrl < 164 |USuper_rrl| 1 < </prompt>Proof with auto.
+
+<prompt>USuper_rrl < 165 |USuper_rrl| 1 < </prompt>intros.
+
+<prompt>USuper_rrl < 166 |USuper_rrl| 2 < </prompt>eapply S_UnionSuper_l...
+
+<prompt>USuper_rrl < 167 |USuper_rrl| 3 < </prompt>Qed.
+
+<prompt>Coq < 168 || 0 < </prompt>Hint Resolve USuper_rrl.
+
+<prompt>Coq < 169 || 0 < </prompt>Lemma USuper_llr : forall t1 t2 t3 t4, SubType t2 (tU t1 (tU (tU t2 t3) t4)).
+
+<prompt>USuper_llr < 170 |USuper_llr| 1 < </prompt>Proof with auto.
+
+<prompt>USuper_llr < 171 |USuper_llr| 1 < </prompt>intros.
+
+<prompt>USuper_llr < 172 |USuper_llr| 2 < </prompt>eapply S_UnionSuper_r...
+
+<prompt>USuper_llr < 173 |USuper_llr| 3 < </prompt>Qed.
+
+<prompt>Coq < 174 || 0 < </prompt>Hint Resolve USuper_llr.
+
+<prompt>Coq < 175 || 0 < </prompt>Lemma USuper_rlr : forall t1 t2 t3 t4, SubType t3 (tU t1 (tU (tU t2 t3) t4)).
+
+<prompt>USuper_rlr < 176 |USuper_rlr| 1 < </prompt>Proof with auto.
+
+<prompt>USuper_rlr < 177 |USuper_rlr| 1 < </prompt>intros.
+
+<prompt>USuper_rlr < 178 |USuper_rlr| 2 < </prompt>eapply S_UnionSuper_r...
+
+<prompt>USuper_rlr < 179 |USuper_rlr| 3 < </prompt>Qed.
+
+<prompt>Coq < 180 || 0 < </prompt>Hint Resolve USuper_rlr.
+
+<prompt>Coq < 181 || 0 < </prompt>Lemma USuper_lrr : forall t1 t2 t3 t4, SubType t3 (tU t1 (tU t2 (tU t3 t4))).
+
+<prompt>USuper_lrr < 182 |USuper_lrr| 1 < </prompt>Proof with auto.
+
+<prompt>USuper_lrr < 183 |USuper_lrr| 1 < </prompt>intros.
+
+<prompt>USuper_lrr < 184 |USuper_lrr| 2 < </prompt>eapply S_UnionSuper_r...
+
+<prompt>USuper_lrr < 185 |USuper_lrr| 3 < </prompt>Qed.
+
+<prompt>Coq < 186 || 0 < </prompt>Hint Resolve USuper_lrr.
+
+<prompt>Coq < 187 || 0 < </prompt>Lemma USuper_rrr : forall t1 t2 t3 t4,  SubType t4 (tU t1 (tU t2 (tU t3 t4))).
+
+<prompt>USuper_rrr < 188 |USuper_rrr| 1 < </prompt>Proof with auto.
+
+<prompt>USuper_rrr < 189 |USuper_rrr| 1 < </prompt>intros.
+
+<prompt>USuper_rrr < 190 |USuper_rrr| 2 < </prompt>eapply S_UnionSuper_r...
+
+<prompt>USuper_rrr < 191 |USuper_rrr| 3 < </prompt>Qed.
+
+<prompt>Coq < 192 || 0 < </prompt>Hint Resolve USuper_rrr.
+
+<prompt>Coq < 193 || 0 < </prompt>Lemma then_else_eq : forall (T:Type) (P1 P2:Prop) (test: sumbool P1 P2) (Q:T), (if test then Q else Q) = Q.
+
+<prompt>then_else_eq < 194 |then_else_eq| 1 < </prompt>Proof.
+
+<prompt>then_else_eq < 195 |then_else_eq| 1 < </prompt>crush.
+
+<prompt>then_else_eq < 196 |then_else_eq| 2 < </prompt>Qed.
+
+<prompt>Coq < 197 || 0 < </prompt>Hint Rewrite then_else_eq.
+
+<prompt>Coq < 198 || 0 < </prompt>Lemma if_eq_id : forall (T:Type) x (t1 t2: T), (if id_eqdec x x then t1 else t2) = t1.
+
+<prompt>if_eq_id < 199 |if_eq_id| 1 < </prompt>Proof.
+
+<prompt>if_eq_id < 200 |if_eq_id| 1 < </prompt>intros T x t1 t2.
+
+<prompt>if_eq_id < 201 |if_eq_id| 2 < </prompt>destruct (id_eqdec x x); auto.
+
+<prompt>if_eq_id < 202 |if_eq_id| 3 < </prompt>tryfalse.
+
+<prompt>if_eq_id < 203 |if_eq_id| 4 < </prompt>Qed.
+
+<prompt>Coq < 204 || 0 < </prompt>Hint Rewrite if_eq_id.
+
+<prompt>Coq < 205 || 0 < </prompt>Lemma if_eq_obj : forall (T:Type) x (t1 t2: T), (if obj_eqdec x x then t1 else t2) = t1.
+
+<prompt>if_eq_obj < 206 |if_eq_obj| 1 < </prompt>Proof.
+
+<prompt>if_eq_obj < 207 |if_eq_obj| 1 < </prompt>intros T x t1 t2.
+
+<prompt>if_eq_obj < 208 |if_eq_obj| 2 < </prompt>destruct (obj_eqdec x x); auto.
+
+<prompt>if_eq_obj < 209 |if_eq_obj| 3 < </prompt>tryfalse.
+
+<prompt>if_eq_obj < 210 |if_eq_obj| 4 < </prompt>Qed.
+
+<prompt>Coq < 211 || 0 < </prompt>Hint Rewrite if_eq_obj.
+
+<prompt>Coq < 212 || 0 < </prompt>Lemma neq_id_neq : forall (T:Type) x y (P Q:T), x <> y -> ((if (id_eqdec x y) then P else Q) = Q).
+
+<prompt>neq_id_neq < 213 |neq_id_neq| 1 < </prompt>Proof.
+
+<prompt>neq_id_neq < 214 |neq_id_neq| 1 < </prompt>intros.
+
+<prompt>neq_id_neq < 215 |neq_id_neq| 2 < </prompt>destruct (id_eqdec x y); crush.
+
+<prompt>neq_id_neq < 216 |neq_id_neq| 3 < </prompt>Qed.
+
+<prompt>Coq < 217 || 0 < </prompt>Lemma neq_obj_neq : forall (T:Type) x y (P Q:T) pth1 pth2, x <> y -> ((if (obj_eqdec (obj pth1 x) (obj pth2 y)) then P else Q) = Q).
+
+<prompt>neq_obj_neq < 218 |neq_obj_neq| 1 < </prompt>Proof.
+
+<prompt>neq_obj_neq < 219 |neq_obj_neq| 1 < </prompt>intros.
+
+<prompt>neq_obj_neq < 220 |neq_obj_neq| 2 < </prompt>destruct (obj_eqdec (obj pth1 x) (obj pth2 y)); crush.
+
+<prompt>neq_obj_neq < 221 |neq_obj_neq| 3 < </prompt>Qed.
+
+<prompt>Coq < 222 || 0 < </prompt>Lemma if_eq_type : forall (T:Type) x (t1 t2: T), (if type_eqdec x x then t1 else t2) = t1.
+
+<prompt>if_eq_type < 223 |if_eq_type| 1 < </prompt>Proof.
+
+<prompt>if_eq_type < 224 |if_eq_type| 1 < </prompt>intros T x t1 t2.
+
+<prompt>if_eq_type < 225 |if_eq_type| 2 < </prompt>destruct (type_eqdec x x); auto.
+
+<prompt>if_eq_type < 226 |if_eq_type| 3 < </prompt>tryfalse.
+
+<prompt>if_eq_type < 227 |if_eq_type| 4 < </prompt>Qed.
+
+<prompt>Coq < 228 || 0 < </prompt>Hint Rewrite if_eq_type.
+
+<prompt>Coq < 229 || 0 < </prompt>Lemma if_eq_prop : forall (T:Type) x (t1 t2: T), (if prop_eqdec x x then t1 else t2) = t1.
+
+<prompt>if_eq_prop < 230 |if_eq_prop| 1 < </prompt>Proof.
+
+<prompt>if_eq_prop < 231 |if_eq_prop| 1 < </prompt>intros T x t1 t2.
+
+<prompt>if_eq_prop < 232 |if_eq_prop| 2 < </prompt>destruct (prop_eqdec x x); auto.
+
+<prompt>if_eq_prop < 233 |if_eq_prop| 3 < </prompt>tryfalse.
+
+<prompt>if_eq_prop < 234 |if_eq_prop| 4 < </prompt>Qed.
+
+<prompt>Coq < 235 || 0 < </prompt>Hint Rewrite if_eq_prop.
+
+<prompt>Coq < 236 || 0 < </prompt>Lemma subst_Some_tNat : forall x y, (subst_p (var x ::= tNat) (Some (var y)) x)  = (var y ::= tNat).
+
+<prompt>subst_Some_tNat < 237 |subst_Some_tNat| 1 < </prompt>Proof.
+
+<prompt>subst_Some_tNat < 238 |subst_Some_tNat| 1 < </prompt>intros x y.
+
+<prompt>subst_Some_tNat < 239 |subst_Some_tNat| 2 < </prompt>simpl.
+
+<prompt>subst_Some_tNat < 240 |subst_Some_tNat| 3 < </prompt>destruct (id_eqdec x x); crush.
+
+<prompt>subst_Some_tNat < 241 |subst_Some_tNat| 4 < </prompt>Qed.
+
+<prompt>Coq < 242 || 0 < </prompt>Hint Rewrite subst_Some_tNat.
+
+<prompt>Coq < 243 || 0 < </prompt>Fixpoint in_prop (q p : prop) : bool :=   if prop_eqdec q p then true else     match p with       | And p1 p2 => orb (in_prop q p1) (in_prop q p2)       | Or  p1 p2 => andb (in_prop q p1) (in_prop q p2)       | _ => false     end.
+
+<prompt>Coq < 244 || 0 < </prompt>Lemma in_prop_Proves : forall p q, in_prop q p = true -> Proves p q.
+
+<prompt>in_prop_Proves < 245 |in_prop_Proves| 1 < </prompt>Proof with crush.
+
+<prompt>in_prop_Proves < 246 |in_prop_Proves| 1 < </prompt>Hint Rewrite orb_true_iff.
+
+<prompt>in_prop_Proves < 247 |in_prop_Proves| 1 < </prompt>Hint Rewrite andb_true_iff.
+
+<prompt>in_prop_Proves < 248 |in_prop_Proves| 1 < </prompt>intros p; induction p...
+
+<prompt>in_prop_Proves < 249 |in_prop_Proves| 2 < </prompt>destruct (prop_eqdec q (o ::= t))...
+
+<prompt>in_prop_Proves < 250 |in_prop_Proves| 3 < </prompt>destruct (prop_eqdec q (o ::~ t))...
+
+<prompt>in_prop_Proves < 251 |in_prop_Proves| 4 < </prompt>destruct (prop_eqdec q (p1 && p2))...
+
+<prompt>in_prop_Proves < 252 |in_prop_Proves| 5 < </prompt>specialize (IHp1 q)...
+
+<prompt>in_prop_Proves < 253 |in_prop_Proves| 6 < </prompt>apply P_AndE_lhs...
+
+<prompt>in_prop_Proves < 254 |in_prop_Proves| 7 < </prompt>specialize (IHp2 q)...
+
+<prompt>in_prop_Proves < 255 |in_prop_Proves| 8 < </prompt>apply P_AndE_rhs...
+
+<prompt>in_prop_Proves < 256 |in_prop_Proves| 9 < </prompt>destruct (prop_eqdec q (p1 || p2))...
+
+<prompt>in_prop_Proves < 257 |in_prop_Proves| 10 < </prompt>destruct (prop_eqdec q TT)...
+
+<prompt>in_prop_Proves < 258 |in_prop_Proves| 11 < </prompt>destruct (prop_eqdec q Unk)...
+
+<prompt>in_prop_Proves < 259 |in_prop_Proves| 12 < </prompt>Qed.
+
+<prompt>Coq < 260 || 0 < </prompt>Fixpoint bound_in (o:object) (p:prop) : bool :=   match p with     | Is o' t =>       if obj_eqdec o o' then true else false     | IsNot _ _ => false     | And lhs rhs => orb (bound_in o lhs) (bound_in o rhs)     | Or lhs rhs => andb (bound_in o lhs) (bound_in o rhs)     | FF => true     | _ => false   end.
+
+<prompt>Coq < 261 || 0 < </prompt>Lemma bound_in_Proves_Top : forall P o', bound_in o' P = true -> Proves P (o' ::= tTop).
+
+<prompt>bound_in_Proves_Top < 262 |bound_in_Proves_Top| 1 < </prompt>Proof with crush.
+
+<prompt>bound_in_Proves_Top < 263 |bound_in_Proves_Top| 1 < </prompt>intros p; induction p...
+
+<prompt>bound_in_Proves_Top < 264 |bound_in_Proves_Top| 2 < </prompt>destruct (obj_eqdec o' o).
+
+<prompt>bound_in_Proves_Top < 265 |bound_in_Proves_Top| 3 < </prompt>eapply P_Sub...
+
+<prompt>bound_in_Proves_Top < 266 |bound_in_Proves_Top| 4 < </prompt>crush.
+
+<prompt>bound_in_Proves_Top < 267 |bound_in_Proves_Top| 5 < </prompt>eapply P_AndE_lhs.
+
+<prompt>bound_in_Proves_Top < 268 |bound_in_Proves_Top| 6 < </prompt>crush.
+
+<prompt>bound_in_Proves_Top < 269 |bound_in_Proves_Top| 7 < </prompt>eapply P_AndE_rhs.
+
+<prompt>bound_in_Proves_Top < 270 |bound_in_Proves_Top| 8 < </prompt>crush.
+
+<prompt>bound_in_Proves_Top < 271 |bound_in_Proves_Top| 9 < </prompt>Qed.
+
+<prompt>Coq < 272 || 0 < </prompt>Lemma true_tBool :  SubType tT tBool.
+
+<prompt>true_tBool < 273 |true_tBool| 1 < </prompt>Proof.
+
+<prompt>true_tBool < 274 |true_tBool| 1 < </prompt>crush.
+
+<prompt>true_tBool < 275 |true_tBool| 2 < </prompt>Qed.
+
+<prompt>Coq < 276 || 0 < </prompt>Lemma false_tBool :  SubType tF tBool.
+
+<prompt>false_tBool < 277 |false_tBool| 1 < </prompt>Proof.
+
+<prompt>false_tBool < 278 |false_tBool| 1 < </prompt>crush.
+
+<prompt>false_tBool < 279 |false_tBool| 2 < </prompt>Qed.
+
+<prompt>Coq < 280 || 0 < </prompt>Hint Resolve true_tBool false_tBool.
+
+<prompt>Coq < 281 || 0 < </prompt>Hint Resolve in_prop_Proves.
+
+<prompt>Coq < 282 || 0 < </prompt>Lemma in_prop_disjsyl : forall o t t' P, in_prop (o ::~ t') P = true -> (in_prop (o ::= (tU t t')) P = true \/ in_prop (o ::= (tU t' t)) P = true) -> Proves P (o ::= t).
+
+<prompt>in_prop_disjsyl < 283 |in_prop_disjsyl| 1 < </prompt>Proof.
+
+<prompt>in_prop_disjsyl < 284 |in_prop_disjsyl| 1 < </prompt>intros o t t' P H1 H2.
+
+<prompt>in_prop_disjsyl < 285 |in_prop_disjsyl| 2 < </prompt>destruct H2.
+
+<prompt>in_prop_disjsyl < 286 |in_prop_disjsyl| 3 < </prompt>eapply (P_DisjSyl_lhs P o t t'); crush; crush.
+
+<prompt>in_prop_disjsyl < 287 |in_prop_disjsyl| 4 < </prompt>eapply (P_DisjSyl_rhs P o t' t); crush.
+
+<prompt>in_prop_disjsyl < 288 |in_prop_disjsyl| 5 < </prompt>Qed.
+
+<prompt>Coq < 289 || 0 < </prompt>Ltac find_type P o :=    match constr:(o, P) with       | (?o, (?o ::= ?t)) => constr:(Some t)       | (?o, (?P1 && ?P2)) =>          let n := find_type P1 o in         match n with           | Some ?t => constr:(Some t)           | None => let nn := (find_type P2 o) in                     constr:nn         end       | _ => constr:(@ None type)   end.
+
+<prompt>Coq < 290 || 0 < </prompt>Fixpoint find_type2 P o :=    match P with     | (o' ::= t) => if obj_eqdec o o' then Some t else None     | (P1 && P2) =>           match find_type2 P1 o with           | Some t => (Some t)           | None => find_type2 P2 o         end       | _ => None   end.
+
+<prompt>Coq < 291 || 0 < </prompt>Unset Silent. 
+
+<prompt>Coq < 292 || 0 < </prompt>Example ft2_ex1 : find_type ((var (Id 14)) ::= tStr) (var (Id 14)) = tStr.
+Toplevel input, characters 33-42:
+> Example ft2_ex1 : find_type ((var (Id 14)) ::= tStr) (var (Id 14)) = tStr.
+>                   ^^^^^^^^^
+Error: The reference find_type was not found in the current environment.
+
+<prompt>Coq < 292 || 0 < </prompt>Example ft2_ex1 : find_type ((var (Id 14)) ::= tStr) (var (Id 14)) = tStr.
+Toplevel input, characters 18-27:
+> Example ft2_ex1 : find_type ((var (Id 14)) ::= tStr) (var (Id 14)) = tStr.
+>                   ^^^^^^^^^
+Error: The reference find_type was not found in the current environment.
+
+<prompt>Coq < 292 || 0 < </prompt>Example ft2_ex1 : find_type2 ((var (Id 14)) ::= tStr) (var (Id 14)) = tStr.
+Toplevel input, characters 70-74:
+> Example ft2_ex1 : find_type2 ((var (Id 14)) ::= tStr) (var (Id 14)) = tStr.
+>                                                                       ^^^^
+Error: The term "tStr" has type "type" while it is expected to have type
+ "opt type".
+
+<prompt>Coq < 292 || 0 < </prompt>Example ft2_ex1 : find_type2 ((var (Id 14)) ::= tStr) (var (Id 14)) = Some tStr.
+1 subgoals, subgoal 1 (ID 96552)
+  
+  ============================
+   find_type2 (var (Id 14) ::= tStr) (var (Id 14)) = Some tStr
+
+
+(dependent evars:)
+
+<prompt>ft2_ex1 < 293 |ft2_ex1| 1 < </prompt>Proof.
+1 subgoals, subgoal 1 (ID 96552)
+  
+  ============================
+   find_type2 (var (Id 14) ::= tStr) (var (Id 14)) = Some tStr
+
+
+(dependent evars:)
+
+<prompt>ft2_ex1 < 294 |ft2_ex1| 1 < </prompt>reflexivity.
+No more subgoals.
+
+(dependent evars:)
+
+<prompt>ft2_ex1 < 295 |ft2_ex1| 2 < </prompt>Qed.
+ft2_ex1 is defined
+
+<prompt>Coq < 296 || 0 < </prompt>Example ft2_ex1 : find_type2 (TT && (var (Id 14)) ::= tStr) (var (Id 14)) = Some tStr.
+Toplevel input, characters 8-15:
+> Example ft2_ex1 : find_type2 (TT && (var (Id 14)) ::= tStr) (var (Id 14)) = Some tStr.
+>         ^^^^^^^
+Error: ft2_ex1 already exists.
+
+<prompt>Coq < 296 || 0 < </prompt>Example ft2_ex2 : find_type2 (TT && (var (Id 14)) ::= tStr) (var (Id 14)) = Some tStr.
+1 subgoals, subgoal 1 (ID 96559)
+  
+  ============================
+   find_type2 (TT && var (Id 14) ::= tStr) (var (Id 14)) = Some tStr
+
+
+(dependent evars:)
+
+<prompt>ft2_ex2 < 297 |ft2_ex2| 1 < </prompt>Proof.
+1 subgoals, subgoal 1 (ID 96559)
+  
+  ============================
+   find_type2 (TT && var (Id 14) ::= tStr) (var (Id 14)) = Some tStr
+
+
+(dependent evars:)
+
+<prompt>ft2_ex2 < 298 |ft2_ex2| 1 < </prompt>reflexivity.
+No more subgoals.
+
+(dependent evars:)
+
+<prompt>ft2_ex2 < 299 |ft2_ex2| 2 < </prompt>Qed.
+ft2_ex2 is defined
+
+<prompt>Coq < 300 || 0 < </prompt>Goal False.
+1 subgoals, subgoal 1 (ID 96562)
+  
+  ============================
+   False
+
+
+(dependent evars:)
+
+<prompt>Unnamed_thm < 301 |Unnamed_thm| 1 < </prompt>let n := find_type ((var (Id 14)) ::= tStr) (var (Id 14)) in     pose n.
+1 subgoals, subgoal 1 (ID 96569)
+  
+  o := Some tStr : opt type
+  ============================
+   False
+
+
+(dependent evars:)
+
+<prompt>Unnamed_thm < 302 |Unnamed_thm| 2 < </prompt>Abort.
+Current goal aborted
+
+<prompt>Coq < 303 || 0 < </prompt>Goal False.
+1 subgoals, subgoal 1 (ID 96570)
+  
+  ============================
+   False
+
+
+(dependent evars:)
+
+<prompt>Unnamed_thm < 304 |Unnamed_thm| 1 < </prompt>let n := find_type (TT && ((var (Id 14)) ::= tStr)) (var (Id 14)) in     pose n.
+1 subgoals, subgoal 1 (ID 96581)
+  
+  o := Some tStr : opt type
+  ============================
+   False
+
+
+(dependent evars:)
+
+<prompt>Unnamed_thm < 305 |Unnamed_thm| 2 < </prompt>Abort.
+Current goal aborted
+
+<prompt>Coq < 306 || 0 < </prompt>Ltac bamcis :=   progress repeat(       first[           (match goal with              | |- ?lhs = ?rhs =>                 (eauto; solve [first [crush | reflexivity]])              | [H : Proves ?P ?Q |- Proves (?Γ && ?P) ?Q] =>                (eapply P_AndE_rhs; exact H)              | [H : Proves ?P ?Q |- Proves (?P && ?Γ) ?Q] =>                (eapply P_AndE_lhs; exact H)              | [H : Proves ?P ?Q |- Proves ?P (?Q || ?R)] =>                (eapply P_OrI_lhs; exact H)              | [H : Proves ?P ?R |- Proves ?P (?Q || ?R)] =>                (eapply P_OrI_rhs; exact H)              | |- SubObj ?o ?o => eapply SO_Refl              | |- SubObj None ?o => eapply SO_Refl              | |- SubObj ?o None => eapply SO_Top              | |- Proves ?P ?P => eapply P_Refl              | |- Proves (TT && _) _ =>                eapply P_AndE_rhs              | |- Proves (_ && TT) _ =>                eapply P_AndE_rhs              | [ |- Proves _ _] =>                 (solve [(eapply in_prop_Proves; crush)])              | [ |- Proves _ (?o ::= tTop)] =>                 (solve [(eapply bound_in_Proves_Top; crush)])              | [ |- Proves ?P (?o ::= ?t)] =>              (* why doesn't this work? we don't know *)              match constr:(find_type2 P o) with                | Some (tU ?t1 ?t2) =>                       (solve [first [(eapply (in_prop_disjsyl o t t1));                                       crush; right ; crush |                                      (eapply (in_prop_disjsyl o t t2));                                        crush; left ; crush]])                | _ => fail              end                (* match find_type P o with *)                (*   | Some (tU ?t1 ?t2) => *)                (*     (solve [first [(eapply (in_prop_disjsyl o t t1)); *)                (*                     crush; right ; crush | *)                (*                    (eapply (in_prop_disjsyl o t t2)); *)                (*                      crush; left ; crush]]) *)                (*   | _ => fail *)                (* end *)              (* (solve [first [(eapply disjsyl_2land_l; crush) |  *)                (*                (eapply disjsyl_2land_r; crush) | *)                (*                (eapply disjsyl_2rand_l; crush) | *)                (*                (eapply disjsyl_2rand_r; crush) | *)                (*                (eapply disjsyl_3land_l; crush) | *)                (*                (eapply disjsyl_3land_r; crush) | *)                (*                (eapply disjsyl_3mand_l; crush) | *)                (*                (eapply disjsyl_3mand_r; crush) | *)                (*                (eapply disjsyl_3rand_l; crush) | *)                (*                (eapply disjsyl_3rand_r; crush)]]) *)              | |- SubType ?P tTop => eapply S_Top              | |- SubType ?P ?P => eapply S_Refl              | |- TypeOf _ (# _) _ _ _ =>                 eapply T_Nat              | |- TypeOf _ (eOp _) _ _ _ =>                 eapply T_Const              | |- TypeOf _ #t _ _ _ =>                eapply T_True              | |- TypeOf _ #f _ _ _ =>                eapply T_False              | |- TypeOf _ ($ _) _ _ _ =>                eapply T_Var              | |- TypeOf _ (λ _ _ _) _ _ _ =>                eapply T_Abs              | |- TypeOf _ (Apply _ _) _ _ _ =>                eapply T_App              | |- TypeOf _ (If _ _ _) _ _ _ =>                eapply T_If              | |- TypeOf _ _ _ _ _ =>                progress (eapply T_Subsume)             (* progress ensures subsumption actually modifies the goal *)            end)          | crush]).
+bamcis is defined
+
+<prompt>Coq < 307 || 0 < </prompt>Notation tmp := (Id 1729).
+
+<prompt>Coq < 308 || 0 < </prompt>Notation OR := (fun p q =>                    (Let tmp p                        (If ($ tmp)                            ($ tmp)                            q))).
+
+<prompt>Coq < 309 || 0 < </prompt>Notation AND := (fun p q =>                 (If p q #f)).
+
+<prompt>Coq < 310 || 0 < </prompt>Example example1:   forall x,     TypeOf ((var x) ::= tTop)            (If (Nat? ($ x))                (Add1 ($ x))                (#0))            tNat            TT            None.
+1 subgoals, subgoal 1 (ID 96585)
+  
+  ============================
+   forall x : id,
+   TypeOf (var x ::= tTop)
+     (If (Apply (eOp (c_op opIsNum)) ($ x)) (Apply (eOp (c_op opAdd1)) ($ x))
+        (# 0)) tNat TT None
+
+
+(dependent evars:)
+
+<prompt>example1 < 311 |example1| 1 < </prompt>Proof with bamcis.
+1 subgoals, subgoal 1 (ID 96585)
+  
+  ============================
+   forall x : id,
+   TypeOf (var x ::= tTop)
+     (If (Apply (eOp (c_op opIsNum)) ($ x)) (Apply (eOp (c_op opAdd1)) ($ x))
+        (# 0)) tNat TT None
+
+
+(dependent evars:)
+
+<prompt>example1 < 312 |example1| 1 < </prompt>intros x...
+No more subgoals but non-instantiated existential variables:
+Existential 1 = ?96649 : [x : id |- id] 
+Existential 2 = ?96616 : [x : id |- id] 
+
+(dependent evars: ?96587 using ?96649 , ?96588 using ?96649 , ?96589 using ?96595 ?96594 , ?96594 using ?96649 , ?96595 using , ?96596 using ?96616 , ?96597 using ?96616 , ?96598 using ?96616 , ?96602 using , ?96603 using , ?96604 using , ?96605 using , ?96606 using ?96616 , ?96607 using ?96616 , ?96608 using ?96616 , ?96609 using , ?96610 using , ?96616 open, ?96635 using , ?96636 using , ?96637 using , ?96638 using , ?96639 using ?96649 , ?96640 using , ?96641 using , ?96642 using , ?96643 using , ?96649 open,)
+
+You can use Grab Existential Variables.
+<prompt>example1 < 313 |example1| 2 < </prompt>Grab Existential Variables.
+2 subgoals, subgoal 1 (ID 96649)
+  
+  x : id
+  ============================
+   id
+
+subgoal 2 (ID 96616) is:
+ id
+
+(dependent evars: ?96587 using ?96649 , ?96588 using ?96649 , ?96589 using ?96595 ?96594 , ?96594 using ?96649 , ?96595 using , ?96596 using ?96616 , ?96597 using ?96616 , ?96598 using ?96616 , ?96602 using , ?96603 using , ?96604 using , ?96605 using , ?96606 using ?96616 , ?96607 using ?96616 , ?96608 using ?96616 , ?96609 using , ?96610 using , ?96616 open, ?96635 using , ?96636 using , ?96637 using , ?96638 using , ?96639 using ?96649 , ?96640 using , ?96641 using , ?96642 using , ?96643 using , ?96649 open,)
+
+<prompt>example1 < 314 |example1| 3 < </prompt>crush.
+1 subgoals, subgoal 1 (ID 96616)
+  
+  x : id
+  ============================
+   id
+
+
+(dependent evars: ?96587 using ?96649 , ?96588 using ?96649 , ?96589 using ?96595 ?96594 , ?96594 using ?96649 , ?96595 using , ?96596 using ?96616 , ?96597 using ?96616 , ?96598 using ?96616 , ?96602 using , ?96603 using , ?96604 using , ?96605 using , ?96606 using ?96616 , ?96607 using ?96616 , ?96608 using ?96616 , ?96609 using , ?96610 using , ?96616 open, ?96635 using , ?96636 using , ?96637 using , ?96638 using , ?96639 using ?96649 , ?96640 using , ?96641 using , ?96642 using , ?96643 using , ?96649 using ?97357 , ?97357 using ?97358 , ?97358 using ,)
+
+<prompt>example1 < 315 |example1| 4 < </prompt>crush.
+No more subgoals.
+
+(dependent evars: ?96587 using ?96649 , ?96588 using ?96649 , ?96589 using ?96595 ?96594 , ?96594 using ?96649 , ?96595 using , ?96596 using ?96616 , ?96597 using ?96616 , ?96598 using ?96616 , ?96602 using , ?96603 using , ?96604 using , ?96605 using , ?96606 using ?96616 , ?96607 using ?96616 , ?96608 using ?96616 , ?96609 using , ?96610 using , ?96616 using ?97359 , ?96635 using , ?96636 using , ?96637 using , ?96638 using , ?96639 using ?96649 , ?96640 using , ?96641 using , ?96642 using , ?96643 using , ?96649 using ?97357 , ?97357 using ?97358 , ?97358 using , ?97359 using ?97360 , ?97360 using ,)
+
+<prompt>example1 < 316 |example1| 5 < </prompt>Qed.
+example1 is defined
+
+<prompt>Coq < 317 || 0 < </prompt>Goal False.
+1 subgoals, subgoal 1 (ID 97363)
+  
+  ============================
+   False
+
+
+(dependent evars:)
+
+<prompt>Unnamed_thm < 318 |Unnamed_thm| 1 < </prompt>let n := find_type ((var tmp) ::= tStr) (var tmp) in     pose n.
+1 subgoals, subgoal 1 (ID 97370)
+  
+  o := Some tStr : opt type
+  ============================
+   False
+
+
+(dependent evars:)
+
+<prompt>Unnamed_thm < 319 |Unnamed_thm| 2 < </prompt>Example example2:   forall x,     TypeOf TT            (λ x (tU tStr tNat)               (If (Nat? ($ x))                   (Add1 ($ x))                   (StrLen ($ x))))            (tλ x                ((tU tStr tNat), tNat)                TT                None)            TT            None.
+1 subgoals, subgoal 1 (ID 97376)
+  
+  ============================
+   forall x : id,
+   TypeOf TT
+     (λ x (tU tStr tNat)
+        (If (Apply (eOp (c_op opIsNum)) ($ x))
+           (Apply (eOp (c_op opAdd1)) ($ x))
+           (Apply (eOp (c_op opStrLen)) ($ x))))
+     (tλ x (tU tStr tNat, tNat) TT None) TT None
+
+
+(dependent evars:)
+
+<prompt>example2 < 320 |example2|Unnamed_thm| 1 < </prompt>Proof with bamcis.
+1 subgoals, subgoal 1 (ID 97376)
+  
+  ============================
+   forall x : id,
+   TypeOf TT
+     (λ x (tU tStr tNat)
+        (If (Apply (eOp (c_op opIsNum)) ($ x))
+           (Apply (eOp (c_op opAdd1)) ($ x))
+           (Apply (eOp (c_op opStrLen)) ($ x))))
+     (tλ x (tU tStr tNat, tNat) TT None) TT None
+
+
+(dependent evars:)
+
+<prompt>example2 < 321 |example2|Unnamed_thm| 1 < </prompt>intros x...
+1 subgoals, subgoal 1 (ID 100299)
+  
+  x : id
+  ============================
+   Proves (TT && var x ::= tU tStr tNat && var x ::~ tNat) (var x ::= tStr)
+
+
+(dependent evars: ?97379 using ?97968 , ?97380 using ?97968 , ?97381 using ?97387 ?97386 , ?97386 using ?97968 , ?97387 using ?97968 , ?97388 using ?97408 , ?97389 using ?97408 , ?97390 using ?97408 , ?97394 using , ?97395 using , ?97396 using , ?97397 using , ?97398 using ?97408 , ?97399 using ?97408 , ?97400 using ?97408 , ?97401 using , ?97402 using , ?97408 open, ?97954 using , ?97955 using , ?97956 using , ?97957 using , ?97958 using ?97968 , ?97959 using , ?97960 using , ?97961 using , ?97962 using , ?97968 open, ?98668 using , ?98669 using , ?98670 using , ?98671 using , ?98672 using ?98682 , ?98673 using , ?98674 using , ?98675 using , ?98676 using , ?98682 using ?97968 ,)
+
+<prompt>example2 < 322 |example2|Unnamed_thm| 2 < </prompt>match constr:(find_type2 P o) with                | Some (tU ?t1 ?t2) =>                       (solve [first [(eapply (in_prop_disjsyl o t t1));                                       crush; right ; crush |                                      (eapply (in_prop_disjsyl o t t2));                                        crush; left ; crush]])                | _ => fail              end.
+Toplevel input, characters 27-28:
+> match constr:(find_type2 P o) with                | Some (tU ?t1 ?t2) =>                       (solve [first [(eapply (in_prop_disjsyl o t t1));                                       crush; right ; crush |                                      (eapply (in_prop_disjsyl o t t2));                                        crush; left ; crush]])                | _ => fail              end.
+>                            ^
+Error: The reference o was not found in the current environment.
+
+<prompt>example2 < 322 |example2|Unnamed_thm| 2 < </prompt>match constr:(find_type2 (TT && var x ::= tU tStr tNat && var x ::~ tNat) (var x)) with     | Some (tU ?t1 ?t2) =>       (solve [first [(eapply (in_prop_disjsyl o t t1));                       crush; right ; crush |                      (eapply (in_prop_disjsyl o t t2));                        crush; left ; crush]])     | _ => fail   end.
+Error: No matching clauses for match.
+
+<prompt>example2 < 322 |example2|Unnamed_thm| 2 < </prompt>Backtrack 300 0 2 . 
+
+<prompt>Coq < 300 || 0 < </prompt>Example ft2_ex3 : (find_type2 (TT && var x ::= tU tStr tNat && var x ::~ tNat) (var x)) = Some tStr.
+Toplevel input, characters 105-106:
+> Example ft2_ex3 : (find_type2 (TT && var x ::= tU tStr tNat && var x ::~ tNat) (var x)) = Some tStr.
+>                                                                                     ^
+Error: The reference x was not found in the current environment.
+
+<prompt>Coq < 300 || 0 < </prompt>Example ft2_ex3 : (find_type2 (TT && var tmp ::= tU tStr tNat && var tmp ::~ tNat) (var tmp)) = Some tStr.
+Toplevel input, characters 88-91:
+> Example ft2_ex3 : (find_type2 (TT && var tmp ::= tU tStr tNat && var tmp ::~ tNat) (var tmp)) = Some tStr.
+>                                                                                         ^^^
+Error: The reference tmp was not found in the current environment.
+
+<prompt>Coq < 300 || 0 < </prompt>Example ft2_ex3 : (find_type2 (TT && var (Id 0) ::= tU tStr tNat                                    && var (Id 0) ::~ tNat) ((Id 0) tmp)) = Some tStr.
+Toplevel input, characters 132-135:
+> Example ft2_ex3 : (find_type2 (TT && var (Id 0) ::= tU tStr tNat                                    && var (Id 0) ::~ tNat) ((Id 0) tmp)) = Some tStr.
+>                                                                                                                                     ^^^
+Error: The reference tmp was not found in the current environment.
+
+<prompt>Coq < 300 || 0 < </prompt>Example ft2_ex3 : (find_type2 (TT && var (Id 0) ::= tU tStr tNat                                    && var (Id 0) ::~ tNat) (var (Id 0))) = Some tStr.
+1 subgoals, subgoal 1 (ID 96567)
+  
+  ============================
+   find_type2 (TT && var (Id 0) ::= tU tStr tNat && var (Id 0) ::~ tNat)
+     (var (Id 0)) = Some tStr
+
+
+(dependent evars:)
+
+<prompt>ft2_ex3 < 301 |ft2_ex3| 1 < </prompt>Proof.
+1 subgoals, subgoal 1 (ID 96567)
+  
+  ============================
+   find_type2 (TT && var (Id 0) ::= tU tStr tNat && var (Id 0) ::~ tNat)
+     (var (Id 0)) = Some tStr
+
+
+(dependent evars:)
+
+<prompt>ft2_ex3 < 302 |ft2_ex3| 1 < </prompt>reflexivity.
+Toplevel input, characters 0-11:
+> reflexivity.
+> ^^^^^^^^^^^
+Error: Impossible to unify "Some tStr" with
+ "find_type2 (TT && var (Id 0) ::= tU tStr tNat && var (Id 0) ::~ tNat)
+    (var (Id 0))".
+
+<prompt>ft2_ex3 < 302 |ft2_ex3| 1 < </prompt>simpl.
+1 subgoals, subgoal 1 (ID 96568)
+  
+  ============================
+   Some (tU tStr tNat) = Some tStr
+
+
+(dependent evars:)
+
+<prompt>ft2_ex3 < 303 |ft2_ex3| 2 < </prompt>Backtrack 302 1 0 . 
+1 subgoals, subgoal 1 (ID 96567)
+  
+  ============================
+   find_type2 (TT && var (Id 0) ::= tU tStr tNat && var (Id 0) ::~ tNat)
+     (var (Id 0)) = Some tStr
+
+
+(dependent evars:)
+
+<prompt>ft2_ex3 < 302 |ft2_ex3| 1 < </prompt>Backtrack 301 1 0 . 
+1 subgoals, subgoal 1 (ID 96567)
+  
+  ============================
+   find_type2 (TT && var (Id 0) ::= tU tStr tNat && var (Id 0) ::~ tNat)
+     (var (Id 0)) = Some tStr
+
+
+(dependent evars:)
+
+<prompt>ft2_ex3 < 301 |ft2_ex3| 1 < </prompt>Backtrack 300 0 1 . 
+
+<prompt>Coq < 300 || 0 < </prompt>Example ft2_ex3 : (find_type2 (TT && var (Id 0) ::= tU tStr tNat                                    && var (Id 0) ::~ tNat) (var (Id 0))) = Some (tU tStr tNat).
+1 subgoals, subgoal 1 (ID 96567)
+  
+  ============================
+   find_type2 (TT && var (Id 0) ::= tU tStr tNat && var (Id 0) ::~ tNat)
+     (var (Id 0)) = Some (tU tStr tNat)
+
+
+(dependent evars:)
+
+<prompt>ft2_ex3 < 301 |ft2_ex3| 1 < </prompt>Proof.
+1 subgoals, subgoal 1 (ID 96567)
+  
+  ============================
+   find_type2 (TT && var (Id 0) ::= tU tStr tNat && var (Id 0) ::~ tNat)
+     (var (Id 0)) = Some (tU tStr tNat)
+
+
+(dependent evars:)
+
+<prompt>ft2_ex3 < 302 |ft2_ex3| 1 < </prompt>simpl.
+1 subgoals, subgoal 1 (ID 96568)
+  
+  ============================
+   Some (tU tStr tNat) = Some (tU tStr tNat)
+
+
+(dependent evars:)
+
+<prompt>ft2_ex3 < 303 |ft2_ex3| 2 < </prompt>reflexivity.
+No more subgoals.
+
+(dependent evars:)
+
+<prompt>ft2_ex3 < 304 |ft2_ex3| 3 < </prompt>Set Silent. 
+
+<prompt>ft2_ex3 < 305 |ft2_ex3| 3 < </prompt>Goal False.
+
+<prompt>Unnamed_thm < 306 |Unnamed_thm|ft2_ex3| 1 < </prompt>let n := find_type ((var (Id 14)) ::= tStr) (var (Id 14)) in     pose n.
+
+<prompt>Unnamed_thm < 307 |Unnamed_thm|ft2_ex3| 2 < </prompt>Abort.
+
+<prompt>ft2_ex3 < 308 |ft2_ex3| 3 < </prompt>Goal False.
+
+<prompt>Unnamed_thm < 309 |Unnamed_thm|ft2_ex3| 1 < </prompt>let n := find_type (TT && ((var (Id 14)) ::= tStr)) (var (Id 14)) in     pose n.
+
+<prompt>Unnamed_thm < 310 |Unnamed_thm|ft2_ex3| 2 < </prompt>Abort.
+
+<prompt>ft2_ex3 < 311 |ft2_ex3| 3 < </prompt>Ltac bamcis :=   progress repeat(       first[           (match goal with              | |- ?lhs = ?rhs =>                 (eauto; solve [first [crush | reflexivity]])              | [H : Proves ?P ?Q |- Proves (?Γ && ?P) ?Q] =>                (eapply P_AndE_rhs; exact H)              | [H : Proves ?P ?Q |- Proves (?P && ?Γ) ?Q] =>                (eapply P_AndE_lhs; exact H)              | [H : Proves ?P ?Q |- Proves ?P (?Q || ?R)] =>                (eapply P_OrI_lhs; exact H)              | [H : Proves ?P ?R |- Proves ?P (?Q || ?R)] =>                (eapply P_OrI_rhs; exact H)              | |- SubObj ?o ?o => eapply SO_Refl              | |- SubObj None ?o => eapply SO_Refl              | |- SubObj ?o None => eapply SO_Top              | |- Proves ?P ?P => eapply P_Refl              | |- Proves (TT && _) _ =>                eapply P_AndE_rhs              | |- Proves (_ && TT) _ =>                eapply P_AndE_rhs              | [ |- Proves _ _] =>                 (solve [(eapply in_prop_Proves; crush)])              | [ |- Proves _ (?o ::= tTop)] =>                 (solve [(eapply bound_in_Proves_Top; crush)])              | [ |- Proves ?P (?o ::= ?t)] =>              (* why doesn't this work? we don't know *)              match constr:(find_type2 P o) with                | Some (tU ?t1 ?t2) =>                       (solve [first [(eapply (in_prop_disjsyl o t t1));                                       crush; right ; crush |                                      (eapply (in_prop_disjsyl o t t2));                                        crush; left ; crush]])                | _ => fail              end                (* match find_type P o with *)                (*   | Some (tU ?t1 ?t2) => *)                (*     (solve [first [(eapply (in_prop_disjsyl o t t1)); *)                (*                     crush; right ; crush | *)                (*                    (eapply (in_prop_disjsyl o t t2)); *)                (*                      crush; left ; crush]]) *)                (*   | _ => fail *)                (* end *)              (* (solve [first [(eapply disjsyl_2land_l; crush) |  *)                (*                (eapply disjsyl_2land_r; crush) | *)                (*                (eapply disjsyl_2rand_l; crush) | *)                (*                (eapply disjsyl_2rand_r; crush) | *)                (*                (eapply disjsyl_3land_l; crush) | *)                (*                (eapply disjsyl_3land_r; crush) | *)                (*                (eapply disjsyl_3mand_l; crush) | *)                (*                (eapply disjsyl_3mand_r; crush) | *)                (*                (eapply disjsyl_3rand_l; crush) | *)                (*                (eapply disjsyl_3rand_r; crush)]]) *)              | |- SubType ?P tTop => eapply S_Top              | |- SubType ?P ?P => eapply S_Refl              | |- TypeOf _ (# _) _ _ _ =>                 eapply T_Nat              | |- TypeOf _ (eOp _) _ _ _ =>                 eapply T_Const              | |- TypeOf _ #t _ _ _ =>                eapply T_True              | |- TypeOf _ #f _ _ _ =>                eapply T_False              | |- TypeOf _ ($ _) _ _ _ =>                eapply T_Var              | |- TypeOf _ (λ _ _ _) _ _ _ =>                eapply T_Abs              | |- TypeOf _ (Apply _ _) _ _ _ =>                eapply T_App              | |- TypeOf _ (If _ _ _) _ _ _ =>                eapply T_If              | |- TypeOf _ _ _ _ _ =>                progress (eapply T_Subsume)             (* progress ensures subsumption actually modifies the goal *)            end)          | crush]).
+
+<prompt>ft2_ex3 < 312 |ft2_ex3| 3 < </prompt>Notation tmp := (Id 1729).
+
+<prompt>ft2_ex3 < 313 |ft2_ex3| 3 < </prompt>Notation OR := (fun p q =>                    (Let tmp p                        (If ($ tmp)                            ($ tmp)                            q))).
+
+<prompt>ft2_ex3 < 314 |ft2_ex3| 3 < </prompt>Notation AND := (fun p q =>                 (If p q #f)).
+
+<prompt>ft2_ex3 < 315 |ft2_ex3| 3 < </prompt>Example example1:   forall x,     TypeOf ((var x) ::= tTop)            (If (Nat? ($ x))                (Add1 ($ x))                (#0))            tNat            TT            None.
+
+<prompt>example1 < 316 |example1|ft2_ex3| 1 < </prompt>Proof with bamcis.
+
+<prompt>example1 < 317 |example1|ft2_ex3| 1 < </prompt>intros x...
+
+<prompt>example1 < 318 |example1|ft2_ex3| 2 < </prompt>Grab Existential Variables.
+
+<prompt>example1 < 319 |example1|ft2_ex3| 3 < </prompt>crush.
+
+<prompt>example1 < 320 |example1|ft2_ex3| 4 < </prompt>crush.
+
+<prompt>example1 < 321 |example1|ft2_ex3| 5 < </prompt>Qed.
+
+<prompt>ft2_ex3 < 322 |ft2_ex3| 3 < </prompt>Goal False.
+
+<prompt>Unnamed_thm < 323 |Unnamed_thm|ft2_ex3| 1 < </prompt>let n := find_type ((var tmp) ::= tStr) (var tmp) in     pose n.
+
+<prompt>Unnamed_thm < 324 |Unnamed_thm|ft2_ex3| 2 < </prompt>Example example2:   forall x,     TypeOf TT            (λ x (tU tStr tNat)               (If (Nat? ($ x))                   (Add1 ($ x))                   (StrLen ($ x))))            (tλ x                ((tU tStr tNat), tNat)                TT                None)            TT            None.
+
+<prompt>example2 < 325 |example2|Unnamed_thm|ft2_ex3| 1 < </prompt>Proof with bamcis.
+
+<prompt>example2 < 326 |example2|Unnamed_thm|ft2_ex3| 1 < </prompt>Unset Silent. 
+
+<prompt>example2 < 327 |example2|Unnamed_thm|ft2_ex3| 1 < </prompt>intros x...
+1 subgoals, subgoal 1 (ID 100307)
+  
+  x : id
+  ============================
+   Proves (TT && var x ::= tU tStr tNat && var x ::~ tNat) (var x ::= tStr)
+
+
+(dependent evars: ?97387 using ?97976 , ?97388 using ?97976 , ?97389 using ?97395 ?97394 , ?97394 using ?97976 , ?97395 using ?97976 , ?97396 using ?97416 , ?97397 using ?97416 , ?97398 using ?97416 , ?97402 using , ?97403 using , ?97404 using , ?97405 using , ?97406 using ?97416 , ?97407 using ?97416 , ?97408 using ?97416 , ?97409 using , ?97410 using , ?97416 open, ?97962 using , ?97963 using , ?97964 using , ?97965 using , ?97966 using ?97976 , ?97967 using , ?97968 using , ?97969 using , ?97970 using , ?97976 open, ?98676 using , ?98677 using , ?98678 using , ?98679 using , ?98680 using ?98690 , ?98681 using , ?98682 using , ?98683 using , ?98684 using , ?98690 using ?97976 ,)
+
+<prompt>example2 < 328 |example2|Unnamed_thm|ft2_ex3| 2 < </prompt>match constr:(find_type2 (TT && var x ::= tU tStr tNat && var x ::~ tNat) (var x)) with     | Some (tU ?t1 ?t2) =>       (solve [first [(eapply (in_prop_disjsyl o _ t1));                       crush; right ; crush |                      (eapply (in_prop_disjsyl o _ t2));                        crush; left ; crush]])     | _ => fail   end.
+Error: No matching clauses for match.
+
+<prompt>example2 < 328 |example2|Unnamed_thm|ft2_ex3| 2 < </prompt>(eapply (in_prop_disjsyl o _ t1)).
+Toplevel input, characters 29-31:
+> (eapply (in_prop_disjsyl o _ t1)).
+>                              ^^
+Error: The reference t1 was not found in the current environment.
+
+<prompt>example2 < 328 |example2|Unnamed_thm|ft2_ex3| 2 < </prompt>(eapply (in_prop_disjsyl o _ tNat)).
+Toplevel input, characters 25-26:
+> (eapply (in_prop_disjsyl o _ tNat)).
+>                          ^
+Error: The reference o was not found in the current environment.
+
+<prompt>example2 < 328 |example2|Unnamed_thm|ft2_ex3| 2 < </prompt>(eapply (in_prop_disjsyl (var x) _ tNat)).
+2 subgoals, subgoal 1 (ID 102561)
+  
+  x : id
+  ============================
+   in_prop (var x ::~ tNat) (TT && var x ::= tU tStr tNat && var x ::~ tNat) =
+   true
+
+subgoal 2 (ID 102562) is:
+ in_prop (var x ::= tU tStr tNat)
+   (TT && var x ::= tU tStr tNat && var x ::~ tNat) = true \/
+ in_prop (var x ::= tU tNat tStr)
+   (TT && var x ::= tU tStr tNat && var x ::~ tNat) = true
+
+(dependent evars: ?97387 using ?97976 , ?97388 using ?97976 , ?97389 using ?97395 ?97394 , ?97394 using ?97976 , ?97395 using ?97976 , ?97396 using ?97416 , ?97397 using ?97416 , ?97398 using ?97416 , ?97402 using , ?97403 using , ?97404 using , ?97405 using , ?97406 using ?97416 , ?97407 using ?97416 , ?97408 using ?97416 , ?97409 using , ?97410 using , ?97416 open, ?97962 using , ?97963 using , ?97964 using , ?97965 using , ?97966 using ?97976 , ?97967 using , ?97968 using , ?97969 using , ?97970 using , ?97976 open, ?98676 using , ?98677 using , ?98678 using , ?98679 using , ?98680 using ?98690 , ?98681 using , ?98682 using , ?98683 using , ?98684 using , ?98690 using ?97976 ,)
+
+<prompt>example2 < 329 |example2|Unnamed_thm|ft2_ex3| 3 < </prompt>simpl.
+2 subgoals, subgoal 1 (ID 102563)
+  
+  x : id
+  ============================
+   (if sumbool_rec
+         (fun _ : {var x = var x} + {var x <> var x} =>
+          {var x ::~ tNat = var x ::~ tNat} +
+          {var x ::~ tNat <> var x ::~ tNat})
+         (fun a : var x = var x =>
+          eq_rec_r
+            (fun o : object =>
+             {o ::~ tNat = var x ::~ tNat} + {o ::~ tNat <> var x ::~ tNat})
+            (eq_rec_r
+               (fun t : type =>
+                {var x ::~ t = var x ::~ tNat} +
+                {var x ::~ t <> var x ::~ tNat}) (left eq_refl) eq_refl) a)
+         (fun diseq : var x <> var x =>
+          right
+            (fun absurd : var x ::~ tNat = var x ::~ tNat =>
+             diseq
+               (f_equal
+                  (fun e : prop =>
+                   match e with
+                   | _ ::= _ => var x
+                   | o ::~ _ => o
+                   | _ && _ => var x
+                   | _ || _ => var x
+                   | TT => var x
+                   | FF => var x
+                   | Unk => var x
+                   end) absurd)))
+         (eq_rec_r (fun p : path => {obj p x = var x} + {obj p x <> var x})
+            (sumbool_rec
+               (fun _ : {x = x} + {x <> x} =>
+                {var x = var x} + {var x <> var x})
+               (fun a : x = x =>
+                eq_rec_r (fun i : id => {var i = var x} + {var i <> var x})
+                  (left eq_refl) a)
+               (fun diseq : x <> x =>
+                right
+                  (fun absurd : var x = var x =>
+                   diseq
+                     (f_equal
+                        (fun e : object => match e with
+                                           | obj _ i => i
+                                           end) absurd))) 
+               (id_eqdec x x)) eq_refl)
+    then true
+    else false) = true
+
+subgoal 2 (ID 102562) is:
+ in_prop (var x ::= tU tStr tNat)
+   (TT && var x ::= tU tStr tNat && var x ::~ tNat) = true \/
+ in_prop (var x ::= tU tNat tStr)
+   (TT && var x ::= tU tStr tNat && var x ::~ tNat) = true
+
+(dependent evars: ?97387 using ?97976 , ?97388 using ?97976 , ?97389 using ?97395 ?97394 , ?97394 using ?97976 , ?97395 using ?97976 , ?97396 using ?97416 , ?97397 using ?97416 , ?97398 using ?97416 , ?97402 using , ?97403 using , ?97404 using , ?97405 using , ?97406 using ?97416 , ?97407 using ?97416 , ?97408 using ?97416 , ?97409 using , ?97410 using , ?97416 open, ?97962 using , ?97963 using , ?97964 using , ?97965 using , ?97966 using ?97976 , ?97967 using , ?97968 using , ?97969 using , ?97970 using , ?97976 open, ?98676 using , ?98677 using , ?98678 using , ?98679 using , ?98680 using ?98690 , ?98681 using , ?98682 using , ?98683 using , ?98684 using , ?98690 using ?97976 ,)
+
+<prompt>example2 < 330 |example2|Unnamed_thm|ft2_ex3| 4 < </prompt>Backtrack 329 3 0 . 
+2 subgoals, subgoal 1 (ID 102561)
+  
+  x : id
+  ============================
+   in_prop (var x ::~ tNat) (TT && var x ::= tU tStr tNat && var x ::~ tNat) =
+   true
+
+subgoal 2 (ID 102562) is:
+ in_prop (var x ::= tU tStr tNat)
+   (TT && var x ::= tU tStr tNat && var x ::~ tNat) = true \/
+ in_prop (var x ::= tU tNat tStr)
+   (TT && var x ::= tU tStr tNat && var x ::~ tNat) = true
+
+(dependent evars: ?97387 using ?97976 , ?97388 using ?97976 , ?97389 using ?97395 ?97394 , ?97394 using ?97976 , ?97395 using ?97976 , ?97396 using ?97416 , ?97397 using ?97416 , ?97398 using ?97416 , ?97402 using , ?97403 using , ?97404 using , ?97405 using , ?97406 using ?97416 , ?97407 using ?97416 , ?97408 using ?97416 , ?97409 using , ?97410 using , ?97416 open, ?97962 using , ?97963 using , ?97964 using , ?97965 using , ?97966 using ?97976 , ?97967 using , ?97968 using , ?97969 using , ?97970 using , ?97976 open, ?98676 using , ?98677 using , ?98678 using , ?98679 using , ?98680 using ?98690 , ?98681 using , ?98682 using , ?98683 using , ?98684 using , ?98690 using ?97976 ,)
+
+<prompt>example2 < 329 |example2|Unnamed_thm|ft2_ex3| 3 < </prompt>reflexivity.
+Toplevel input, characters 21-32:
+> reflexivity.
+> ^^^^^^^^^^^
+Error: Impossible to unify "true" with
+ "in_prop (var x ::~ tNat) (TT && var x ::= tU tStr tNat && var x ::~ tNat)".
+
+<prompt>example2 < 329 |example2|Unnamed_thm|ft2_ex3| 3 < </prompt>crush.
+1 subgoals, subgoal 1 (ID 102562)
+  
+  x : id
+  ============================
+   in_prop (var x ::= tU tStr tNat)
+     (TT && var x ::= tU tStr tNat && var x ::~ tNat) = true \/
+   in_prop (var x ::= tU tNat tStr)
+     (TT && var x ::= tU tStr tNat && var x ::~ tNat) = true
+
+
+(dependent evars: ?97387 using ?97976 , ?97388 using ?97976 , ?97389 using ?97395 ?97394 , ?97394 using ?97976 , ?97395 using ?97976 , ?97396 using ?97416 , ?97397 using ?97416 , ?97398 using ?97416 , ?97402 using , ?97403 using , ?97404 using , ?97405 using , ?97406 using ?97416 , ?97407 using ?97416 , ?97408 using ?97416 , ?97409 using , ?97410 using , ?97416 open, ?97962 using , ?97963 using , ?97964 using , ?97965 using , ?97966 using ?97976 , ?97967 using , ?97968 using , ?97969 using , ?97970 using , ?97976 open, ?98676 using , ?98677 using , ?98678 using , ?98679 using , ?98680 using ?98690 , ?98681 using , ?98682 using , ?98683 using , ?98684 using , ?98690 using ?97976 ,)
+
+<prompt>example2 < 330 |example2|Unnamed_thm|ft2_ex3| 4 < </prompt>Backtrack 329 3 0 . 
+2 subgoals, subgoal 1 (ID 102561)
+  
+  x : id
+  ============================
+   in_prop (var x ::~ tNat) (TT && var x ::= tU tStr tNat && var x ::~ tNat) =
+   true
+
+subgoal 2 (ID 102562) is:
+ in_prop (var x ::= tU tStr tNat)
+   (TT && var x ::= tU tStr tNat && var x ::~ tNat) = true \/
+ in_prop (var x ::= tU tNat tStr)
+   (TT && var x ::= tU tStr tNat && var x ::~ tNat) = true
+
+(dependent evars: ?97387 using ?97976 , ?97388 using ?97976 , ?97389 using ?97395 ?97394 , ?97394 using ?97976 , ?97395 using ?97976 , ?97396 using ?97416 , ?97397 using ?97416 , ?97398 using ?97416 , ?97402 using , ?97403 using , ?97404 using , ?97405 using , ?97406 using ?97416 , ?97407 using ?97416 , ?97408 using ?97416 , ?97409 using , ?97410 using , ?97416 open, ?97962 using , ?97963 using , ?97964 using , ?97965 using , ?97966 using ?97976 , ?97967 using , ?97968 using , ?97969 using , ?97970 using , ?97976 open, ?98676 using , ?98677 using , ?98678 using , ?98679 using , ?98680 using ?98690 , ?98681 using , ?98682 using , ?98683 using , ?98684 using , ?98690 using ?97976 ,)
+
+<prompt>example2 < 329 |example2|Unnamed_thm|ft2_ex3| 3 < </prompt>Backtrack 328 2 0 . 
+1 subgoals, subgoal 1 (ID 100307)
+  
+  x : id
+  ============================
+   Proves (TT && var x ::= tU tStr tNat && var x ::~ tNat) (var x ::= tStr)
+
+
+(dependent evars: ?97387 using ?97976 , ?97388 using ?97976 , ?97389 using ?97395 ?97394 , ?97394 using ?97976 , ?97395 using ?97976 , ?97396 using ?97416 , ?97397 using ?97416 , ?97398 using ?97416 , ?97402 using , ?97403 using , ?97404 using , ?97405 using , ?97406 using ?97416 , ?97407 using ?97416 , ?97408 using ?97416 , ?97409 using , ?97410 using , ?97416 open, ?97962 using , ?97963 using , ?97964 using , ?97965 using , ?97966 using ?97976 , ?97967 using , ?97968 using , ?97969 using , ?97970 using , ?97976 open, ?98676 using , ?98677 using , ?98678 using , ?98679 using , ?98680 using ?98690 , ?98681 using , ?98682 using , ?98683 using , ?98684 using , ?98690 using ?97976 ,)
+
+<prompt>example2 < 328 |example2|Unnamed_thm|ft2_ex3| 2 < </prompt>match constr:(find_type2 (TT && var x ::= tU tStr tNat && var x ::~ tNat) (var x)) with     | Some (tU ?t1 ?t2) =>       (solve [first [(eapply (in_prop_disjsyl o _ t1));                       crush; left ; crush |                      (eapply (in_prop_disjsyl o _ t2));                        crush; right ; crush]])     | _ => fail   end.
+Error: No matching clauses for match.
+
+<prompt>example2 < 328 |example2|Unnamed_thm|ft2_ex3| 2 < </prompt>match constr:(find_type2 (TT && var x ::= tU tStr tNat && var x ::~ tNat) (var x)) with     | Some (tU ?t1 ?t2) => eauto       (* (solve [first [(eapply (in_prop_disjsyl o _ t1)); *)       (*                 crush; right ; crush | *)       (*                (eapply (in_prop_disjsyl o _ t2)); *)       (*                  crush; left ; crush]]) *)     | _ => fail   end.
+Error: No matching clauses for match.
+
+<prompt>example2 < 328 |example2|Unnamed_thm|ft2_ex3| 2 < </prompt>match constr:(find_type2 (TT && var x ::= tU tStr tNat && var x ::~ tNat) (var x)) with     | Some (constr:(tU ?t1 ?t2)) => eauto       (* (solve [first [(eapply (in_prop_disjsyl o _ t1)); *)       (*                 crush; right ; crush | *)       (*                (eapply (in_prop_disjsyl o _ t2)); *)       (*                  crush; left ; crush]]) *)     | _ => fail   end.
+Toplevel input, characters 100-106:
+> match constr:(find_type2 (TT && var x ::= tU tStr tNat && var x ::~ tNat) (var x)) with     | Some (constr:(tU ?t1 ?t2)) => eauto       (* (solve [first [(eapply (in_prop_disjsyl o _ t1)); *)       (*                 crush; right ; crush | *)       (*                (eapply (in_prop_disjsyl o _ t2)); *)       (*                  crush; left ; crush]]) *)     | _ => fail   end.
+>                                                                                                     ^^^^^^
+Error: The reference constr was not found in the current environment.
+
+<prompt>example2 < 328 |example2|Unnamed_thm|ft2_ex3| 2 < </prompt>match constr:(find_type2 (TT && var x ::= tU tStr tNat && var x ::~ tNat) (var x)) with     | Some constr:(tU ?t1 ?t2) => eauto       (* (solve [first [(eapply (in_prop_disjsyl o _ t1)); *)       (*                 crush; right ; crush | *)       (*                (eapply (in_prop_disjsyl o _ t2)); *)       (*                  crush; left ; crush]]) *)     | _ => fail   end.
+Toplevel input, characters 99-105:
+> match constr:(find_type2 (TT && var x ::= tU tStr tNat && var x ::~ tNat) (var x)) with     | Some constr:(tU ?t1 ?t2) => eauto       (* (solve [first [(eapply (in_prop_disjsyl o _ t1)); *)       (*                 crush; right ; crush | *)       (*                (eapply (in_prop_disjsyl o _ t2)); *)       (*                  crush; left ; crush]]) *)     | _ => fail   end.
+>                                                                                                    ^^^^^^
+Error: The reference constr was not found in the current environment.
+
+<prompt>example2 < 328 |example2|Unnamed_thm|ft2_ex3| 2 < </prompt>match constr:(find_type2 (TT && var x ::= tU tStr tNat && var x ::~ tNat) (var x)) with     | Some _ => eauto       (* (solve [first [(eapply (in_prop_disjsyl o _ t1)); *)       (*                 crush; right ; crush | *)       (*                (eapply (in_prop_disjsyl o _ t2)); *)       (*                  crush; left ; crush]]) *)     | _ => fail   end.
+Error: No matching clauses for match.
+
+<prompt>example2 < 328 |example2|Unnamed_thm|ft2_ex3| 2 < </prompt>match constr:(find_type2 (TT && var x ::= tU tStr tNat && var x ::~ tNat) (var x)) with     | Some (tU ?t1 ?t2) => eauto       (* (solve [first [(eapply (in_prop_disjsyl o _ t1)); *)       (*                 crush; right ; crush | *)       (*                (eapply (in_prop_disjsyl o _ t2)); *)       (*                  crush; left ; crush]]) *)     | None => eauto     | _ => fail   end.
+Error: No matching clauses for match.
+
+<prompt>example2 < 328 |example2|Unnamed_thm|ft2_ex3| 2 < </prompt>match (constr:(find_type2 (TT && var x ::= tU tStr tNat && var x ::~ tNat) (var x))) with     | Some (tU ?t1 ?t2) => eauto       (* (solve [first [(eapply (in_prop_disjsyl o _ t1)); *)       (*                 crush; right ; crush | *)       (*                (eapply (in_prop_disjsyl o _ t2)); *)       (*                  crush; left ; crush]]) *)     | None => eauto     | _ => fail   end.
+Error: No matching clauses for match.
+
+<prompt>example2 < 328 |example2|Unnamed_thm|ft2_ex3| 2 < </prompt>match (constr:(find_type2 (TT && var x ::= tU tStr tNat && var x ::~ tNat) (var x))) with     | _ => eauto     | Some (tU ?t1 ?t2) => eauto       (* (solve [first [(eapply (in_prop_disjsyl o _ t1)); *)       (*                 crush; right ; crush | *)       (*                (eapply (in_prop_disjsyl o _ t2)); *)       (*                  crush; left ; crush]]) *)     | None => eauto     | _ => fail   end.
+1 subgoals, subgoal 1 (ID 100307)
+  
+  x : id
+  ============================
+   Proves (TT && var x ::= tU tStr tNat && var x ::~ tNat) (var x ::= tStr)
+
+
+(dependent evars: ?97387 using ?97976 , ?97388 using ?97976 , ?97389 using ?97395 ?97394 , ?97394 using ?97976 , ?97395 using ?97976 , ?97396 using ?97416 , ?97397 using ?97416 , ?97398 using ?97416 , ?97402 using , ?97403 using , ?97404 using , ?97405 using , ?97406 using ?97416 , ?97407 using ?97416 , ?97408 using ?97416 , ?97409 using , ?97410 using , ?97416 open, ?97962 using , ?97963 using , ?97964 using , ?97965 using , ?97966 using ?97976 , ?97967 using , ?97968 using , ?97969 using , ?97970 using , ?97976 open, ?98676 using , ?98677 using , ?98678 using , ?98679 using , ?98680 using ?98690 , ?98681 using , ?98682 using , ?98683 using , ?98684 using , ?98690 using ?97976 ,)
+
+<prompt>example2 < 329 |example2|Unnamed_thm|ft2_ex3| 3 < </prompt>Backtrack 328 2 0 . 
+1 subgoals, subgoal 1 (ID 100307)
+  
+  x : id
+  ============================
+   Proves (TT && var x ::= tU tStr tNat && var x ::~ tNat) (var x ::= tStr)
+
+
+(dependent evars: ?97387 using ?97976 , ?97388 using ?97976 , ?97389 using ?97395 ?97394 , ?97394 using ?97976 , ?97395 using ?97976 , ?97396 using ?97416 , ?97397 using ?97416 , ?97398 using ?97416 , ?97402 using , ?97403 using , ?97404 using , ?97405 using , ?97406 using ?97416 , ?97407 using ?97416 , ?97408 using ?97416 , ?97409 using , ?97410 using , ?97416 open, ?97962 using , ?97963 using , ?97964 using , ?97965 using , ?97966 using ?97976 , ?97967 using , ?97968 using , ?97969 using , ?97970 using , ?97976 open, ?98676 using , ?98677 using , ?98678 using , ?98679 using , ?98680 using ?98690 , ?98681 using , ?98682 using , ?98683 using , ?98684 using , ?98690 using ?97976 ,)
+
+<prompt>example2 < 328 |example2|Unnamed_thm|ft2_ex3| 2 < </prompt>Set Ltac Debug.
+
+<prompt>example2 < 329 |example2|Unnamed_thm|ft2_ex3| 2 < </prompt>match (constr:(find_type2 (TT && var x ::= tU tStr tNat && var x ::~ tNat) (var x))) with     | Some (tU ?t1 ?t2) => eauto       (* (solve [first [(eapply (in_prop_disjsyl o _ t1)); *)       (*                 crush; right ; crush | *)       (*                (eapply (in_prop_disjsyl o _ t2)); *)       (*                  crush; left ; crush]]) *)     | None => eauto     | _ => fail   end.
+Goal:
+    x : id
+  ============================
+   Proves (TT && var x ::= tU tStr tNat && var x ::~ tNat) (var x ::= tStr)
+
+Going to execute:
+match constr:(find_type2 (TT && var x ::= tU tStr tNat && var x ::~ tNat)
+                (var x)) with
+| Some (tU ?t1 ?t2) => eauto 
+| None => eauto 
+| _ => fail
+end
+
+TcDebug (0) > 
+Goal:
+    x : id
+  ============================
+   Proves (TT && var x ::= tU tStr tNat && var x ::~ tNat) (var x ::= tStr)
+
+Going to execute:
+constr:(find_type2 (TT && var x ::= tU tStr tNat && var x ::~ tNat) (var x))
+
+TcDebug (1) > 
+Evaluated term: find_type2 (TT && var x ::= tU tStr tNat && var x ::~ tNat)
+                  (var x)
+Evaluated term: find_type2 (TT && var x ::= tU tStr tNat && var x ::~ tNat)
+                  (var x)
+Level 1: constr:(find_type2 (TT && var x ::= tU tStr tNat && var x ::~ tNat)
+                   (var x))
+ has value 
+(find_type2 (TT && var x ::= tU tStr tNat && var x ::~ tNat) (var x))
+
+Level 1: matching with pattern
+(Some (tU ?t1 ?t2))
+raised the exception
+Uncaught exception Matching.PatternMatchingFailure.
+
+Level 1: switching to the next rule
+
+Level 1: matching with pattern
+None
+raised the exception
+Uncaught exception Matching.PatternMatchingFailure.
+
+Level 1: switching to the next rule
+
+Goal:
+    x : id
+  ============================
+   Proves (TT && var x ::= tU tStr tNat && var x ::~ tNat) (var x ::= tStr)
+
+Going to execute:
+fail
+
+TcDebug (1) > Level 1: match expression
+raised the exception
+
+User interrupt.
+
+
+User interrupt.
+
+<prompt>example2 < 329 |example2|Unnamed_thm|ft2_ex3| 2 < </prompt>let temp := constr:(find_type2 (TT && var x ::= tU tStr tNat && var x ::~ tNat) (var x)) in   match temp with     | Some (tU ?t1 ?t2) => eauto       (* (solve [first [(eapply (in_prop_disjsyl o _ t1)); *)       (*                 crush; right ; crush | *)       (*                (eapply (in_prop_disjsyl o _ t2)); *)       (*                  crush; left ; crush]]) *)     | None => eauto     | _ => fail   end.
+Goal:
+    x : id
+  ============================
+   Proves (TT && var x ::= tU tStr tNat && var x ::~ tNat) (var x ::= tStr)
+
+Going to execute:
+let temp :=
+ constr:(find_type2 (TT && var x ::= tU tStr tNat && var x ::~ tNat) (var x)) in
+match temp with
+| Some (tU ?t1 ?t2) => eauto 
+| None => eauto 
+| _ => fail
+end
+
+TcDebug (0) > 
+Evaluated term: find_type2 (TT && var x ::= tU tStr tNat && var x ::~ tNat)
+                  (var x)
+Evaluated term: find_type2 (TT && var x ::= tU tStr tNat && var x ::~ tNat)
+                  (var x)
+Goal:
+    x : id
+  ============================
+   Proves (TT && var x ::= tU tStr tNat && var x ::~ tNat) (var x ::= tStr)
+
+Going to execute:
+match temp with
+| Some (tU ?t1 ?t2) => eauto 
+| None => eauto 
+| _ => fail
+end
+
+TcDebug (1) > 
+Goal:
+    x : id
+  ============================
+   Proves (TT && var x ::= tU tStr tNat && var x ::~ tNat) (var x ::= tStr)
+
+Going to execute:
+temp
+
+TcDebug (2) > 
+Level 2: temp
+ has value 
+(find_type2 (TT && var x ::= tU tStr tNat && var x ::~ tNat) (var x))
+
+Level 2: matching with pattern
+(Some (tU ?t1 ?t2))
+raised the exception
+Uncaught exception Matching.PatternMatchingFailure.
+
+Level 2: switching to the next rule
+
+Level 2: matching with pattern
+None
+raised the exception
+Uncaught exception Matching.PatternMatchingFailure.
+
+Level 2: switching to the next rule
+
+Goal:
+    x : id
+  ============================
+   Proves (TT && var x ::= tU tStr tNat && var x ::~ tNat) (var x ::= tStr)
+
+Going to execute:
+fail
+
+TcDebug (2) > 
+Level 2: match expression
+raised the exception
+Error: No matching clauses for match.
+
+Level 1: Error: No matching clauses for match.
+Level 0: Error: No matching clauses for match.
+Error: No matching clauses for match.
+
+<prompt>example2 < 329 |example2|Unnamed_thm|ft2_ex3| 2 < </prompt>let temp := find_type2 (TT && var x ::= tU tStr tNat && var x ::~ tNat) (var x) in   match temp with     | Some (tU ?t1 ?t2) => eauto       (* (solve [first [(eapply (in_prop_disjsyl o _ t1)); *)       (*                 crush; right ; crush | *)       (*                (eapply (in_prop_disjsyl o _ t2)); *)       (*                  crush; left ; crush]]) *)     | None => eauto     | _ => fail   end.
+Toplevel input, characters 12-22:
+> let temp := find_type2 (TT && var x ::= tU tStr tNat && var x ::~ tNat) (var x) in   match temp with     | Some (tU ?t1 ?t2) => eauto       (* (solve [first [(eapply (in_prop_disjsyl o _ t1)); *)       (*                 crush; right ; crush | *)       (*                (eapply (in_prop_disjsyl o _ t2)); *)       (*                  crush; left ; crush]]) *)     | None => eauto     | _ => fail   end.
+>             ^^^^^^^^^^
+Error: The reference find_type2 was not found in the current environment.
+
+<prompt>example2 < 329 |example2|Unnamed_thm|ft2_ex3| 2 < </prompt>let temp := constr:find_type2 (TT && var x ::= tU tStr tNat && var x ::~ tNat) (var x) in   match temp with     | Some (tU ?t1 ?t2) => eauto       (* (solve [first [(eapply (in_prop_disjsyl o _ t1)); *)       (*                 crush; right ; crush | *)       (*                (eapply (in_prop_disjsyl o _ t2)); *)       (*                  crush; left ; crush]]) *)     | None => eauto     | _ => fail   end.
+Toplevel input, characters 30-31:
+> let temp := constr:find_type2 (TT && var x ::= tU tStr tNat && var x ::~ tNat) (var x) in   match temp with     | Some (tU ?t1 ?t2) => eauto       (* (solve [first [(eapply (in_prop_disjsyl o _ t1)); *)       (*                 crush; right ; crush | *)       (*                (eapply (in_prop_disjsyl o _ t2)); *)       (*                  crush; left ; crush]]) *)     | None => eauto     | _ => fail   end.
+>                               ^
+Syntax error: 'with' or 'in' expected (in [tactic:binder_tactic]).
+
+<prompt>example2 < 329 |example2|Unnamed_thm|ft2_ex3| 2 < </prompt>let temp := constr:find_type2 (TT && var x ::= tU tStr tNat && var x ::~ tNat) (var x) in   match temp with     | Some (tU ?t1 ?t2) => eauto       (* (solve [first [(eapply (in_prop_disjsyl o _ t1)); *)       (*                 crush; right ; crush | *)       (*                (eapply (in_prop_disjsyl o _ t2)); *)       (*                  crush; left ; crush]]) *)     | None => eauto     | _ => fail   end.
+Toplevel input, characters 30-31:
+> let temp := constr:find_type2 (TT && var x ::= tU tStr tNat && var x ::~ tNat) (var x) in   match temp with     | Some (tU ?t1 ?t2) => eauto       (* (solve [first [(eapply (in_prop_disjsyl o _ t1)); *)       (*                 crush; right ; crush | *)       (*                (eapply (in_prop_disjsyl o _ t2)); *)       (*                  crush; left ; crush]]) *)     | None => eauto     | _ => fail   end.
+>                               ^
+Syntax error: 'with' or 'in' expected (in [tactic:binder_tactic]).
+
+<prompt>example2 < 329 |example2|Unnamed_thm|ft2_ex3| 2 < </prompt>let temp := constr:(find_type2 (TT && var x ::= tU tStr tNat && var x ::~ tNat) (var x)_ in   match temp with     | Some (tU ?t1 ?t2) => eauto       (* (solve [first [(eapply (in_prop_disjsyl o _ t1)); *)       (*                 crush; right ; crush | *)       (*                (eapply (in_prop_disjsyl o _ t2)); *)       (*                  crush; left ; crush]]) *)     | None => eauto     | _ => fail   end.
+Toplevel input, characters 89-91:
+> let temp := constr:(find_type2 (TT && var x ::= tU tStr tNat && var x ::~ tNat) (var x)_ in   match temp with     | Some (tU ?t1 ?t2) => eauto       (* (solve [first [(eapply (in_prop_disjsyl o _ t1)); *)       (*                 crush; right ; crush | *)       (*                (eapply (in_prop_disjsyl o _ t2)); *)       (*                  crush; left ; crush]]) *)     | None => eauto     | _ => fail   end.
+>                                                                                          ^^
+Syntax error: ',' or ')' expected after [constr:operconstr level 200] (in [constr:operconstr]).
+
+<prompt>example2 < 329 |example2|Unnamed_thm|ft2_ex3| 2 < </prompt>let temp := constr:(find_type2 (TT && var x ::= tU tStr tNat && var x ::~ tNat) (var x)) in   match temp with     | Some (tU ?t1 ?t2) => eauto       (* (solve [first [(eapply (in_prop_disjsyl o _ t1)); *)       (*                 crush; right ; crush | *)       (*                (eapply (in_prop_disjsyl o _ t2)); *)       (*                  crush; left ; crush]]) *)     | None => eauto     | _ => fail   end.
+Goal:
+    x : id
+  ============================
+   Proves (TT && var x ::= tU tStr tNat && var x ::~ tNat) (var x ::= tStr)
+
+Going to execute:
+let temp :=
+ constr:(find_type2 (TT && var x ::= tU tStr tNat && var x ::~ tNat) (var x)) in
+match temp with
+| Some (tU ?t1 ?t2) => eauto 
+| None => eauto 
+| _ => fail
+end
+
+TcDebug (0) > 

@@ -46,7 +46,7 @@ Inductive type : Type :=
 | tF    : type
 | tU    : type -> type -> type
 | tCons : type -> type -> type
-| tλ    : id -> (type * type) -> prop -> opt object -> type
+| tλ    : id -> type -> type -> prop -> opt object -> type
 
 with prop : Type :=
 | Is    : object -> type -> prop
@@ -136,50 +136,51 @@ Definition const_type (c : const_op) (x:id) : type :=
   match c with
     | opIsNum =>
       (tλ x 
-          (tTop, tBool) 
+          tTop tBool
           ((var x) ::= tNat)
           (Some (var x)))
     | opIsProc =>
       (tλ x 
-          (tTop, tBool) 
-          ((var x) ::= (tλ x (tBot, tTop) TT None)) 
+          tTop tBool
+          ((var x) ::= (tλ x tBot tTop TT None)) 
           None)
     | opIsBool =>
       (tλ x 
-          (tTop, tBool) 
+          tTop tBool
           ((var x) ::= tBool)
           None)
     | opIsCons =>
       (tλ x 
-          (tTop, tBool) 
+          tTop tBool
           ((var x) ::= (tCons tTop tTop))
           None)
     | opAdd1 =>
       (tλ x 
-          (tNat, tNat) 
+          tNat tNat
           TT
           None)
     | opIsZero =>
       (tλ x 
-          (tNat, tBool) 
+          tNat tBool
           TT
           None)
     | opIsStr =>
       (tλ x 
-          (tTop, tBool) 
+          tTop tBool
           ((var x) ::= tStr)
           None)
     | opStrLen =>
       (tλ x 
-          (tStr, tNat) 
+          tStr tNat
           TT
           None)
     | opPlus =>
       (tλ x 
-          (tNat, (tλ x 
-                     (tNat, tNat) 
-                     TT
-                     None))
+          tNat 
+          (tλ x 
+              tNat tNat
+              TT
+              None)
           TT
           None)
   end.
@@ -215,10 +216,8 @@ Hint Resolve obj_eqdec.
 Fixpoint type_eqdec (x y : type) : {x=y}+{x<>y}
 with prop_eqdec (x y : prop) : {x=y}+{x<>y}.
 Proof.
-  decide equality.
-  decide equality.
-  decide equality.
-  decide equality.
+repeat  decide equality.
+repeat  decide equality.
 Defined.
 Hint Resolve type_eqdec prop_eqdec.
 
@@ -247,7 +246,7 @@ Fixpoint fv_set_t (t : type) : set id :=
   match t with
     | tU lhs rhs =>
       set_union id_eqdec (fv_set_t lhs) (fv_set_t rhs)
-    | tλ x (t1, t2) p1 o =>
+    | tλ x t1 t2 p1 o =>
       setU id_eqdec
            [[x];
              (fv_set_t t1);
@@ -323,12 +322,12 @@ with subst_t
              (x:id) : type :=
   match t with
     | tU lhs rhs => tU (subst_t lhs opto x) (subst_t rhs opto x)
-    | tλ y (t1, t2) p1 opto2 =>
+    | tλ y t1 t2 p1 opto2 =>
       if id_eqdec x y
       then t
       else tλ y
-                ((subst_t t1 opto x),
-                 (subst_t t2 opto x))
+                (subst_t t1 opto x)
+                 (subst_t t2 opto x)
                 (subst_p p1 opto x)
                 (subst_o opto2 opto x)
     | tCons t1 t2 => tCons (subst_t t1 opto x)
@@ -348,7 +347,7 @@ Fixpoint typestructuralsize (t:type) : nat :=
   match t with
     | tU t1 t2 =>
       S (plus (typestructuralsize t1) (typestructuralsize t2))
-    | tλ x (t1, t2) _ _ => S (plus (typestructuralsize t1) (typestructuralsize t2))
+    | tλ x t1 t2 _ _ => S (plus (typestructuralsize t1) (typestructuralsize t2))
     | tCons t1 t2 => S (plus (typestructuralsize t1) (typestructuralsize t2))
     | _ => 1
   end.
@@ -372,8 +371,8 @@ Program Fixpoint common_subtype (type1 type2:type)
     | tT, _ => false
     | tF, tF => true
     | tF, _ => false
-    | tλ _ _ _ _, tλ _ _ _ _ => true
-    | tλ _ _ _ _, _ => false
+    | tλ _ _ _ _ _, tλ _ _ _ _ _ => true
+    | tλ _ _ _ _ _, _ => false
     | tCons t1 t2, tCons t3 t4 => andb (common_subtype t1 t3)
                                        (common_subtype t2 t4)
     | tCons _ _, _ => false
@@ -513,8 +512,8 @@ with SubType : relation type :=
       -> SubType σ' (subst_t σ (Some (var y)) x) 
       -> Proves (subst_p ψ (Some (var y)) x) ψ'
       -> SubObj (subst_o o (Some (var y)) x) o'
-      -> SubType (tλ x (σ, τ) ψ o)
-                 (tλ y (σ', τ') ψ' o')
+      -> SubType (tλ x σ τ ψ o)
+                 (tλ y σ' τ' ψ' o')
 | S_Pair :
     forall τ1 σ1 τ2 σ2,
       SubType τ1 τ2
@@ -549,12 +548,12 @@ Inductive TypeOf : prop -> exp -> type -> prop -> opt object -> Prop :=
       TypeOf (Γ && ((var x) ::= σ)) e τ ψ o
       -> TypeOf Γ 
                 (eλ x σ e) 
-                (tλ x (σ, τ) ψ o) 
+                (tλ x σ τ ψ o) 
                 TT 
                 None
 | T_App :
     forall τ'' σ τ o'' o o' Γ e x fψ fo ψ e' ψ' ψf'',
-      TypeOf Γ e (tλ x (σ, τ) fψ fo) ψ o
+      TypeOf Γ e (tλ x σ τ fψ fo) ψ o
       -> TypeOf Γ e' σ ψ' o'
       -> (subst_t τ o' x) = τ''
       -> (subst_p fψ o' x) = ψf''
@@ -854,40 +853,27 @@ Qed.
 Proves (TT && var x ::= tU tStr tNat && var x ::~ tNat) (var x ::= tStr)
 *)
 
-
-Ltac find_type P o := 
-  match constr:(o, P) with
-      | (?o, (?o ::= ?t)) => constr:(Some t)
-      | (?o, (?P1 && ?P2)) => 
-        let n := find_type P1 o in
-        match n with
-          | Some ?t => constr:(Some t)
-          | None => let nn := (find_type P2 o) in
-                    constr:nn
-        end
-      | _ => constr:(@ None type)
-  end.
-
-Fixpoint find_type2 P o := 
+Fixpoint find_type P o := 
   match P with
     | (o' ::= t) => if obj_eqdec o o' then Some t else None
     | (P1 && P2) =>  
-        match find_type2 P1 o with
+        match find_type P1 o with
           | Some t => (Some t)
-          | None => find_type2 P2 o
+          | None => find_type P2 o
         end
       | _ => None
   end.
+Hint Unfold find_type.
 
+Example ft2_ex1 : find_type ((var (Id 14)) ::= tStr) (var (Id 14)) = Some tStr.
+Proof. reflexivity. Qed.
 
-Goal False.
-  let n := find_type ((var (Id 14)) ::= tStr) (var (Id 14)) in
-    pose n.
-Abort.
-Goal False.
-  let n := find_type (TT && ((var (Id 14)) ::= tStr)) (var (Id 14)) in
-    pose n.
-Abort.
+Example ft2_ex2 : find_type (TT && (var (Id 14)) ::= tStr) (var (Id 14)) = Some tStr.
+Proof. reflexivity. Qed.
+
+Example ft2_ex3 : (find_type (TT && var (Id 0) ::= tU tStr tNat 
+                                  && var (Id 0) ::~ tNat) (var (Id 0))) = Some (tU tStr tNat).
+Proof. simpl. reflexivity.
 
 
 Ltac bamcis :=
@@ -917,33 +903,17 @@ Ltac bamcis :=
              | [ |- Proves _ (?o ::= tTop)] => 
                (solve [(eapply bound_in_Proves_Top; crush)])
              | [ |- Proves ?P (?o ::= ?t)] =>
-             (* why doesn't this work? we don't know *)
-             (* match constr:(find_type2 P o) with *)
-             (*   | Some (tU ?t1 ?t2) => *)
-             (*          (solve [first [(eapply (in_prop_disjsyl o t t1)); *)
-             (*                          crush; right ; crush | *)
-             (*                         (eapply (in_prop_disjsyl o t t2)); *)
-             (*                           crush; left ; crush]]) *)
-             (*   | _ => fail *)
-             (* end *)
-               match find_type P o with
+               let xtype_exp := 
+                   constr:(find_type P o) in
+               let xtype := eval simpl in xtype_exp in
+               match xtype with
                  | Some (tU ?t1 ?t2) =>
                    (solve [first [(eapply (in_prop_disjsyl o t t1));
-                                   crush; right ; crush |
+                                   crush; left ; crush |
                                   (eapply (in_prop_disjsyl o t t2));
-                                    crush; left ; crush]])
+                                    crush; right ; crush]])
                  | _ => fail
                end
-             (* (solve [first [(eapply disjsyl_2land_l; crush) |  *)
-               (*                (eapply disjsyl_2land_r; crush) | *)
-               (*                (eapply disjsyl_2rand_l; crush) | *)
-               (*                (eapply disjsyl_2rand_r; crush) | *)
-               (*                (eapply disjsyl_3land_l; crush) | *)
-               (*                (eapply disjsyl_3land_r; crush) | *)
-               (*                (eapply disjsyl_3mand_l; crush) | *)
-               (*                (eapply disjsyl_3mand_r; crush) | *)
-               (*                (eapply disjsyl_3rand_l; crush) | *)
-               (*                (eapply disjsyl_3rand_r; crush)]]) *)
              | |- SubType ?P tTop => eapply S_Top
              | |- SubType ?P ?P => eapply S_Refl
              | |- TypeOf _ (# _) _ _ _ => 
@@ -971,80 +941,66 @@ Ltac bamcis :=
 (** *Typechecked Examples *)
 
 (** Unhygeinic Or macro *)
-Notation tmp := (Id 1729).
-
+Notation TMP := (Id 0).
+Notation X := (Id 1).
+Notation Y := (Id 2).
+Notation F := (Id 3).
+Notation G := (Id 4).
 Notation OR := (fun p q => 
-                  (Let tmp p
-                       (If ($ tmp)
-                           ($ tmp)
+                  (Let TMP p
+                       (If ($ TMP)
+                           ($ TMP)
                            q))).
 (** And Macro *)
 Notation AND := (fun p q =>
                 (If p q #f)).
 
 Example example1:
-  forall x,
-    TypeOf ((var x) ::= tTop)
-           (If (Nat? ($ x))
-               (Add1 ($ x))
+    TypeOf ((var X) ::= tTop)
+           (If (Nat? ($ X))
+               (Add1 ($ X))
                (#0))
            tNat
            TT
            None.
-Proof with bamcis. 
-  intros x... 
+Proof.
+  bamcis.
 Grab Existential Variables.
-crush. crush.
+exact X. exact X.
 Qed.
 
-
-Goal False.
-  let n := find_type ((var tmp) ::= tStr) (var tmp) in
-    pose n.
-
 Example example2:
-  forall x,
     TypeOf TT
-           (λ x (tU tStr tNat)
-              (If (Nat? ($ x))
-                  (Add1 ($ x))
-                  (StrLen ($ x))))
-           (tλ x
-               ((tU tStr tNat), tNat)
+           (λ X (tU tStr tNat)
+              (If (Nat? ($ X))
+                  (Add1 ($ X))
+                  (StrLen ($ X))))
+           (tλ X
+               (tU tStr tNat) tNat
                TT
                None)
            TT
            None.
-Proof with bamcis. 
-  intros x... 
+Proof.
+  bamcis.
 Grab Existential Variables.
-crush. crush.
+exact X. exact X.
 Qed.
 
 Example example3:
-  forall x y,
-    x <> y ->
     TypeOf
-      ((var y) ::= tTop)
-      (Let x (Nat? ($ y))
-          (If ($ x)
-              ($ y)
+      ((var Y) ::= tTop)
+      (Let X (Nat? ($ Y))
+          (If ($ X)
+              ($ Y)
               (# 0)))
       tNat
       TT
       None.
-Proof with bamcis.
-  intros x y Hneq.    eapply (T_Subsume tNat tNat None). 
-  eapply T_Let... 
-   simpl. crush. 
-  (* TODO, theorem about if there is *some* type to apply it *)
-  eapply P_AndE_lhs. eapply P_AndE_lhs.
-  eapply P_AndE_rhs. crush.. 
+Proof. Admitted.
 
-  bamcis.
 
-  bamcis.
-  bamcis.
+
 Example example4:
   forall x f,
     TypeOf (((var x) ::= tTop) 

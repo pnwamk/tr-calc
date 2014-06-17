@@ -521,7 +521,6 @@ with SubType : relation type :=
       -> SubType σ1 σ2
       -> SubType (tCons τ1 σ1) (tCons τ2 σ2).
 
-
 (** ** TypeOf *)
 
 Inductive TypeOf : prop -> exp -> type -> prop -> opt object -> Prop :=
@@ -837,34 +836,48 @@ SubType tF tBool.
 Proof. crush. Qed.
 Hint Resolve true_tBool false_tBool.  
 
+Hint Resolve in_prop_Proves.
+
+Lemma in_prop_disjsyl : forall o t t' P,
+in_prop (o ::~ t') P = true
+-> (in_prop (o ::= (tU t t')) P = true
+\/ in_prop (o ::= (tU t' t)) P = true)
+-> Proves P (o ::= t).
+Proof.
+  intros o t t' P H1 H2.  destruct H2.
+  eapply (P_DisjSyl_lhs P o t t'); crush; crush.
+  eapply (P_DisjSyl_rhs P o t' t); crush.
+Qed.
+
+Lemma in_prop_disjsyl_rhs : forall o t t' P,
+in_prop (o ::~ t) P = true
+-> in_prop (o ::= (tU t t')) P = true
+-> Proves P (o ::= t').
+Proof.
+  intros.
+  eapply (in_prop_disjsyl  o t' t) ; crush. 
+Qed.
+
 Lemma disjsyl_2land_l : forall P o t t',
 in_prop (o ::~ t') ((o ::= (tU t t')) && P) = true
 -> Proves ((o ::= (tU t t')) && P) (o ::= t).
-Proof.
-  intros.
-  eapply in_prop_Proves in H.
-  eapply P_DisjSyl_lhs. eauto.
-  eapply in_prop_Proves; crush.
+Proof. intros.
+  eapply (in_prop_disjsyl  o t t') ; crush. 
 Qed.
 
 Lemma disjsyl_2land_r : forall P o t t',
 in_prop (o ::~ t) ((o ::= (tU t t')) && P) = true
 -> Proves ((o ::= (tU t t')) && P) (o ::= t').
-Proof.
-  intros.
-  eapply in_prop_Proves in H.
-  eapply P_DisjSyl_rhs. eauto.
-  eapply in_prop_Proves; crush.
+Proof. intros.
+  eapply (in_prop_disjsyl  o t' t) ; crush. 
 Qed.
 
 Lemma disjsyl_2rand_l : forall P o t t',
 in_prop (o ::~ t') (P && (o ::= (tU t t'))) = true
 -> Proves (P && (o ::= (tU t t'))) (o ::= t).
-Proof.
+Proof. 
   intros.
-  eapply in_prop_Proves in H.
-  eapply P_DisjSyl_lhs. eauto.
-  eapply in_prop_Proves; crush.
+  eapply (in_prop_disjsyl o t t') ; crush. 
 Qed.
 
 Lemma disjsyl_2rand_r : forall P o t t',
@@ -872,9 +885,7 @@ in_prop (o ::~ t) (P && (o ::= (tU t t'))) = true
 -> Proves (P && (o ::= (tU t t'))) (o ::= t').
 Proof.
   intros.
-  eapply in_prop_Proves in H.
-  eapply P_DisjSyl_rhs. eauto.
-  eapply in_prop_Proves; crush.
+  eapply (in_prop_disjsyl o t' t) ; crush. 
 Qed.
 
 Lemma disjsyl_3land_l : forall P Q o t t',
@@ -882,9 +893,7 @@ in_prop (o ::~ t') ((o ::= (tU t t')) && P && Q) = true
 -> Proves ((o ::= (tU t t')) && P && Q) (o ::= t).
 Proof.
   intros.
-  eapply in_prop_Proves in H.
-  eapply P_DisjSyl_lhs. eauto.
-  eapply in_prop_Proves; crush.
+  eapply (in_prop_disjsyl o t t') ; crush. 
 Qed.
 
 Lemma disjsyl_3land_r : forall P Q o t t',
@@ -892,9 +901,7 @@ in_prop (o ::~ t) ((o ::= (tU t t')) && P && Q) = true
 -> Proves ((o ::= (tU t t')) && P && Q) (o ::= t').
 Proof.
   intros.
-  eapply in_prop_Proves in H.
-  eapply P_DisjSyl_rhs. eauto.
-  eapply in_prop_Proves; crush.
+  eapply (in_prop_disjsyl o t' t) ; crush. 
 Qed.
 
 Lemma disjsyl_3mand_l : forall P Q o t t',
@@ -902,9 +909,7 @@ in_prop (o ::~ t') (P && (o ::= (tU t t')) && Q) = true
 -> Proves (P && (o ::= (tU t t')) && Q) (o ::= t).
 Proof.
   intros.
-  eapply in_prop_Proves in H.
-  eapply P_DisjSyl_lhs. eauto.
-  eapply in_prop_Proves; crush.
+  eapply (in_prop_disjsyl o t t') ; crush. 
 Qed.
 
 Lemma disjsyl_3mand_r : forall P Q o t t',
@@ -943,6 +948,41 @@ Proves (TT && var x ::= tU tStr tNat && var x ::~ tNat) (var x ::= tStr)
 *)
 
 
+Ltac find_type P o := 
+  match constr:(o, P) with
+      | (?o, (?o ::= ?t)) => constr:(Some t)
+      | (?o, (?P1 && ?P2)) => 
+        let n := find_type P1 o in
+        match n with
+          | Some ?t => constr:(Some t)
+          | None => let nn := (find_type P2 o) in
+                    constr:nn
+        end
+      | _ => constr:(@ None type)
+  end.
+
+Fixpoint find_type2 P o := 
+  match P with
+    | (o' ::= t) => if obj_eqdec o o' then Some t else None
+    | (P1 && P2) =>  
+        match find_type2 P1 o with
+          | Some t => (Some t)
+          | None => find_type2 P2 o
+        end
+      | _ => None
+  end.
+
+
+Goal False.
+  let n := find_type ((var (Id 14)) ::= tStr) (var (Id 14)) in
+    pose n.
+Abort.
+Goal False.
+  let n := find_type (TT && ((var (Id 14)) ::= tStr)) (var (Id 14)) in
+    pose n.
+Abort.
+
+
 Ltac bamcis :=
   progress repeat(
       first[
@@ -969,17 +1009,34 @@ Ltac bamcis :=
                (solve [(eapply in_prop_Proves; crush)])
              | [ |- Proves _ (?o ::= tTop)] => 
                (solve [(eapply bound_in_Proves_Top; crush)])
-             | [ |- Proves _ (?o ::= ?t)] => 
-               (solve [first [(eapply disjsyl_2land_l; crush) | 
-                              (eapply disjsyl_2land_r; crush) |
-                              (eapply disjsyl_2rand_l; crush) |
-                              (eapply disjsyl_2rand_r; crush) |
-                              (eapply disjsyl_3land_l; crush) |
-                              (eapply disjsyl_3land_r; crush) |
-                              (eapply disjsyl_3mand_l; crush) |
-                              (eapply disjsyl_3mand_r; crush) |
-                              (eapply disjsyl_3rand_l; crush) |
-                              (eapply disjsyl_3rand_r; crush)]])
+             | [ |- Proves ?P (?o ::= ?t)] =>
+             (* why doesn't this work? we don't know *)
+             (* match constr:(find_type2 P o) with *)
+             (*   | Some (tU ?t1 ?t2) => *)
+             (*          (solve [first [(eapply (in_prop_disjsyl o t t1)); *)
+             (*                          crush; right ; crush | *)
+             (*                         (eapply (in_prop_disjsyl o t t2)); *)
+             (*                           crush; left ; crush]]) *)
+             (*   | _ => fail *)
+             (* end *)
+               match find_type P o with
+                 | Some (tU ?t1 ?t2) =>
+                   (solve [first [(eapply (in_prop_disjsyl o t t1));
+                                   crush; right ; crush |
+                                  (eapply (in_prop_disjsyl o t t2));
+                                    crush; left ; crush]])
+                 | _ => fail
+               end
+             (* (solve [first [(eapply disjsyl_2land_l; crush) |  *)
+               (*                (eapply disjsyl_2land_r; crush) | *)
+               (*                (eapply disjsyl_2rand_l; crush) | *)
+               (*                (eapply disjsyl_2rand_r; crush) | *)
+               (*                (eapply disjsyl_3land_l; crush) | *)
+               (*                (eapply disjsyl_3land_r; crush) | *)
+               (*                (eapply disjsyl_3mand_l; crush) | *)
+               (*                (eapply disjsyl_3mand_r; crush) | *)
+               (*                (eapply disjsyl_3rand_l; crush) | *)
+               (*                (eapply disjsyl_3rand_r; crush)]]) *)
              | |- SubType ?P tTop => eapply S_Top
              | |- SubType ?P ?P => eapply S_Refl
              | |- TypeOf _ (# _) _ _ _ => 
@@ -1008,6 +1065,7 @@ Ltac bamcis :=
 
 (** Unhygeinic Or macro *)
 Notation tmp := (Id 1729).
+
 Notation OR := (fun p q => 
                   (Let tmp p
                        (If ($ tmp)
@@ -1032,6 +1090,11 @@ Grab Existential Variables.
 crush. crush.
 Qed.
 
+
+Goal False.
+  let n := find_type ((var tmp) ::= tStr) (var tmp) in
+    pose n.
+
 Example example2:
   forall x,
     TypeOf TT
@@ -1046,7 +1109,7 @@ Example example2:
            TT
            None.
 Proof with bamcis. 
-  intros x...
+  intros x... 
 Grab Existential Variables.
 crush. crush.
 Qed.
@@ -1064,9 +1127,16 @@ Example example3:
       TT
       None.
 Proof with bamcis.
-  intros x y Hneq.
-  eapply (T_Subsume tNat). eapply T_Let.
-  bamcis. simpl. crush. bamcis.
+  intros x y Hneq.    eapply (T_Subsume tNat tNat None). 
+  eapply T_Let... 
+   simpl. crush. 
+  (* TODO, theorem about if there is *some* type to apply it *)
+  eapply P_AndE_lhs. eapply P_AndE_lhs.
+  eapply P_AndE_rhs. crush.. 
+
+  bamcis.
+
+  bamcis.
   bamcis.
 Example example4:
   forall x f,

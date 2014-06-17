@@ -407,10 +407,6 @@ Inductive Proves : relation prop :=
 | P_True :
     forall P,
       Proves P TT
-| P_Not :
-    forall P Q,
-      Proves (P && Q) FF
-      -> Proves P (Not Q)
 | P_AndI :
     forall P Q R,
       Proves P Q 
@@ -442,6 +438,16 @@ Inductive Proves : relation prop :=
       Proves P R
       -> Proves Q R
       -> Proves (P || Q) R
+| P_DisjSyl_lhs :
+    forall P Q R,
+      Proves P (Q || R)
+      -> Proves P (Not R)
+      -> Proves P Q
+| P_DisjSyl_rhs :
+    forall P Q R,
+      Proves P (Q || R)
+      -> Proves P (Not Q)
+      -> Proves P R
 | P_Sub :
     forall τ σ ox P,
       Proves P (ox ::= τ)
@@ -473,16 +479,16 @@ Inductive Proves : relation prop :=
     Proves P ((obj (π ++ [car]) x) ::= τ)
     -> Proves P ((obj (π ++ [cdr]) x) ::= σ)
     -> Proves P ((obj π x) ::= (tCons τ σ))
-| P_DisjSyl_lhs :
-    forall P o τ1 τ2,
-      Proves P (o ::~ τ2)
-      -> Proves P (o ::= (tU τ1 τ2))
-      -> Proves P (o ::= τ1)
-| P_DisjSyl_rhs :
-    forall P o τ1 τ2,
-      Proves P (o ::~ τ1)
-      -> Proves P (o ::= (tU τ1 τ2))
-      -> Proves P (o ::= τ2)
+| P_UnionNeg_lhs :
+    forall P o τ τ',
+      Proves P (o ::~ τ')
+      -> Proves P (o ::= (tU τ τ'))
+      -> Proves P (o ::= τ)
+| P_UnionNeg_rhs :
+    forall P o τ τ',
+      Proves P (o ::~ τ')
+      -> Proves P (o ::= (tU τ' τ))
+      -> Proves P (o ::= τ)
 
 (** SubType *)
 
@@ -610,109 +616,33 @@ Inductive TypeOf : prop -> exp -> type -> prop -> opt object -> Prop :=
 (** * Proof Helpers/Lemmas and Automation *)
 Hint Resolve P_Refl P_False P_True P_AndI P_OrE P_Or.
 Hint Resolve S_Refl S_Top S_Bot S_UnionSub S_Abs S_Pair.
-Hint Resolve T_Nat T_Str T_Const T_True T_False T_Var
-T_Abs T_App T_If T_Cons T_Car T_Cdr T_Let.
 
-Lemma USuper_l : forall t1 t2,
-SubType t1 (tU t1 t2).
-Proof with auto. 
-  intros. eapply S_UnionSuper_l...
+Fixpoint in_type (t U : type) : bool :=
+if type_eqdec t U then true else
+match U with
+  | tU t1 t2 => orb (in_type t t1) (in_type t t2)
+  | _ => false
+end.
+
+Lemma in_type_Subtype : forall t2 t1,
+in_type t1 t2 = true
+-> SubType t1 t2.
+Proof.
+  Hint Rewrite orb_true_iff.
+  Hint Rewrite andb_true_iff.
+  intros t2.
+  induction t2; intros; crush.
+  destruct (type_eqdec t1 tBot); crush.
+  destruct (type_eqdec t1 tNat); crush.
+  destruct (type_eqdec t1 tStr); crush.
+  destruct (type_eqdec t1 tT); crush.
+  destruct (type_eqdec t1 tF); crush.
+  destruct (type_eqdec t1 (tU t2_1 t2_2)); crush.
+  eapply S_UnionSuper_l; crush.
+  eapply S_UnionSuper_r; crush.
+  destruct (type_eqdec t1 (tCons t2_1 t2_2)); crush.
+  destruct (type_eqdec t1 (tλ i t2_1 t2_2 p o)); crush.
 Qed.
-Hint Resolve USuper_l.
-
-Lemma USuper_r : forall t1 t2,
-SubType t2 (tU t1 t2).
-Proof with auto. 
-  intros. eapply S_UnionSuper_r...
-Qed.
-Hint Resolve USuper_r.
-
-Lemma USuper_ll : forall t1 t2 t3,
-SubType t1 (tU (tU t1 t2) t3).
-Proof with auto. 
-  intros. eapply S_UnionSuper_l...
-Qed.
-Hint Resolve USuper_ll.
-
-Lemma USuper_rl : forall t1 t2 t3,
-SubType t2 (tU (tU t1 t2) t3).
-Proof with auto. 
-  intros. eapply S_UnionSuper_l...
-Qed.
-Hint Resolve USuper_rl.
-
-Lemma USuper_lr : forall t1 t2 t3,
-SubType t2 (tU t1 (tU t2 t3)).
-Proof with auto. 
-  intros. eapply S_UnionSuper_r...
-Qed.
-Hint Resolve USuper_lr.
-
-Lemma USuper_rr : forall t1 t2 t3,
-SubType t3 (tU t1 (tU t2 t3)).
-Proof with auto. 
-  intros. eapply S_UnionSuper_r...
-Qed.
-Hint Resolve USuper_rr.
-
-Lemma USuper_lll : forall t1 t2 t3 t4,
-SubType t1 (tU (tU (tU t1 t2) t3) t4).
-Proof with auto. 
-  intros. eapply S_UnionSuper_l...
-Qed.
-Hint Resolve USuper_lll.
-
-Lemma USuper_rll : forall t1 t2 t3 t4,
-SubType t2 (tU (tU (tU t1 t2) t3) t4).
-Proof with auto. 
-  intros. eapply S_UnionSuper_l...
-Qed.
-Hint Resolve USuper_rll.
-
-Lemma USuper_lrl : forall t1 t2 t3 t4,
-SubType t2 (tU (tU t1 (tU t2 t3)) t4).
-Proof with auto. 
-  intros. eapply S_UnionSuper_l...
-Qed.
-Hint Resolve USuper_lrl.
-
-Lemma USuper_rrl : forall t1 t2 t3 t4, 
-SubType t3 (tU (tU t1 (tU t2 t3)) t4).
-Proof with auto. 
-  intros. eapply S_UnionSuper_l...
-Qed.
-Hint Resolve USuper_rrl.
-
-Lemma USuper_llr : forall t1 t2 t3 t4,
-SubType t2 (tU t1 (tU (tU t2 t3) t4)).
-Proof with auto. 
-  intros. eapply S_UnionSuper_r...
-Qed.
-Hint Resolve USuper_llr.
-
-Lemma USuper_rlr : forall t1 t2 t3 t4,
-SubType t3 (tU t1 (tU (tU t2 t3) t4)).
-Proof with auto. 
-  intros. eapply S_UnionSuper_r...
-Qed.
-Hint Resolve USuper_rlr.
-
-Lemma USuper_lrr : forall t1 t2 t3 t4,
-SubType t3 (tU t1 (tU t2 (tU t3 t4))).
-Proof with auto. 
-  intros. eapply S_UnionSuper_r...
-Qed.
-Hint Resolve USuper_lrr.
-
-Lemma USuper_rrr : forall t1 t2 t3 t4, 
-SubType t4 (tU t1 (tU t2 (tU t3 t4))).
-Proof with auto. 
-  intros. eapply S_UnionSuper_r...
-Qed.
-Hint Resolve USuper_rrr.
-
-
-
 
 Lemma then_else_eq : forall (T:Type) (P1 P2:Prop) (test: sumbool P1 P2) (Q:T),
 (if test then Q else Q) = Q.
@@ -720,7 +650,6 @@ Proof.
   crush.
 Qed.
 Hint Rewrite then_else_eq.
-
 
 Lemma if_eq_id : forall (T:Type) x (t1 t2: T),
 (if id_eqdec x x then t1 else t2) = t1.
@@ -770,16 +699,6 @@ Proof.
 Qed.
 Hint Rewrite if_eq_prop.
 
-Lemma subst_Some_tNat : forall x y,
-(subst_p (var x ::= tNat) (Some (var y)) x)
- = (var y ::= tNat).
-Proof.
-  intros x y.
-  simpl. destruct (id_eqdec x x); crush.
-Qed.  
-Hint Rewrite subst_Some_tNat.
-
-
 Fixpoint in_prop (q p : prop) : bool :=
   if prop_eqdec q p then true else
     match p with
@@ -826,26 +745,22 @@ Proof with crush.
   eapply P_AndE_rhs. crush.
 Qed.
 
-Lemma true_tBool : 
-SubType tT tBool.
-Proof. crush. Qed.
-
-Lemma false_tBool : 
-SubType tF tBool.
-Proof. crush. Qed.
-Hint Resolve true_tBool false_tBool.  
-
-Hint Resolve in_prop_Proves.
-
-Lemma in_prop_disjsyl : forall o t t' P,
+Lemma in_prop_disjsyl_lhs : forall o t t' P,
 in_prop (o ::~ t') P = true
--> (in_prop (o ::= (tU t t')) P = true
-\/ in_prop (o ::= (tU t' t)) P = true)
+-> in_prop (o ::= (tU t t')) P = true
 -> Proves P (o ::= t).
 Proof.
-  intros o t t' P H1 H2.  destruct H2.
-  eapply (P_DisjSyl_lhs P o t t'); crush; crush.
-  eapply (P_DisjSyl_rhs P o t' t); crush.
+  intros o t t' P H1 H2.
+  eapply (P_UnionNeg_lhs P o t t'); (eapply in_prop_Proves; auto). 
+Qed.
+
+Lemma in_prop_disjsyl_rhs : forall o t t' P,
+in_prop (o ::~ t') P = true
+-> in_prop (o ::= (tU t' t)) P = true
+-> Proves P (o ::= t).
+Proof.
+  intros o t t' P H1 H2.
+  eapply (P_UnionNeg_rhs P o t t'); (eapply in_prop_Proves; auto). 
 Qed.
   
 
@@ -873,70 +788,73 @@ Proof. reflexivity. Qed.
 
 Example ft2_ex3 : (find_type (TT && var (Id 0) ::= tU tStr tNat 
                                   && var (Id 0) ::~ tNat) (var (Id 0))) = Some (tU tStr tNat).
-Proof. simpl. reflexivity.
+Proof. simpl. reflexivity. Qed.
 
+Ltac bamcis' subsuming :=
+  crush;
+     (match goal with
+        | [ |- Proves _ _] => 
+          (solve [(eapply in_prop_Proves; crush)])
+        | [H : Proves ?P ?Q |- Proves (?Γ && ?P) ?Q] =>
+          (eapply P_AndE_rhs; exact H)
+        | [H : Proves ?P ?Q |- Proves (?P && ?Γ) ?Q] =>
+          (eapply P_AndE_lhs; exact H)
+        | [H : Proves ?P ?Q |- Proves ?P (?Q || ?R)] =>
+          (eapply P_OrI_lhs; exact H)
+        | [H : Proves ?P ?R |- Proves ?P (?Q || ?R)] =>
+          (eapply P_OrI_rhs; exact H)
+        | |- SubObj ?o ?o => eapply SO_Refl
+        | |- SubObj None ?o => eapply SO_Refl
+        | |- SubObj ?o None => eapply SO_Top
+        | |- Proves ?P ?P => eapply P_Refl
+        | |- Proves (TT && _) _ =>
+          eapply P_AndE_rhs; bamcis' False
+        | |- Proves (_ && TT) _ =>
+          eapply P_AndE_lhs; bamcis' False
+        | [ |- Proves _ (?o ::= tTop)] => 
+          (solve [(eapply bound_in_Proves_Top; crush)])
+        | [ |- Proves ?P (?o ::= ?t)] =>
+          let xtype_exp := 
+              constr:(find_type P o) in
+          let xtype := eval simpl in xtype_exp in
+          match xtype with
+            | Some (tU ?t1 ?t2) =>
+              (solve [first [eapply (in_prop_disjsyl_lhs o t1 t2); 
+                              crush |
+                             (eapply (in_prop_disjsyl_rhs o t1 t2)); 
+                               crush]])
+            | _ => fail
+          end
+        | |- SubType ?P tTop => eapply S_Top
+        | |- SubType ?P ?P => eapply S_Refl
+        | |- TypeOf _ (# _) _ _ _ => 
+          solve [eapply T_Nat; bamcis' False]
+        | |- TypeOf _ (eOp _) _ _ _ => 
+          solve [eapply T_Const; bamcis' False]
+        | |- TypeOf _ #t _ _ _ =>
+          solve [eapply T_True; bamcis' False]
+        | |- TypeOf _ #f _ _ _ =>
+          solve [eapply T_False; bamcis' False]
+        | |- TypeOf _ ($ _) _ _ _ =>
+          solve [eapply T_Var; bamcis' False]
+        | |- TypeOf _ (λ _ _ _) _ _ _ =>
+          solve [eapply T_Abs; bamcis' False]
+        | |- TypeOf _ (Apply _ _) _ _ _ =>
+          solve [eapply T_App; bamcis' False]
+        | |- TypeOf _ (If _ _ _) _ _ _ =>
+          solve [eapply T_If; bamcis' False]
+        | |- TypeOf _ (Let _ _ _) _ _ _ =>
+          solve [eapply T_Let; bamcis' False]
+        | |- TypeOf _ _ _ _ _ =>
+          match subsuming with
+          | True => fail
+          | False => 
+            solve[(eapply T_Subsume); bamcis' True]
+          end
+        | _ => auto
+        end).
 
-Ltac bamcis :=
-  progress repeat(
-      first[
-          (match goal with
-             | |- ?lhs = ?rhs => 
-               (eauto; solve [first [crush | reflexivity]])
-             | [H : Proves ?P ?Q |- Proves (?Γ && ?P) ?Q] =>
-               (eapply P_AndE_rhs; exact H)
-             | [H : Proves ?P ?Q |- Proves (?P && ?Γ) ?Q] =>
-               (eapply P_AndE_lhs; exact H)
-             | [H : Proves ?P ?Q |- Proves ?P (?Q || ?R)] =>
-               (eapply P_OrI_lhs; exact H)
-             | [H : Proves ?P ?R |- Proves ?P (?Q || ?R)] =>
-               (eapply P_OrI_rhs; exact H)
-             | |- SubObj ?o ?o => eapply SO_Refl
-             | |- SubObj None ?o => eapply SO_Refl
-             | |- SubObj ?o None => eapply SO_Top
-             | |- Proves ?P ?P => eapply P_Refl
-             | |- Proves (TT && _) _ =>
-               eapply P_AndE_rhs
-             | |- Proves (_ && TT) _ =>
-               eapply P_AndE_rhs
-             | [ |- Proves _ _] => 
-               (solve [(eapply in_prop_Proves; crush)])
-             | [ |- Proves _ (?o ::= tTop)] => 
-               (solve [(eapply bound_in_Proves_Top; crush)])
-             | [ |- Proves ?P (?o ::= ?t)] =>
-               let xtype_exp := 
-                   constr:(find_type P o) in
-               let xtype := eval simpl in xtype_exp in
-               match xtype with
-                 | Some (tU ?t1 ?t2) =>
-                   (solve [first [(eapply (in_prop_disjsyl o t t1));
-                                   crush; left ; crush |
-                                  (eapply (in_prop_disjsyl o t t2));
-                                    crush; right ; crush]])
-                 | _ => fail
-               end
-             | |- SubType ?P tTop => eapply S_Top
-             | |- SubType ?P ?P => eapply S_Refl
-             | |- TypeOf _ (# _) _ _ _ => 
-               eapply T_Nat
-             | |- TypeOf _ (eOp _) _ _ _ => 
-               eapply T_Const
-             | |- TypeOf _ #t _ _ _ =>
-               eapply T_True
-             | |- TypeOf _ #f _ _ _ =>
-               eapply T_False
-             | |- TypeOf _ ($ _) _ _ _ =>
-               eapply T_Var
-             | |- TypeOf _ (λ _ _ _) _ _ _ =>
-               eapply T_Abs
-             | |- TypeOf _ (Apply _ _) _ _ _ =>
-               eapply T_App
-             | |- TypeOf _ (If _ _ _) _ _ _ =>
-               eapply T_If
-             | |- TypeOf _ _ _ _ _ =>
-               progress (eapply T_Subsume) 
-           (* progress ensures subsumption actually modifies the goal *)
-           end) 
-        | crush]).
+Ltac bamcis := bamcis' False.
 
 (** *Typechecked Examples *)
 
@@ -984,7 +902,7 @@ Example example2:
 Proof.
   bamcis.
 Grab Existential Variables.
-exact X. exact X.
+exact X. exact X. exact X.
 Qed.
 
 Example example3:
@@ -997,7 +915,14 @@ Example example3:
       tNat
       TT
       None.
-Proof. Admitted.
+Proof. 
+  bamcis.
+(* TODO - needs to handle Disjunctive syllogism
+  I'm 99% sure there is a case there we're trying 
+  to prove something like X ::= type and 
+  ((X ::= type) || Q) and (Not Q) are in the environment
+*)
+Admitted.
 
 
 

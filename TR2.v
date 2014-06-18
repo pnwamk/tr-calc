@@ -116,6 +116,7 @@ Notation λ := eλ.
 Notation Str := eStr.
 Notation If := eIf.
 Notation Let := eLet.
+Notation Apply := eApp.
 Notation Car  := (eApp (eOp (p_op opCar))).
 Notation Cdr := (eApp (eOp (p_op opCdr))).
 Notation Add1 := (eApp (eOp (c_op opAdd1))).
@@ -129,7 +130,6 @@ Notation "Str?" := (eApp (eOp (c_op opIsStr))).
 Notation StrLen := (eApp (eOp (c_op opStrLen))).
 Notation Plus := (fun x y =>
                     (eApp (eApp (eOp (c_op opPlus)) x) y)).
-Notation Apply := eApp.
 
 (** Constant types: *)
 Definition const_type (c : const_op) (x:id) : type :=
@@ -614,11 +614,11 @@ Inductive TypeOf : prop -> exp -> type -> prop -> opt object -> Prop :=
                 None
 | T_App :
     forall τ'' σ τ o'' o o' Γ e x fψ fo ψ e' ψ' ψf'',
-      TypeOf Γ e (tλ x σ τ fψ fo) ψ o
-      -> TypeOf Γ e' σ ψ' o'
-      -> (subst_t τ o' x) = τ''
+      (subst_t τ o' x) = τ''
       -> (subst_p fψ o' x) = ψf''
       -> (subst_o fo o' x) = o''
+      -> TypeOf Γ e (tλ x σ τ fψ fo) ψ o
+      -> TypeOf Γ e' σ ψ' o'
       -> TypeOf Γ (Apply e e') τ'' ψf'' o''
 | T_If :
     forall τ τ' o o1 Γ e1 ψ1 e2 ψ2 e3 ψ3,
@@ -633,19 +633,22 @@ Inductive TypeOf : prop -> exp -> type -> prop -> opt object -> Prop :=
       -> TypeOf Γ (Cons e1 e2) (tCons τ1 τ2) TT None
 | T_Car :
     forall τ1 τ2 o' o Γ e ψ0 ψ x,
-      TypeOf Γ e (tCons τ1 τ2) ψ0 o
-      -> (subst_p ((obj [car] x) ::~ tF) o x) = ψ
+      (subst_p ((obj [car] x) ::~ tF) o x) = ψ
       -> (subst_o (Some (obj [car] x)) o x) = o'
+      -> TypeOf Γ e (tCons τ1 τ2) ψ0 o
       -> TypeOf Γ (Car e) τ1 ψ o'
 | T_Cdr :
     forall τ1 τ2 o' o Γ e ψ0 ψ x,
-      TypeOf Γ e (tCons τ1 τ2) ψ0 o
-      -> (subst_p ((obj [cdr] x) ::~ tF) o x) = ψ
+      (subst_p ((obj [cdr] x) ::~ tF) o x) = ψ
       -> (subst_o (Some (obj [cdr] x)) o x) = o'
+      -> TypeOf Γ e (tCons τ1 τ2) ψ0 o
       -> TypeOf Γ (Cdr e) τ2 ψ o'
 | T_Let :
     forall σ' τ σ o1' o0 o1 Γ e0 ψ0 e1 ψ1 x ψ1',
-      TypeOf Γ e0 τ ψ0 o0
+      (subst_t σ o0 x) = σ'
+      -> (subst_p ψ1 o0 x) = ψ1'
+      -> (subst_o o1 o0 x) = o1'
+      -> TypeOf Γ e0 τ ψ0 o0
       -> TypeOf (Γ && ((var x) ::= τ)
                    && (((var x) ::~ tF) --> ψ0)
                    && (((var x) ::= tF) --> (Not ψ0))) 
@@ -653,9 +656,6 @@ Inductive TypeOf : prop -> exp -> type -> prop -> opt object -> Prop :=
                 σ
                 ψ1
                 o1
-      -> (subst_t σ o0 x) = σ'
-      -> (subst_p ψ1 o0 x) = ψ1'
-      -> (subst_o o1 o0 x) = o1'
       -> TypeOf Γ (Let x e0 e1) σ' ψ1' o1'
 | T_Subsume :
     forall τ' τ o' o Γ e ψ ψ',
@@ -670,7 +670,7 @@ Inductive TypeOf : prop -> exp -> type -> prop -> opt object -> Prop :=
 
 (** * Proof Helpers/Lemmas and Automation *)
 Hint Resolve P_Atom P_False P_True P_Conjr.
-Hint Resolve S_Refl S_Top S_Bot S_UnionSub S_Abs S_Pair.
+Hint Resolve S_Refl S_Top S_UnionSub S_Abs S_Pair.
 
 Axiom prop_equality : forall P Q,
 Proves P Q
@@ -988,11 +988,78 @@ Ltac disjsyltac P Q disjs solver :=
     | _ => fail
   end.
 
+Lemma nat_subst : forall t o1 o2,
+t = tNat
+-> subst_t t o1 o2 = tNat.
+Proof. crush. Qed.
+
+Lemma top_subst : forall t o1 o2,
+t = tTop
+-> subst_t t o1 o2 = tTop.
+Proof. crush. Qed.
+
+Lemma bot_subst : forall t o1 o2,
+t = tBot
+-> subst_t t o1 o2 = tBot.
+Proof. crush. Qed.
+
+Lemma str_subst : forall t o1 o2,
+t = tStr
+-> subst_t t o1 o2 = tStr.
+Proof. crush. Qed.
+
+Lemma true_subst : forall t o1 o2,
+t = tT
+-> subst_t t o1 o2 = tT.
+Proof. crush. Qed.
+
+Lemma false_subst : forall t o1 o2,
+t = tF
+-> subst_t t o1 o2 = tF.
+Proof. crush. Qed.
+
+Lemma bool_subst : forall t o1 o2,
+t = tBool
+-> subst_t t o1 o2 = tBool.
+Proof. crush. Qed.
+
+Lemma TT_subst : forall P o1 o2,
+P = TT
+-> subst_p P o1 o2 = TT.
+Proof. crush. Qed.
+
+Lemma FF_subst : forall P o1 o2,
+P = FF
+-> subst_p P o1 o2 = FF.
+Proof. crush. Qed.
+
+Lemma Unk_subst : forall P o1 o2,
+P = Unk
+-> subst_p P o1 o2 = Unk.
+Proof. crush. Qed.
+
+Lemma None_subst : forall o o1 o2,
+o = None
+-> subst_o o o1 o2 = None.
+Proof. crush. Qed.
 
 
 Ltac bamcis' subsuming :=
   crush;
      (match goal with
+        | [ |- ?lhs = ?rhs] => first[solve [reflexivity] |
+                                     solve [crush] |
+                                     solve [(eapply nat_subst); crush] |
+                                     solve [(eapply top_subst); crush] |
+                                     solve [(eapply bot_subst); crush] |
+                                     solve [(eapply str_subst); crush] |
+                                     solve [(eapply true_subst); crush] |
+                                     solve [(eapply false_subst); crush] |
+                                     solve [(eapply bool_subst); crush] |
+                                     solve [(eapply TT_subst); crush] |
+                                     solve [(eapply FF_subst); crush] |
+                                     solve [(eapply Unk_subst); crush] |
+                                     solve [(eapply None_subst); crush] ]
         | [ |- Proves _ _] => 
           (solve [(eapply P_Atom; crush)])
         | [H : Proves ?P ?Q |- Proves (?Γ && ?P) ?Q] =>
@@ -1013,6 +1080,7 @@ Ltac bamcis' subsuming :=
           eapply P_Conjl_lhs; bamcis' False
         | [ |- Proves _ (?o ::= tTop)] => 
           (solve [(eapply bound_in_Proves_Top; crush)])
+        (* Union w/ not to specify*)
         | [ |- Proves ?P (?o ::= ?t)] =>
           let types_exp := constr:(find_types P o) in
           let types := eval simpl in types_exp in
@@ -1039,15 +1107,21 @@ Ltac bamcis' subsuming :=
         | |- TypeOf _ (Apply _ _) _ _ _ =>
           solve [eapply T_App; bamcis' False]
         | |- TypeOf _ (If _ _ _) _ _ _ =>
-          solve [eapply T_If; bamcis' False]
+          solve [first [eapply T_If with (o := None); bamcis' False |
+                        eapply T_If; bamcis' False]]
         | |- TypeOf _ (Let _ _ _) _ _ _ =>
           solve [eapply T_Let; bamcis' False]
-        | |- TypeOf _ _ _ _ _ =>
+        | |- TypeOf _ _ ?t _ _ =>
           match subsuming with
           | True => fail
           | False => 
-            solve[(eapply T_Subsume); bamcis' True]
+            solve[first [(eapply (T_Subsume t t)); bamcis' True |
+                         (eapply T_Subsume); bamcis' True]]
           end
+        (* EJECT!! EJECT!! *)
+        | |- SubObj None (Some _) => fail 1
+        | |- SubObj tTop tNat => fail 1
+        (* I give up *)
         | _ => auto
         end).
 
@@ -1169,79 +1243,80 @@ Example example3:
       tNat
       TT
       None.
-Proof. 
+Proof with bamcis.
   bamcis.
-(* TODO - needs to handle Disjunctive syllogism
-  I'm 99% sure there is a case there we're trying 
-  to prove something like X ::= type and 
-  ((X ::= type) || Q) and (Not Q) are in the environment
-*)
-Admitted.
-
-
+Grab Existential Variables.
+exact X.
+Qed.
 
 Example example4:
-  forall x f,
-    TypeOf (((var x) ::= tTop) 
-              && ((var f) ::= (tλ x ((tU tStr tNat), tNat) TT None)))
-           (If (OR (Nat? ($ x)) (Str? ($ x)))
-               (Apply ($ f) ($ x))
+    TypeOf (((var X) ::= tTop) 
+              && ((var F) ::= (tλ X (tU tStr tNat) tNat TT None)))
+           (If (OR (Nat? ($ X)) (Str? ($ X)))
+               (Apply ($ F) ($ X))
                (# 0))
            tNat
            TT
            None.
-Proof. Admitted.
+Proof. 
+  bamcis.
+Admitted.
 
 Example example5:
-  forall x y,
-    TypeOf (((var x) ::= tTop) && ((var y) ::= tTop))
-           (If (AND (Nat? ($ x)) (Str? ($ y)))
-               (Plus ($ x) (StrLen ($ y)))
+    TypeOf (((var X) ::= tTop) && ((var Y) ::= tTop))
+           (If (AND (Nat? ($ X)) (Str? ($ Y)))
+               (Plus ($ X) (StrLen ($ Y)))
                (# 0))
            tNat
            TT
            None.
-Proof. Admitted.
+Proof. 
+  bamcis.
+Admitted.
 
 Example example7:
-  forall x y,
-    TypeOf (((var x) ::= tTop) && ((var y) ::= tTop))
-           (If (If (Nat? ($ x)) (Str? ($ y)) #f)
-               (Plus ($ x) (StrLen ($ y)))
+  forall X y,
+    TypeOf (((var X) ::= tTop) && ((var y) ::= tTop))
+           (If (If (Nat? ($ X)) (Str? ($ y)) #f)
+               (Plus ($ X) (StrLen ($ y)))
                (# 0))
            tNat
            TT
            None.
-Proof. Admitted.
+Proof. 
+  bamcis.
+Admitted.
 
 Example example8:
-  forall x,
     TypeOf TT
-           (λ x tTop
-              (OR (Str? ($ x)) (Nat? ($ x))))
-           (tλ x
-               (tTop, (tU tStr tNat))
-               ((var x) ::= (tU tStr tNat))
+           (λ X tTop
+              (OR (Str? ($ X)) (Nat? ($ X))))
+           (tλ X
+               tTop (tU tStr tNat)
+               ((var X) ::= (tU tStr tNat))
                None)
            TT
            None.
-Proof. Admitted.
+Proof. 
+  bamcis.
+Admitted.
 
 Example example9:
-  forall x f,
-    TypeOf (((var x) ::= tTop)
-              && ((var f) ::= (tλ x ((tU tStr tNat), tNat) TT None)))
-           (If (Let tmp (Nat? ($ x))
-                    (If ($ tmp) ($ tmp) (Str? ($ x))))
-               (Apply ($ f) ($ x))
+    TypeOf (((var X) ::= tTop)
+              && ((var F) ::= (tλ X (tU tStr tNat) tNat TT None)))
+           (If (Let TMP (Nat? ($ X))
+                    (If ($ TMP) ($ TMP) (Str? ($ X))))
+               (Apply ($ F) ($ X))
                (# 0))
            tNat
            TT
            None.
-Proof. Admitted.
+Proof. 
+  bamcis.
+Admitted.
 
 Example example10:
-  forall p,
+let p := (Id 23) in
     TypeOf ((var p) ::= (tCons tTop tTop))
            (If (Nat? (Car ($ p)))
                (Add1 (Car ($ p)))
@@ -1249,57 +1324,65 @@ Example example10:
            tNat
            TT
            None.
-Proof. Admitted.
+Proof. 
+  bamcis.
 
 Example example11:
-  forall p g x,
+let p := (Id 23) in
     TypeOf ((var p) ::= (tCons tTop tTop)
-            && ((var g) ::= (tλ x ((tU tNat tNat), tNat) TT None)))
+            && ((var G) ::= (tλ X (tU tNat tNat) tNat TT None)))
            (If (AND (Nat? (Car ($ p))) (Nat? (Cdr ($ p))))
-               (Apply ($ g) ($ p))
+               (Apply ($ G) ($ p))
                (# 42))
            tNat
            TT
            None.
+Proof.
+  bamcis.
+Admitted.
 
 Example example12:
-  forall x y,
     TypeOf TT
-           (λ x (tCons tTop tTop)
-              (Nat? (Car ($ x))))
-           (tλ y
-               ((tCons tTop tTop), (tCons tTop tTop))
-               ((var y) ::= (tCons tNat tTop))
+           (λ X (tCons tTop tTop)
+              (Nat? (Car ($ X))))
+           (tλ Y
+               (tCons tTop tTop) (tCons tTop tTop)
+               ((var Y) ::= (tCons tNat tTop))
                None)
            TT
            None.
-Proof. Admitted.
+Proof. 
+  bamcis.
+Admitted.
 
 Example example13:
-  forall x y,
-    TypeOf (((var x) ::= tTop) && ((var y) ::= (tU tNat tStr)))
-           (If (AND (Nat? ($ x)) (Str? ($ y)))
-               (Plus ($ x) (StrLen ($ y)))
-               (If (Nat? ($ x))
-                   (Plus ($ x) ($ y))
+    TypeOf (((var X) ::= tTop) && ((var Y) ::= (tU tNat tStr)))
+           (If (AND (Nat? ($ X)) (Str? ($ Y)))
+               (Plus ($ X) (StrLen ($ Y)))
+               (If (Nat? ($ X))
+                   (Plus ($ X) ($ Y))
                    (# 42)))
            tNat
            TT
            None.
-Proof. Admitted.
+Proof. 
+  bamcis.
+Admitted.
 
 Example example14:
-  forall x y,
-    TypeOf (((var x) ::= tTop) && ((var y) ::= (tCons tTop (tU tNat tStr))))
-           (If (AND (Nat? ($ x)) (Str? (Cdr ($ y))))
-               (Plus ($ x) (StrLen ($ y)))
-               (If (Nat? ($ x))
-                   (Plus ($ x) (Cdr ($ y)))
+  forall X y,
+    TypeOf (((var X) ::= tTop) && ((var y) ::= (tCons tTop (tU tNat tStr))))
+           (If (AND (Nat? ($ X)) (Str? (Cdr ($ y))))
+               (Plus ($ X) (StrLen ($ y)))
+               (If (Nat? ($ X))
+                   (Plus ($ X) (Cdr ($ y)))
                    (# 42)))
            tNat
            TT
            None.
-Proof. Admitted.
+Proof. 
+  bamcis.
+Admitted.
 
 Abort All.
 End LTR.

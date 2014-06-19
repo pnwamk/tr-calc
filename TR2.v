@@ -567,7 +567,7 @@ with SubType : relation type :=
       -> SubObj (subst_o o (Some (var y)) x) o'
       -> SubType (tλ x σ τ ψ o)
                  (tλ y σ' τ' ψ' o')
-| S_Pair :
+| S_Cons :
     forall τ1 σ1 τ2 σ2,
       SubType τ1 τ2
       -> SubType σ1 σ2
@@ -663,6 +663,8 @@ Inductive TypeOf : prop -> exp -> type -> prop -> opt object -> Prop :=
 (** * Proof Helpers/Lemmas and Automation *)
 Hint Resolve P_DisjElim P_Conjr.
 
+(** Universally valid tactics (if these go wrong, we're already in a bad
+    proof state is the idea) *)
 Hint Extern 6 (Proves FF ?P) => apply P_False.
 Hint Extern 6 (Proves ?P TT) => apply P_True.
 Hint Extern 6 (Proves (?P (Not ?P)) ?Q) => apply P_Contra.
@@ -682,6 +684,10 @@ Hint Extern 6 (SubType ?P (tU ?R (tU ?Q ?P))) =>
   apply S_UnionSuper_rhs; apply S_UnionSuper_rhs; apply S_Refl.
 Hint Extern 6 (SubType ?P (tU ?Q ?R)) => apply S_UnionSuper_rhs; apply S_Refl.
 Hint Extern 6 (SubType ?P tBot) => apply S_Bot.
+Hint Extern 6 (SubObj ?o ?o) => apply SO_Refl.
+Hint Extern 6 (SubObj ?o None) => apply SO_Top.
+Hint Extern 6 (SubObj None ?o) => eapply SO_Refl.
+
 
 Axiom prop_equality : forall P Q,
 Proves P Q
@@ -900,6 +906,63 @@ Proof with crush.
   apply P_Conjl_lhs...
 Qed.
 
+Lemma And_FF : forall P,
+P && FF = FF.
+Proof with crush.
+  intros. apply prop_equality...
+Qed.
+Hint Rewrite And_FF.
+
+Lemma FF_And : forall P,
+FF && P = FF.
+Proof with crush.
+  intros. apply prop_equality...
+Qed.
+Hint Rewrite FF_And.
+
+Lemma And_TT : forall P,
+P && TT = P.
+Proof with crush.
+  intros. apply prop_equality...
+Qed.
+Hint Rewrite And_TT.
+
+Lemma TT_And : forall P,
+TT && P = P.
+Proof with crush.
+  intros. apply prop_equality...
+Qed.
+Hint Rewrite TT_And.
+
+Lemma Or_FF : forall P,
+P || FF = P.
+Proof with crush.
+  intros. apply prop_equality...
+Qed.
+Hint Rewrite Or_FF.
+
+Lemma FF_Or : forall P,
+FF || P = P.
+Proof with crush.
+  intros. apply prop_equality...
+Qed.
+Hint Rewrite FF_Or.
+
+
+Lemma Or_TT : forall P,
+P || TT = TT.
+Proof with crush.
+  intros. apply prop_equality...
+Qed.
+Hint Rewrite Or_TT.
+
+Lemma TT_Or : forall P,
+TT || P = TT.
+Proof with crush.
+  intros. apply prop_equality...
+Qed.
+Hint Rewrite TT_Or.
+
 Lemma P_DisjSyl_rhs : forall P R Q,
 Proves P (Not Q)
 -> Proves P (Q || R)
@@ -1086,6 +1149,110 @@ o = None
 -> subst_o o o1 o2 = None.
 Proof. crush. Qed.
 
+Fixpoint simple_subtype (tsub tsuper: type)  : bool :=
+if (type_eqdec tsub tsuper) then true else
+match tsub, tsuper with
+| _ , tTop    => true
+| _, tU t1 t2 => 
+  orb (simple_subtype tsub t1)
+      (simple_subtype tsub t2)
+| tCons t1 t2, tCons t3 t4 =>
+  andb (simple_subtype t1 t3)
+       (simple_subtype t2 t4)
+| _, _ => false
+end.
+
+Lemma simple_subtype_valid : forall t2 t1,
+simple_subtype t1 t2 = true
+-> SubType t1 t2.
+Proof with (crush; first[solve [apply S_UnionSuper_lhs; crush] | 
+                         solve [apply S_UnionSuper_rhs; crush] |
+                         auto]).
+  intros t2; induction t2; destruct t1...
+  specialize (IHt2_1 (tU t1_1 t1_2)). specialize (IHt2_2 (tU t1_1 t1_2)).
+  destruct (type_eqdec t1_1 t2_1); destruct (type_eqdec t1_2 t2_2)...
+  destruct (type_eqdec t1_1 t2_1); destruct (type_eqdec t1_2 t2_2)...
+  apply S_Cons... apply S_Cons... apply S_Cons...
+  destruct o. destruct o0.
+  destruct (id_eqdec i0 i); destruct (type_eqdec t1_1 t2_1);
+  destruct (type_eqdec t1_2 t2_2); destruct (obj_eqdec o o0);
+  destruct (prop_eqdec p0 p)... destruct (obj_eqdec o0 o).
+  crush. crush. crush. destruct (id_eqdec i0 i)...
+  destruct (type_eqdec t1_1 t2_1)... destruct (type_eqdec t1_2 t2_2)...
+  destruct (prop_eqdec p0 p)... destruct (id_eqdec i0 i)...
+  destruct (type_eqdec t1_1 t2_1)... destruct (type_eqdec t1_2 t2_2)...
+  destruct (prop_eqdec p0 p)... destruct o0. crush. crush.
+Qed.
+
+Definition join (t1 t2:type) : type :=
+if simple_subtype t1 t2 then t2
+else if simple_subtype t2 t1 then t1
+else tU t1 t2.
+
+Lemma join_super_lhs : forall t1 t2 tsuper,
+join t1 t2 = tsuper
+-> SubType t1 tsuper.
+Proof with crush.
+  intros.
+  unfold join in H.
+  remember (simple_subtype t1 t2) as simpb.
+  destruct simpb. apply simple_subtype_valid...
+  remember (simple_subtype t2 t1) as simpb.
+  destruct simpb... 
+Qed.
+ 
+Lemma join_super_rhs : forall t1 t2 tsuper,
+join t1 t2 = tsuper
+-> SubType t2 tsuper.
+Proof with crush.
+  intros.
+  unfold join in H.
+  remember (simple_subtype t1 t2) as simpb.
+  destruct simpb...  
+  remember (simple_subtype t2 t1) as simpb.
+  destruct simpb... apply simple_subtype_valid...
+Qed.
+
+Lemma join_super_lhs_Refl : forall t1 t2,
+SubType t1 (join t1 t2).
+Proof with crush.
+  intros.
+  unfold join.
+  remember (simple_subtype t1 t2) as simpb.
+  destruct simpb...  apply simple_subtype_valid...
+  remember (simple_subtype t2 t1) as simpb.
+  destruct simpb...
+Qed.
+Hint Resolve join_super_lhs_Refl.
+
+Lemma join_super_rhs_Refl : forall t1 t2,
+SubType t2 (join t1 t2).
+Proof with crush.
+  intros.
+  unfold join.
+  remember (simple_subtype t1 t2) as simpb.
+  destruct simpb...  
+  remember (simple_subtype t2 t1) as simpb.
+  destruct simpb... apply simple_subtype_valid...
+Qed.
+Hint Resolve join_super_rhs_Refl.
+
+
+Lemma T_If' :
+    forall τ τ1 τ2 τ3 o o1 Γ e1 ψ1 e2 ψ2 e3 ψ3,
+      TypeOf Γ e1 τ1 ψ1 o1
+      -> TypeOf (Γ && ψ1) e2 τ2 ψ2 o
+      -> TypeOf (Γ && (Not ψ1)) e3 τ3 ψ3 o
+      -> τ = join τ2 τ3
+      -> TypeOf Γ (If e1 e2 e3) τ ((ψ1 && ψ2) || ((Not ψ1) && ψ3)) o.
+Proof with crush.
+  intros.
+  forwards*: (join_super_lhs τ1 τ2).
+  forwards*: (join_super_rhs τ1 τ2).
+  eapply T_If... eassumption. 
+  eapply (T_Subsume _ τ2)... eassumption. crush.
+  eapply (T_Subsume _ τ3)... eassumption. crush.
+Qed.
 
 Ltac bamcis' subsuming :=
   crush;
@@ -1150,16 +1317,17 @@ Ltac bamcis' subsuming :=
         | |- TypeOf _ (Apply _ _) _ _ _ =>
           solve [eapply T_App; bamcis' False]
         | |- TypeOf _ (If _ _ _) _ _ _ =>
-          solve [first [eapply T_If with (o := None); bamcis' False |
-                        eapply T_If; bamcis' False]]
+          first [solve[eapply T_If' with (o := None); bamcis' False] |
+                 solve[eapply T_If with (o := None); bamcis' False] |
+                 solve[eapply T_If; bamcis' False]]
         | |- TypeOf _ (Let _ _ _) _ _ _ =>
           solve [eapply T_Let; bamcis' False]
         | |- TypeOf _ _ ?t _ _ =>
           match subsuming with
           | True => fail
           | False => 
-            solve[first [(eapply (T_Subsume t t)); bamcis' True |
-                         (eapply T_Subsume); bamcis' True]]
+            first [solve[(eapply (T_Subsume t t)); bamcis' True] |
+                   solve[(eapply T_Subsume); bamcis' True]]
           end
         (* EJECT!! EJECT!! *)
         | |- SubObj None (Some _) => fail 1
@@ -1244,18 +1412,34 @@ Proof. bamcis. Qed.
 
 (* Checking propositions flow through If *)
 Example bamcis_ifwrapper1:
-  TypeOf TT
+  TypeOf ((var X) ::= tTop)
          (If (Nat? ($ X))
              #t
              #f)
          tBool
          ((var X) ::= tNat)
          None.
-Proof.
-  bamcis. Admitted.
+Proof. 
+  bamcis. 
+Grab Existential Variables.
+exact X.
+Qed.
   
-(* Checking propositions flow through If *)
+(* Checking propositions flow through If flipped *)
 Example bamcis_ifwrapper2:
+  TypeOf ((var X) ::= tTop)
+         (If (Nat? ($ X))
+             #f
+             #t)
+         tBool
+         ((var X) ::~ tNat)
+         None.
+Proof. 
+  bamcis. 
+  Admitted.
+
+(* Checking propositions flow through If wrapped in a λ *)
+Example bamcis_ifwrapper3:
     TypeOf TT
            (λ X tTop
               (If (Nat? ($ X))
@@ -1335,7 +1519,7 @@ Proof with bamcis.
   eapply T_If...
   eapply T_App...
   apply T_Var...
-
+  bamcis.
 
   bamcis.
 Admitted.
@@ -1464,5 +1648,3 @@ Admitted.
 
 Abort All.
 End LTR.
-
-        

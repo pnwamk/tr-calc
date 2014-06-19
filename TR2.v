@@ -1435,6 +1435,7 @@ Example bamcis_ifwrapper2:
          ((var X) ::~ tNat)
          None.
 Proof. 
+  
   bamcis. 
   Admitted.
 
@@ -1454,6 +1455,14 @@ Example bamcis_ifwrapper3:
 Proof.
   bamcis. Admitted.
 
+Example bamcis_OR1:
+  TypeOf ((var X) ::= tTop)
+         (OR (Nat? ($ X)) (Str? ($ X)))
+         tBool
+         ((var X) ::= (tU tNat tStr))
+         None.
+Proof.
+  bamcis. Admitted.
 
 (** *Typechecked Examples *)
 

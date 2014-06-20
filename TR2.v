@@ -1238,19 +1238,23 @@ Qed.
 Hint Resolve join_super_rhs_Refl.
 
 
-Lemma T_If' :
+Lemma T_If_join :
     forall τ τ1 τ2 τ3 o o1 Γ e1 ψ1 e2 ψ2 e3 ψ3,
       TypeOf Γ e1 τ1 ψ1 o1
       -> TypeOf (Γ && ψ1) e2 τ2 ψ2 o
       -> TypeOf (Γ && (Not ψ1)) e3 τ3 ψ3 o
-      -> τ = join τ2 τ3
+      -> (τ = join τ2 τ3 \/ τ = join τ3 τ2)
       -> TypeOf Γ (If e1 e2 e3) τ ((ψ1 && ψ2) || ((Not ψ1) && ψ3)) o.
 Proof with crush.
   intros.
-  forwards*: (join_super_lhs τ1 τ2).
-  forwards*: (join_super_rhs τ1 τ2).
-  eapply T_If... eassumption. 
+  (* forwards*: (join_super_lhs τ1 τ2). *)
+  (* forwards*: (join_super_rhs τ1 τ2). *)
+  (* forwards*: (join_super_lhs τ2 τ1). *)
+  (* forwards*: (join_super_rhs τ2 τ1). *)
+  eapply T_If... eassumption. crush.
   eapply (T_Subsume _ τ2)... eassumption. crush.
+  eapply (T_Subsume _ τ2)... eassumption. crush.
+  eapply (T_Subsume _ τ3)... eassumption. crush.
   eapply (T_Subsume _ τ3)... eassumption. crush.
 Qed.
 
@@ -1317,7 +1321,7 @@ Ltac bamcis' subsuming :=
         | |- TypeOf _ (Apply _ _) _ _ _ =>
           solve [eapply T_App; bamcis' False]
         | |- TypeOf _ (If _ _ _) _ _ _ =>
-          first [solve[eapply T_If' with (o := None); bamcis' False] |
+          first [solve[eapply T_If_join with (o := None); bamcis' False] |
                  solve[eapply T_If with (o := None); bamcis' False] |
                  solve[eapply T_If; bamcis' False]]
         | |- TypeOf _ (Let _ _ _) _ _ _ =>
@@ -1434,10 +1438,12 @@ Example bamcis_ifwrapper2:
          tBool
          ((var X) ::~ tNat)
          None.
-Proof. 
-  
+Proof.
   bamcis. 
-  Admitted.
+Grab Existential Variables.
+exact X.
+Qed.
+
 
 (* Checking propositions flow through If wrapped in a λ *)
 Example bamcis_ifwrapper3:
@@ -1453,7 +1459,10 @@ Example bamcis_ifwrapper3:
            TT
            None.
 Proof.
-  bamcis. Admitted.
+  bamcis.
+Grab Existential Variables.
+exact X.
+Qed.
 
 Example bamcis_OR1:
   TypeOf ((var X) ::= tTop)

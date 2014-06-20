@@ -495,6 +495,11 @@ Inductive Proves : relation prop :=
       Proves P Q
       -> Proves Q R
       -> Proves P R
+| P_ConstrDilemma :
+    forall P Q R X Y,
+      Proves (P && Q) X
+      -> Proves (P && R) Y
+      -> Proves (P && (Q || R)) (X || Y)
 | P_Sub :
     forall τ σ ox P,
       Proves P (ox ::= τ)
@@ -702,6 +707,16 @@ Proof.
 Qed.
 Hint Resolve P_Refl.
 
+Hint Extern 6 (Proves (?P && ?Q) (?P || ?R)) => 
+apply P_Conjl_lhs; apply P_Add_lhs; apply P_Refl.
+Hint Extern 6 (Proves (?P && ?Q) (?R || ?P)) => 
+apply P_Conjl_lhs; apply P_Add_rhs; apply P_Refl.
+Hint Extern 6 (Proves (?Q && ?P) (?P || ?R)) => 
+apply P_Conjl_rhs; apply P_Add_lhs; apply P_Refl.
+Hint Extern 6 (Proves (?Q && ?P) (?R || ?P)) => 
+apply P_Conjl_rhs; apply P_Add_rhs; apply P_Refl.
+
+
 Lemma P_Conjl_lhs_Refl : forall P Q,
 Proves (P && Q) P.
 Proof with crush.
@@ -885,7 +900,7 @@ match goal with
     apply Or_comm; auto
 end.
 
-Lemma And_comm : forall P Q R,
+Lemma And_comm_imp : forall P Q R,
 Proves P (Q && R)
 -> Proves P (R && Q).
 Proof with crush.
@@ -894,6 +909,12 @@ Proof with crush.
   apply P_Simpl_rhs in H...
   apply P_Simpl_lhs in H...
 Qed.
+
+Lemma And_comm : forall P Q,
+P && Q = Q && P.
+Proof with crush.
+  intros; apply prop_equality...
+Qed.  
 
 Lemma And_assoc : forall P Q R,
 (P && (Q && R)) = ((P && Q) && R).
@@ -982,6 +1003,28 @@ Proof with crush.
   apply P_DisjSyl_rhs in HQorR...
 Qed.
 
+Lemma And_over_Or : forall P Q R,
+P && (Q || R) = (P && Q) || (P && R).
+Proof with crush.
+  intros.
+  apply prop_equality.
+  eapply P_ConstrDilemma...
+  eapply P_DisjElim... 
+Qed.
+
+Lemma Or_over_And : forall P Q R,
+P || (Q && R) = (P || Q) && (P || R).
+Proof with crush.
+  intros.
+  apply prop_equality.
+  eapply P_DisjElim...
+  rewrite And_over_Or.
+  apply P_DisjElim...
+  rewrite And_comm.
+  rewrite And_over_Or.
+  eapply P_DisjElim...
+  rewrite And_comm...
+Qed.
 
 Fixpoint in_type (t U : type) : bool :=
 if type_eqdec t U then true else
@@ -1247,10 +1290,6 @@ Lemma T_If_join :
       -> TypeOf Γ (If e1 e2 e3) τ ((ψ1 && ψ2) || ((Not ψ1) && ψ3)) o.
 Proof with crush.
   intros.
-  (* forwards*: (join_super_lhs τ1 τ2). *)
-  (* forwards*: (join_super_rhs τ1 τ2). *)
-  (* forwards*: (join_super_lhs τ2 τ1). *)
-  (* forwards*: (join_super_rhs τ2 τ1). *)
   eapply T_If... eassumption. crush.
   eapply (T_Subsume _ τ2)... eassumption. crush.
   eapply (T_Subsume _ τ2)... eassumption. crush.
@@ -1357,6 +1396,8 @@ Notation OR := (fun p q =>
 (** And Macro *)
 Notation AND := (fun p q =>
                 (If p q #f)).
+Hint Extern 10 (id) => exact X.
+Hint Extern 10 (prop) => exact TT.
 
 (** ** Automation Tests *)
 
@@ -1426,7 +1467,7 @@ Example bamcis_ifwrapper1:
 Proof. 
   bamcis. 
 Grab Existential Variables.
-exact X.
+auto.
 Qed.
   
 (* Checking propositions flow through If flipped *)
@@ -1441,7 +1482,7 @@ Example bamcis_ifwrapper2:
 Proof.
   bamcis. 
 Grab Existential Variables.
-exact X.
+auto.
 Qed.
 
 
@@ -1461,7 +1502,7 @@ Example bamcis_ifwrapper3:
 Proof.
   bamcis.
 Grab Existential Variables.
-exact X.
+auto.
 Qed.
 
 Example bamcis_OR1:
@@ -1470,7 +1511,9 @@ Example bamcis_OR1:
          tBool
          ((var X) ::= (tU tNat tStr))
          None.
-Proof.
+Proof with bamcis.
+  eapply T_Let...
+  bamcis. crush.
   bamcis. Admitted.
 
 (** *Typechecked Examples *)
@@ -1485,8 +1528,9 @@ Example example1:
            None.
 Proof.
   bamcis.
-Grab Existential Variables.
-exact X. exact X.
+Solve All Obligations using auto.
+Grab Existential Variables. 
+auto. auto.
 Qed.
 
 Example example2:
@@ -1504,7 +1548,7 @@ Example example2:
 Proof.
   bamcis.
 Grab Existential Variables.
-exact X. exact X. exact X.
+auto. auto. auto.  
 Qed.
 
 Example example3:
@@ -1520,7 +1564,7 @@ Example example3:
 Proof with bamcis.
   bamcis.
 Grab Existential Variables.
-exact TT. exact X.
+auto. auto.
 Qed.
 
 Example example4:
@@ -1534,7 +1578,7 @@ Example example4:
            None.
 Proof with bamcis.
   eapply (T_Subsume tNat tNat).
-  eapply T_If...
+  eapply T_If... crush.
   eapply T_App...
   apply T_Var...
   bamcis.

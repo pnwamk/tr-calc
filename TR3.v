@@ -8,11 +8,12 @@ Require Import Bool.
 Require Import Coq.Program.Wf.
 Require Import String.
 
+Axiom excluded_middle : forall P, P \/ ~P.
+
 Import ListNotations.
 Open Scope list_scope.
 (* end hide *)
 
-Section LTR.
 (** * Basic Definitions for λTR *)
 
 (** Identifiers and objects: *)
@@ -48,35 +49,53 @@ Inductive type : Type :=
 | tλ    : id -> type -> type -> prop -> opt object -> type
 
 with prop : Type :=
-| Is    : object -> type -> prop
-| IsNot : object -> type -> prop
-| And   : prop -> prop -> prop
-| Or    : prop -> prop -> prop
-| TT    : prop
-| FF    : prop
-| Unk   : prop.
-Hint Constructors type prop.
+| Atom : fact -> prop
+| Not  : prop -> prop
+| And  : prop -> prop -> prop
+| Or   : prop -> prop -> prop
+| Imp  : prop -> prop -> prop
+| TT   : prop
+| FF   : prop
+| Unk  : prop
 
-Fixpoint Not (p : prop) : prop :=
-  match p with
-    | Is o t => IsNot o t
-    | IsNot o t => Is o t
-    | And p q => Or (Not p) (Not q)
-    | Or p q => And (Not p) (Not q)
-    | TT => FF
-    | FF => TT
-    | Unk => Unk
-  end.
+with fact : Type :=
+| istype   : object -> type -> fact.
+Hint Constructors type prop fact.
+
+Hypothesis Unknown : nat -> Prop.
+Hypothesis Atomic  : fact -> Prop. 
+
+Fixpoint prop_denote' (P:prop) (n:nat) : (prod Prop nat) :=
+match P with
+| Atom f => (Atomic f, n)
+| Not p    => let (p', n') := (prop_denote' p n) in
+              (~ p', n')
+| And p q  => let (lhs, ln) := (prop_denote' p n) in
+              let (rhs, rn) := (prop_denote' q ln) in
+              (lhs /\ rhs, rn)
+| Or  p q  => let (lhs, ln) := (prop_denote' p n) in
+              let (rhs, rn) := (prop_denote' q ln) in
+              (lhs \/ rhs, rn)
+| Imp p q  => let (lhs, ln) := (prop_denote' p n) in
+              let (rhs, rn) := (prop_denote' q ln) in
+              (lhs -> rhs, rn)
+| TT       => (True, n)
+| FF       => (False, n)
+| Unk      => ((Unknown n), (S n))
+end.
+
+Definition prop_denote := fun p => fst (prop_denote' p 0).
 
 Hint Resolve eq_nat_dec.
 
 Notation tBool := (tU tT tF).
 
-Infix "::=" := Is (at level 30, right associativity).
-Infix "::~" := IsNot (at level 30, right associativity).
+Infix "::=" := (fun o t => Atom (istype o t)) 
+                 (at level 30, right associativity).
+Notation "! P" := (Not P) (at level 20, right associativity).
 Notation "P '&&' Q" := (And P Q) (at level 40, left associativity).
 Notation "P '||' Q" := (Or P Q) (at level 50, left associativity).
-Notation "P '-->' Q" := (Or (Not P) Q) (at level 90).
+Notation "P '-->' Q" := (Imp P Q) (at level 90).
 
 (** Expressions and primitive operations: *)
 Inductive const_op :=
@@ -213,12 +232,14 @@ Proof. decide equality. Defined.
 Hint Resolve obj_eqdec.
 
 Fixpoint type_eqdec (x y : type) : {x=y}+{x<>y}
-with prop_eqdec (x y : prop) : {x=y}+{x<>y}.
+with prop_eqdec (x y : prop) : {x=y}+{x<>y}
+with fact_eqdec (x y : fact) : {x=y}+{x<>y}.
 Proof.
-repeat  decide equality.
-repeat  decide equality.
+repeat decide equality.
+repeat decide equality.
+repeat decide equality.
 Defined.
-Hint Resolve type_eqdec prop_eqdec.
+Hint Resolve type_eqdec prop_eqdec fact_eqdec.
 
 
 (** * Utility Functions 
@@ -262,11 +283,18 @@ Fixpoint fv_set_t (t : type) : set id :=
 (* free variables in propositions *)
 with fv_set_p (p: prop) : set id :=
   match p with
-    | o ::= t => set_union id_eqdec (fv_set_o (Some o)) (fv_set_t t)
-    | o ::~ t => set_union id_eqdec (fv_set_o (Some o)) (fv_set_t t)
+    | Atom f => fv_set_f f
+    | ! q => fv_set_p q
     | p && q => set_union id_eqdec (fv_set_p p) (fv_set_p q)
     | p || q => set_union id_eqdec (fv_set_p p) (fv_set_p q)
+    | p --> q => set_union id_eqdec (fv_set_p p) (fv_set_p q)
     | _ => nil
+  end
+
+with fv_set_f (f:fact) : set id :=
+  match f with
+    | istype o t => 
+      set_union id_eqdec (fv_set_o (Some o)) (fv_set_t t)
   end.
 
 (** Substitution functions: *)
@@ -281,61 +309,72 @@ Definition subst_o (o newobj: opt object) (z:id) : opt object :=
       end
   end.
 
+Definition truth (b:bool) : prop :=
+if b then TT else FF.
 
 (** _we use true/false instead of +/- for substitution_ *)
-Fixpoint subst_p
+Fixpoint subst_p'
+         (b:bool)
          (p:prop)
          (opto:opt object)
          (x:id) : prop :=
   match p with
-    | (obj pth1 z) ::= t =>
-      match id_eqdec x z , set_mem id_eqdec z (fv_set_t t) with
-        | left _, _ =>
-          match opto with
-            | None => TT
-            | Some (obj pth2 y) =>
-              Is (obj (pth1 ++ pth2) y) (subst_t t opto x)
-          end
-        | right _, false => p
-        | right _, true => TT
+    | Atom f => 
+      match (subst_f b f opto x) with
+        | None => TT
+        | Some f' => Atom f'
       end
-    | (obj pth1 z) ::~ t =>
-      match id_eqdec x z , set_mem id_eqdec z (fv_set_t t) with
-        | left _, _ =>
-          match opto with
-            | None => TT
-            | Some (obj pth2 y) =>
-              IsNot (obj (pth1 ++ pth2) y) (subst_t t opto x)
-          end
-        | right _, false => p
-        | right _, true => TT
-      end
-    | P || Q => (subst_p P opto x) || (subst_p Q opto x)
-    | P && Q => (subst_p P opto x) && (subst_p Q opto x)
+    | Not P  => subst_p' (negb b) P opto x
+    | P || Q => (subst_p' b P opto x) || (subst_p' b Q opto x)
+    | P && Q => (subst_p' b P opto x) && (subst_p' b Q opto x)
+    | P --> Q => (subst_p' (negb b) P opto x) --> (subst_p' b Q opto x)
     | _ => p
   end
 
-with subst_t
-             (t:type)
-             (opto:opt object)
-             (x:id) : type :=
+with subst_f
+       (b:bool)
+       (f:fact)
+       (opto:opt object)
+       (x:id) : opt fact :=     
+  match f with
+    | istype (obj pth1 z) t =>
+      match id_eqdec x z , set_mem id_eqdec z (fv_set_t t) with
+        | left _, _ =>
+          match opto with
+            | None => None
+            | Some (obj pth2 y) =>
+              Some (istype (obj (pth1 ++ pth2) y) (subst_t' b t opto x))
+          end
+        | right _, false => Some f
+        | right _, true => None
+      end
+  end
+
+with subst_t'
+       (b:bool)
+       (t:type)
+       (opto:opt object)
+       (x:id) : type :=
   match t with
-    | tU lhs rhs => tU (subst_t lhs opto x) (subst_t rhs opto x)
+    | tU lhs rhs => tU (subst_t' b lhs opto x) 
+                       (subst_t' b rhs opto x)
     | tλ y t1 t2 p1 opto2 =>
       if id_eqdec x y
       then t
       else tλ y
-                (subst_t t1 opto x)
-                 (subst_t t2 opto x)
-                (subst_p p1 opto x)
+                (subst_t' b t1 opto x)
+                (subst_t' b t2 opto x)
+                (subst_p' b p1 opto x)
                 (subst_o opto2 opto x)
-    | tCons t1 t2 => tCons (subst_t t1 opto x)
-                           (subst_t t2 opto x)
+    | tCons t1 t2 => tCons (subst_t' b t1 opto x)
+                           (subst_t' b t2 opto x)
     | _ => t
   end.
 
 (** All uses of subst_p' and subst_t' "in the wild" call the positive case, from
 which the negative case may then be called.  *) 
+Definition subst_p := subst_p' true.
+Definition subst_t := subst_t' true.
 
 (** A few helpers to reason about subtyping: *)
 
@@ -396,109 +435,11 @@ Inductive SubObj : relation (opt object) :=
 (** ** Proves Relation *)
 (** "Proves P Q" means proposition "P implies Q" is tautilogical. *)
 
-Inductive In : relation prop :=
-| In_Refl :
-    forall P,
-      In P P
-| In_And_lhs :
-    forall P Q R,
-      In P Q
-      -> In P (Q && R)
-| In_And_rhs :
-    forall P Q R,
-      In P R
-      -> In P (Q && R).
-Hint Constructors In.
-
-Lemma In_dec : forall Q P,
-{In P Q} + {~In P Q}.
-Proof.
-  intros Q.
-  induction Q; intros.
-  destruct (prop_eqdec P (o ::= t)); subst.
-  left. auto.
-  right; intros contra; inversion contra; tryfalse.
-  destruct (prop_eqdec P (o ::~ t)); subst.
-  left. auto. 
-  right; intros contra; inversion contra; tryfalse.
-  specialize (IHQ1 P). specialize (IHQ2 P).
-  destruct IHQ1; destruct IHQ2.
-  left; apply In_And_lhs; auto.
-  left; apply In_And_lhs; auto.
-  left; apply In_And_rhs; auto.
-  destruct (prop_eqdec P (Q1 && Q2)); subst.
-  left; auto.
-  right; intros contra; inversion contra; subst.
-  tryfalse. tryfalse. tryfalse.
-  destruct (prop_eqdec P (Q1 || Q2)); subst.
-  left. auto.
-  right; intros contra; inversion contra; tryfalse.
-  destruct (prop_eqdec P TT); subst.
-  left. auto.
-  right; intros contra; inversion contra; tryfalse.
-  destruct (prop_eqdec P FF); subst.
-  left. auto.
-  right; intros contra; inversion contra; tryfalse.
-  destruct (prop_eqdec P Unk); subst.
-  left. auto.
-  right; intros contra; inversion contra; tryfalse.
-Qed.  
-Hint Resolve In_dec.
-
-(* TODO *)
 Inductive Proves : relation prop :=
-| P_Atom :
+| P_Tautology :
     forall P Q,
-      In Q P
+      (prop_denote (P --> Q))
       -> Proves P Q
-| P_True :
-    forall P,
-      Proves P TT
-| P_False :
-    forall P,
-      Proves FF P
-| P_Contra :
-    forall P Q,
-      Proves (P && (Not P)) Q
-| P_Conjr :
-    forall P Q R,
-      Proves P Q 
-      -> Proves P R 
-      -> Proves P (Q && R)
-| P_Add_lhs :
-    forall P Q R,
-      Proves P Q
-      -> Proves P (Q || R)
-| P_Add_rhs :
-    forall P Q R,
-      Proves P R
-      -> Proves P (Q || R)
-| P_DisjElim :
-    forall P Q R,
-      Proves P R
-      -> Proves Q R
-      -> Proves (P || Q) R
-| P_Conjl_lhs :
-    forall P Q R,
-      Proves P R
-      -> Proves (P && Q) R
-| P_Conjl_rhs :
-    forall P Q R,
-      Proves Q R
-      -> Proves (P && Q) R
-| P_DisjSyl :
-    forall P Q,
-      Proves ((Not P) && (P || Q)) Q
-| P_HypSyl :
-    forall P Q R,
-      Proves P Q
-      -> Proves Q R
-      -> Proves P R
-| P_ConstrDilemma :
-    forall P Q R X Y,
-      Proves (P && Q) X
-      -> Proves (P && R) Y
-      -> Proves (P && (Q || R)) (X || Y)
 | P_Sub :
     forall τ σ ox P,
       Proves P (ox ::= τ)
@@ -506,9 +447,9 @@ Inductive Proves : relation prop :=
       -> Proves P (ox ::= σ)
 | P_SubNot :
     forall P τ σ ox,
-      Proves P (ox ::~ σ)
+      Proves P (! (ox ::= σ))
       -> SubType τ σ
-      -> Proves P (ox ::~ τ)
+      -> Proves P (! (ox ::= τ))
 | P_RestrictBot :
     forall P ox τ σ,
       Proves P (ox ::= τ)
@@ -518,7 +459,7 @@ Inductive Proves : relation prop :=
 | P_RemoveBot :
     forall P τ σ ox,
       Proves P (ox ::= τ)
-      -> Proves P (ox ::~ σ)
+      -> Proves P (! (ox ::= σ))
       -> SubType τ σ
       -> Proves P (ox ::= tBot)
 | P_Bot : 
@@ -532,12 +473,12 @@ Inductive Proves : relation prop :=
     -> Proves P ((obj π x) ::= (tCons τ σ))
 | P_UnionNeg_lhs :
     forall P o τ τ',
-      Proves P (o ::~ τ')
+      Proves P (! (o ::= τ'))
       -> Proves P (o ::= (tU τ τ'))
       -> Proves P (o ::= τ)
 | P_UnionNeg_rhs :
     forall P o τ τ',
-      Proves P (o ::~ τ')
+      Proves P (! (o ::= τ'))
       -> Proves P (o ::= (tU τ' τ))
       -> Proves P (o ::= τ)
 
@@ -599,7 +540,7 @@ Inductive TypeOf : prop -> exp -> type -> prop -> opt object -> Prop :=
 | T_Var :
     forall τ Γ x,
       Proves Γ ((var x) ::= τ)
-      -> TypeOf Γ ($ x) τ ((var x) ::~ tF) (Some (var x))
+      -> TypeOf Γ ($ x) τ (! ((var x) ::= tF)) (Some (var x))
 | T_Abs :
     forall σ τ o Γ x ψ e,
       TypeOf (Γ && ((var x) ::= σ)) e τ ψ o
@@ -629,13 +570,13 @@ Inductive TypeOf : prop -> exp -> type -> prop -> opt object -> Prop :=
       -> TypeOf Γ (Cons e1 e2) (tCons τ1 τ2) TT None
 | T_Car :
     forall τ1 τ2 o' o Γ e ψ0 ψ x,
-      (subst_p ((obj [car] x) ::~ tF) o x) = ψ
+      (subst_p (! ((obj [car] x) ::= tF)) o x) = ψ
       -> (subst_o (Some (obj [car] x)) o x) = o'
       -> TypeOf Γ e (tCons τ1 τ2) ψ0 o
       -> TypeOf Γ (Car e) τ1 ψ o'
 | T_Cdr :
     forall τ1 τ2 o' o Γ e ψ0 ψ x,
-      (subst_p ((obj [cdr] x) ::~ tF) o x) = ψ
+      (subst_p (! ((obj [cdr] x) ::= tF)) o x) = ψ
       -> (subst_o (Some (obj [cdr] x)) o x) = o'
       -> TypeOf Γ e (tCons τ1 τ2) ψ0 o
       -> TypeOf Γ (Cdr e) τ2 ψ o'
@@ -646,7 +587,7 @@ Inductive TypeOf : prop -> exp -> type -> prop -> opt object -> Prop :=
       -> (subst_o o1 o0 x) = o1'
       -> TypeOf Γ e0 τ ψ0 o0
       -> TypeOf (Γ && ((var x) ::= τ)
-                   && (((var x) ::~ tF) --> ψ0)
+                   && ((! ((var x) ::= tF)) --> ψ0)
                    && (((var x) ::= tF) --> (Not ψ0))) 
                 e1
                 σ
@@ -661,6 +602,10 @@ Inductive TypeOf : prop -> exp -> type -> prop -> opt object -> Prop :=
       -> SubObj o o'
       -> TypeOf Γ e τ' ψ' o'.
 
+(* BOOKMARK
+   1. Need other classical logic axioms (I think)
+   2. Need to test tautology solver w/ prop_denote
+ *)
 
 (** * Proof Helpers *)
 

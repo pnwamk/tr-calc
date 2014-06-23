@@ -75,10 +75,6 @@ Fixpoint factsize (f:fact) : nat :=
     | istype o t => typesize t
   end.
 
-
-Hypothesis Unknown : nat -> Prop.
-Hypothesis IsType  : object -> type -> Prop. 
-
 Hint Resolve eq_nat_dec.
 
 Notation tBool := (tU tT tF).
@@ -411,6 +407,9 @@ has some type present (even if its only tTop). *)
 (** * λTR Core Relations 
    Logic, TypeOf, Subtyping, etc... *)
 
+Hypothesis Unknown : nat -> Prop.
+Hypothesis IsType  : object -> type -> Prop. 
+
 Program Fixpoint fact_denote (f:fact) 
         {measure (factsize f)}: Prop :=
 match f with
@@ -548,15 +547,15 @@ Inductive TypeOf : prop -> exp -> type -> prop -> opt object -> Prop :=
                 None
 | T_App :
     forall τ'' σ τ o'' o o' Γ e x fψ fo ψ e' ψ' ψf'',
-      (subst_t τ o' x) = τ''
+      TypeOf Γ e (tλ x σ τ fψ fo) ψ o
+      -> TypeOf Γ e' σ ψ' o'
+      -> (subst_t τ o' x) = τ''
       -> (subst_p fψ o' x) = ψf''
       -> (subst_o fo o' x) = o''
-      -> TypeOf Γ e (tλ x σ τ fψ fo) ψ o
-      -> TypeOf Γ e' σ ψ' o'
       -> TypeOf Γ (Apply e e') τ'' ψf'' o''
 | T_If :
-    forall τ τ' o o1 Γ e1 ψ1 e2 ψ2 e3 ψ3,
-      TypeOf Γ e1 τ' ψ1 o1
+    forall τ τ1 o o1 Γ e1 ψ1 e2 ψ2 e3 ψ3,
+      TypeOf Γ e1 τ1 ψ1 o1
       -> TypeOf (Γ && ψ1) e2 τ ψ2 o
       -> TypeOf (Γ && (Not ψ1)) e3 τ ψ3 o
       -> TypeOf Γ (If e1 e2 e3) τ ((ψ1 && ψ2) || ((Not ψ1) && ψ3)) o
@@ -578,10 +577,10 @@ Inductive TypeOf : prop -> exp -> type -> prop -> opt object -> Prop :=
       -> TypeOf Γ e (tCons τ1 τ2) ψ0 o
       -> TypeOf Γ (Cdr e) τ2 ψ o'
 | T_Let :
-    forall σ' τ σ o1' o0 o1 Γ e0 ψ0 e1 ψ1 x ψ1',
+    forall σ' τ σ o o0 o1 Γ e0 ψ0 e1 ψ1 x ψ1',
       (subst_t σ o0 x) = σ'
       -> (subst_p ψ1 o0 x) = ψ1'
-      -> (subst_o o1 o0 x) = o1'
+      -> (subst_o o1 o0 x) = o
       -> TypeOf Γ e0 τ ψ0 o0
       -> TypeOf (Γ && ((var x) ::= τ)
                    && (((var x) ::~ tF) --> ψ0)
@@ -590,14 +589,22 @@ Inductive TypeOf : prop -> exp -> type -> prop -> opt object -> Prop :=
                 σ
                 ψ1
                 o1
-      -> TypeOf Γ (Let x e0 e1) σ' ψ1' o1'
-| T_Subsume :
-    forall τ' τ o' o Γ e ψ ψ',
+      -> TypeOf Γ (Let x e0 e1) σ' ψ1' o
+| T_SuperType :
+    forall τ' τ o Γ e ψ,
+      TypeOf Γ e τ ψ o
+      -> SubType τ τ'
+      -> TypeOf Γ e τ' ψ o
+| T_SuperObj :
+    forall o' o τ Γ e ψ,
+      TypeOf Γ e τ ψ o
+      -> SubObj o o'
+      -> TypeOf Γ e τ ψ o'
+| T_Implied :
+    forall ψ' ψ τ o Γ e,
       TypeOf Γ e τ ψ o
       -> Holds ((Γ && ψ) --> ψ')
-      -> SubType τ τ'
-      -> SubObj o o'
-      -> TypeOf Γ e τ' ψ' o'.
+      -> TypeOf Γ e τ ψ' o.
 
 (** * Proof Helpers *)
 
@@ -767,10 +774,15 @@ P = Unk
 -> subst_p P o1 o2 = Unk.
 Proof. crush. Qed.
 
-Lemma None_subst : forall o o1 o2,
+Lemma None_subst : forall o o1 x,
 o = None
--> subst_o o o1 o2 = None.
+-> subst_o o o1 x = None.
 Proof. crush. Qed.
+
+Lemma subst_None : forall o1 x π,
+o1 = None
+-> subst_o (Some (obj π x)) o1 x = None.
+Proof. crush. Qed. 
 
 Fixpoint simple_subtype (tsub tsuper: type)  : bool :=
 if (type_eqdec tsub tsuper) then true else
@@ -860,23 +872,186 @@ Proof with crush.
 Qed.
 Hint Resolve join_super_rhs_Refl.
 
+Lemma T_If_join :
+    forall τ τ1 τ2 τ3 o o1 Γ e1 ψ1 e2 ψ2 e3 ψ3,
+      TypeOf Γ e1 τ1 ψ1 o1
+      -> TypeOf (Γ && ψ1) e2 τ2 ψ2 o
+      -> TypeOf (Γ && (Not ψ1)) e3 τ3 ψ3 o
+      -> (τ = join τ2 τ3 \/ τ = join τ3 τ2)
+      -> TypeOf Γ (If e1 e2 e3) τ ((ψ1 && ψ2) || ((Not ψ1) && ψ3)) o.
+Proof with crush.
+  intros.
+  eapply T_If... eassumption. crush.
+  eapply (T_SuperType _ τ2)...
+  eapply (T_SuperType _ τ2)...
+  eapply (T_SuperType _ τ3)... 
+  eapply (T_SuperType _ τ3)...
+Qed.
+
+Lemma T_If_Implied :
+    forall τ τ1 o o1 Γ e1 ψ1 e2 ψ2 e3 ψ3 ψ',
+      TypeOf Γ e1 τ1 ψ1 o1
+      -> TypeOf (Γ && ψ1) e2 τ ψ2 o
+      -> TypeOf (Γ && (Not ψ1)) e3 τ ψ3 o
+      -> Holds (Γ && ψ1 && ψ2 --> Γ && ψ2)
+      -> Holds (Γ && !ψ1 && ψ3 --> Γ && ψ3)
+      -> Holds (Γ && (ψ1 && (Γ && ψ2) || !ψ1 && (Γ && ψ3)) --> ψ')
+      -> TypeOf Γ (If e1 e2 e3) τ ψ' o.
+Proof.
+  intros.
+  apply (T_Implied _ ((ψ1 && (Γ && ψ2)) || ((Not ψ1) && (Γ && ψ3)))); crush.
+  eapply T_If; crush. eassumption.
+  eapply T_Implied. eassumption. crush.
+  eapply T_Implied. eassumption. crush.
+Qed.
+
+Lemma T_If_joinImp : 
+    forall τ τ1 τ2 τ3 o o1 Γ e1 ψ1 e2 ψ2 e3 ψ3 ψ',
+      TypeOf Γ e1 τ1 ψ1 o1
+      -> TypeOf (Γ && ψ1) e2 τ2 ψ2 o
+      -> TypeOf (Γ && (Not ψ1)) e3 τ3 ψ3 o
+      -> (τ = join τ2 τ3 \/ τ = join τ3 τ2)
+      -> Holds (Γ && ψ1 && ψ2 --> Γ && ψ2)
+      -> Holds (Γ && !ψ1 && ψ3 --> Γ && ψ3)
+      -> Holds (Γ && (ψ1 && (Γ && ψ2) || !ψ1 && (Γ && ψ3)) --> ψ')
+      -> TypeOf Γ (If e1 e2 e3) τ ψ' o.
+Proof.
+  intros τ τ1 τ2 τ3 o o1 Γ e1 ψ1 e2 ψ2 e3 ψ3 ψ' HTe1 HTe2 HTe3 Hjoin.
+  intros.
+  eapply T_If_Implied.
+  eassumption.
+  eapply T_SuperType. eassumption. destruct Hjoin; subst; auto. 
+  eapply T_SuperType. eassumption. destruct Hjoin; subst; auto. 
+  auto. auto. auto.
+Qed.
+
+Lemma subst_p_tStr : forall x X,
+subst_p (Atom (istype (var x) tStr)) (Some (var X)) x = Atom (istype (var X) tStr).
+Proof.
+  intros. unfold subst_p. crush.
+Qed.
+Hint Rewrite subst_p_tStr.
+
+Lemma subst_p_tTop : forall x X,
+subst_p (Atom (istype (var x) tTop)) (Some (var X)) x = Atom (istype (var X) tTop).
+Proof.
+  intros. unfold subst_p. crush.
+Qed.
+Hint Rewrite subst_p_tTop.
+
+Lemma subst_p_tNat : forall x X,
+subst_p (Atom (istype (var x) tNat)) (Some (var X)) x = Atom (istype (var X) tNat).
+Proof.
+  intros. unfold subst_p. crush.
+Qed.
+Hint Rewrite subst_p_tNat.
+
+Lemma subst_p_tF : forall x X,
+subst_p (Atom (istype (var x) tF)) (Some (var X)) x = Atom (istype (var X) tF).
+Proof.
+  intros. unfold subst_p. crush.
+Qed.
+Hint Rewrite subst_p_tF.
+
+Lemma subst_p_tT : forall x X,
+subst_p (Atom (istype (var x) tT)) (Some (var X)) x = Atom (istype (var X) tT).
+Proof.
+  intros. unfold subst_p. crush.
+Qed.
+Hint Rewrite subst_p_tT.
+
+Lemma subst_p_tBool : forall x X,
+subst_p (Atom (istype (var x) tBool)) (Some (var X)) x = Atom (istype (var X) tBool).
+Proof.
+  intros. unfold subst_p. crush.
+Qed.
+Hint Rewrite subst_p_tBool.
+
+Lemma subst_p_tNatStr : forall x X,
+subst_p (Atom (istype (var X) (tU tNat tStr))) (Some (var X)) x = Atom (istype (var X) (tU tNat tStr)).
+Proof.
+  intros. unfold subst_p. crush.
+Qed.
+Hint Resolve subst_p_tNatStr.
+Hint Rewrite subst_p_tNatStr.
+
+Lemma subst_tBool : forall opto x,
+subst_t tBool opto x = tBool.
+Proof. crush. Qed.
+  Hint Rewrite subst_tBool.
+
+
+Definition is_tλ (t:type) : bool :=
+  match t with
+    | tλ _ _ _ _ _ => true
+    | _ => false
+  end.
+
+Lemma subst_p_Atom_istype : forall x y opto t,
+x <> y
+-> is_tλ t = false
+-> set_mem id_eqdec x (fv_set_t t) = false
+-> subst_p (Atom (istype (var x) t)) opto y 
+   = Atom (istype (var x) t).
+Proof.
+  intros. unfold subst_p.
+  destruct t; crush; destruct (id_eqdec y x); crush.
+Qed.
+
+Lemma T_Implied_andΓ : forall Γ τ ψ o e,
+TypeOf Γ e τ ψ o
+-> Holds ((Γ && ψ) --> (Γ && ψ))
+-> TypeOf Γ e τ (Γ && ψ) o.
+Proof.
+  intros.
+  eapply T_Implied. eassumption. auto.
+Qed.
+
+Lemma T_Implied_Γ : forall Γ τ ψ o e,
+TypeOf Γ e τ ψ o
+-> Holds ((Γ && ψ) --> Γ)
+-> TypeOf Γ e τ Γ o.
+Proof.
+  intros.
+  eapply T_Implied. eassumption. auto.
+Qed.
+
+
+Fixpoint find_types P o : list type := 
+  match P with
+    | Atom (istype o' t) => if obj_eqdec o o' then [t] else nil
+    | (P1 && P2) =>  
+      (find_types P1 o) ++ (find_types P2 o)
+      | _ => nil
+  end.
+Hint Unfold find_types.
+
+Ltac var_guess o types k_tac :=
+  match types with
+    | ?t :: ?ts =>
+      first[solve[eapply (T_Var t); k_tac] |
+            var_guess o ts k_tac]
+    | nil => fail
+  end.
 
 Ltac bamcis' subsuming :=
   crush;
      (match goal with
-        | [ |- ?lhs = ?rhs] => first[solve [reflexivity] |
-                                     solve [crush] |
-                                     solve [(eapply nat_subst); crush] |
-                                     solve [(eapply top_subst); crush] |
-                                     solve [(eapply bot_subst); crush] |
-                                     solve [(eapply str_subst); crush] |
-                                     solve [(eapply true_subst); crush] |
-                                     solve [(eapply false_subst); crush] |
-                                     solve [(eapply bool_subst); crush] |
-                                     solve [(eapply TT_subst); crush] |
-                                     solve [(eapply FF_subst); crush] |
-                                     solve [(eapply Unk_subst); crush] |
-                                     solve [(eapply None_subst); crush] ]
+        | [ |- ?lhs = ?rhs] => 
+          solve [reflexivity |
+                crush |
+                (eapply nat_subst); crush |
+                (eapply top_subst); crush |
+                (eapply bot_subst); crush |
+                (eapply str_subst); crush |
+                (eapply true_subst); crush |
+                (eapply false_subst); crush |
+                (eapply bool_subst); crush |
+                (eapply TT_subst); crush |
+                (eapply FF_subst); crush |
+                (eapply Unk_subst); crush |
+                (eapply None_subst); crush]
+        | [ |- Holds _] => compute; tauto
         | [ |- Holds _] => compute; tauto
         | |- SubObj ?o ?o => eapply SO_Refl
         | |- SubObj None ?o => eapply SO_Refl
@@ -891,23 +1066,41 @@ Ltac bamcis' subsuming :=
           solve [eapply T_True; bamcis' False]
         | |- TypeOf _ #f _ _ _ =>
           solve [eapply T_False; bamcis' False]
-        | |- TypeOf _ ($ _) _ _ _ =>
-          solve [eapply T_Var; bamcis' False]
+        | |- TypeOf ?Γ ($ ?X) _ _ _ =>
+          solve [(let types_exp := constr:(find_types Γ (var X)) in
+                  let types := eval simpl in types_exp in
+                    (var_guess (var X) types ltac:(bamcis' False))) |
+                 eapply T_Var; bamcis' False]
         | |- TypeOf _ (λ _ _ _) _ _ _ =>
           solve [eapply T_Abs; bamcis' False]
         | |- TypeOf _ (Apply _ _) _ _ _ =>
           solve [eapply T_App; bamcis' False]
         | |- TypeOf _ (If _ _ _) _ _ _ =>
-          first [solve[eapply T_If with (o := None); bamcis' False] |
-                 solve[eapply T_If; bamcis' False]]
+          solve[(eapply T_If_joinImp with (τ1 := tBool) (o := None); bamcis' False) |
+                (eapply T_If_joinImp with (τ1 := tBool); bamcis' False) |
+                (eapply T_If_join; bamcis' False) |
+                (eapply T_If_join with (o := None); bamcis' False) |
+                (eapply T_If with (o := None); bamcis' False) |
+                (eapply T_If; bamcis' False)]
         | |- TypeOf _ (Let _ _ _) _ _ _ =>
-          solve [eapply T_Let; bamcis' False]
+          solve [(eapply T_Let with (o := None); bamcis' False) | 
+                 (eapply T_Let; bamcis' False)]
         | |- TypeOf _ _ ?t _ _ =>
           match subsuming with
           | True => fail
           | False => 
-            first [solve[(eapply (T_Subsume t t)); bamcis' True] |
-                   solve[(eapply T_Subsume); bamcis' True]]
+            solve[(eapply T_SuperObj; bamcis' True) |
+                  (eapply T_SuperType; bamcis' True) |
+                  (eapply T_Implied_andΓ; bamcis' True) |
+                  (eapply T_SuperObj; eapply T_SuperType; bamcis' True) |
+                  (eapply T_Implied_andΓ; eapply T_SuperObj; bamcis' True) |
+                  (eapply T_SuperType; eapply T_Implied_andΓ; bamcis' True) |
+                  (eapply T_SuperType; eapply T_Implied_andΓ; 
+                   eapply T_Implied; bamcis' True) |
+                  (eapply T_SuperObj; eapply T_Implied; bamcis' True) |
+                  (eapply T_SuperType; eapply T_Implied; bamcis' True) |
+                  (eapply T_SuperType; eapply T_Implied; 
+                   eapply T_SuperObj; bamcis' True)]
           end
         (* EJECT!! EJECT!! *)
         | |- SubObj None (Some _) => fail 1
@@ -994,12 +1187,7 @@ Example bamcis_unionnot3 :
          ((var X) ::= tStr)).
 Proof. bamcis. Qed. 
 
-Lemma subst_p_var : forall x,
-subst_p (Atom (istype (var x) tNat)) (Some (var X)) x = Atom (istype (var X) tNat).
-Proof.
-  intros. unfold subst_p. crush.
-Qed.
-Hint Rewrite subst_p_var.
+
 
 (* Checking propositions flow through If *)
 Example bamcis_ifwrapper1:
@@ -1010,24 +1198,8 @@ Example bamcis_ifwrapper1:
          tBool
          ((var X) ::= tNat)
          None.
-Proof with bamcis.
-  eapply (T_Subsume tBool tBool)...
-  eapply (T_If tBool).
+Proof.
   bamcis.
-  eapply (T_Subsume tBool tT).
-  bamcis.
-  bamcis.
-(* Bookmark 
-It doesn't know what to do with:
-   Holds
-     (Atom (istype (var X) tTop) && Atom (istype (var X) tNat) && TT -->
-      ?179810)
-
-It probably just needs to do a reflexive proof (P --> P)...
-might need a lemma saying we can do what when the goal is
-H (?P --> ?Q) applying forall P, Holds (P --> P).
-
-*)
 Grab Existential Variables.
 auto.
 Qed.
@@ -1046,7 +1218,6 @@ Proof.
 Grab Existential Variables.
 auto.
 Qed.
-
 
 (* Checking propositions flow through If wrapped in a λ *)
 Example bamcis_ifwrapper3:
@@ -1067,36 +1238,37 @@ Grab Existential Variables.
 auto.
 Qed.
 
+Example bamcis_If:
+TypeOf
+     (Atom (istype (var X) tTop) 
+      && (Atom (istype (var TMP) tBool))
+      && (!Atom (istype (var TMP) tF) --> Atom (istype (var X) tNat)) 
+      && (Atom (istype (var TMP) tF) --> !Atom (istype (var X) tNat)))
+     (If ($ TMP) ($ TMP) (Str? ($ X))) tBool
+     (Atom (istype (var X) (tU tNat tStr))) None.
+Proof.
+  bamcis.
+Grab Existential Variables.
+auto.
+Qed.
+
+
 Example bamcis_OR1:
   TypeOf ((var X) ::= tTop)
          (OR (Nat? ($ X)) (Str? ($ X)))
          tBool
          ((var X) ::= (tU tNat tStr))
          None.
-Proof with bamcis.
-  eapply T_Subsume.
-  eapply T_Let...
-  do 4 (rewrite And_over_Or).
-  do 10 (rewrite And_over_Or).
-  do 10 (rewrite And_over_Or).
-  do 10 (rewrite And_over_Or).
-  do 10 (rewrite And_over_Or).
-
+Proof.
+  eapply T_Let with (o := None).
   bamcis.
-  rewrite <- (And_assoc (var X ::= tTop)).
-  rewrite <- (And_assoc (var X ::= tTop)).
-
-  rewrite (smash_valid (var X ::~ tF)).
-  
-
-P && Q = P && (smash P Q).
-
-  repeat rewrite And_over_Or.
-  do 2 (rewrite neg_And_comm).
-
-  repeat rewrite Or_over_And.
-crush.
-  bamcis. Admitted.
+  bamcis.
+  bamcis.
+  bamcis.
+  bamcis.
+Grab Existential Variables.
+auto. auto.
+Qed.
 
 (** *Typechecked Examples *)
 
@@ -1110,7 +1282,6 @@ Example example1:
            None.
 Proof.
   bamcis.
-Solve All Obligations using auto.
 Grab Existential Variables. 
 auto. auto.
 Qed.
@@ -1144,9 +1315,11 @@ Example example3:
       TT
       None.
 Proof with bamcis.
+  eapply T_Implied.
+  eapply T_Let...
   bamcis.
 Grab Existential Variables.
-auto. auto.
+auto.
 Qed.
 
 Example example4:
@@ -1159,13 +1332,22 @@ Example example4:
            TT
            None.
 Proof with bamcis.
-  eapply (T_Subsume tNat tNat).
-  eapply T_If... crush.
-  eapply T_App...
-  apply T_Var...
+  eapply T_SuperObj.
+  eapply T_If_joinImp with (τ1 := tBool).
+  eapply T_Let.
+  bamcis. bamcis. bamcis. crush. compute.
+  eapply (T_App tBool).
+  bamcis. bamcis. crush. crush. crush.
+  eapply T_If_joinImp.
+  crush. bamcis.  crush.
+  eapply (T_SuperObj None).
+  bamcis. crush.
   bamcis.
-
   bamcis.
+  bamcis.
+  bamcis.
+  bamcis.
+  (* BOOKMARK *)
 Admitted.
 
 Example example5:

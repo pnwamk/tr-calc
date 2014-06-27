@@ -48,18 +48,37 @@ Inductive type : Type :=
 | tλ    : id -> type -> type -> prop -> opt object -> type
 
 with prop : Type :=
-| Atom : fact -> prop
-| And  : prop -> prop -> prop
+| Atom  : fact -> prop
+| And   : prop -> prop -> prop
 | Or   : prop -> prop -> prop
-| Imp  : prop -> prop -> prop
 | TT   : prop
 | FF   : prop
 | Unk  : prop
 
 with fact : Type :=
-| istype   : object -> type -> fact
-| nottype  : object -> type -> fact.
-Hint Constructors type prop fact.
+| istype : object -> type -> fact
+| nottype : object -> type -> fact
+
+with env : Type :=
+| Γnil : env
+| Γcons  : prop -> env -> env.
+
+Scheme type_mut := Induction for type Sort Set
+with prop_mut   := Induction for prop Sort Set
+with env_mut    := Induction for env Sort Set.
+
+Hint Constructors type prop env.
+
+Fixpoint Not (P:prop) : prop :=
+  match P with
+    | Atom (istype o t) => Atom (nottype o t)
+    | Atom (nottype o t) => Atom (istype o t)
+    | And p q => Or (Not p) (Not q)
+    | Or p q => And (Not p) (Not q)
+    | TT => FF
+    | FF => TT
+    | Unk => Unk
+  end.
 
 Hint Resolve eq_nat_dec.
 
@@ -69,10 +88,9 @@ Infix "::=" := (fun o t => Atom (istype o t))
                  (at level 30, right associativity).
 Infix "::~" := (fun o t => Atom (nottype o t))
                  (at level 30, right associativity).
-
 Notation "P '&&' Q" := (And P Q) (at level 40, left associativity).
 Notation "P '||' Q" := (Or P Q) (at level 50, left associativity).
-Notation "P '-->' Q" := (Imp P Q) (at level 90).
+Notation "P '-->' Q" := (Or (Not P) Q) (at level 90).
 
 (** Expressions and primitive operations: *)
 Inductive const_op :=
@@ -125,6 +143,30 @@ Notation "Str?" := (eApp (eOp (c_op opIsStr))).
 Notation StrLen := (eApp (eOp (c_op opStrLen))).
 Notation Plus := (fun x y =>
                     (eApp (eApp (eOp (c_op opPlus)) x) y)).
+
+
+(** Environment Functions *)
+Infix "<<" := Γcons (right associativity, at level 20).
+Notation " [| |] " := Γnil.
+Notation " [| x |]> " := (Γcons x Γnil).
+Notation " [| x ; .. ; y |] " := (Γcons x .. (Γcons y Γnil) ..).
+
+  Fixpoint In (p:prop) (E:env) : Prop :=
+    match E with
+      | Γnil => False
+      | b << E' => b = p \/ In p E'
+    end.
+
+Definition Γapp : env -> env -> env :=
+  fix Γapp E1 E2 :=
+  match E1 with
+   | [||] => E2
+   | a << E1' => a << Γapp E1' E2
+  end.
+
+Infix "<++>" := Γapp (right associativity, at level 60) : list_scope.
+
+
 
 (** Constant types: *)
 Definition const_type (c : const_op) (x:id) : type :=
@@ -263,7 +305,6 @@ with fv_set_p (p: prop) : set id :=
     | Atom f => fv_set_f f
     | p && q => set_union id_eqdec (fv_set_p p) (fv_set_p q)
     | p || q => set_union id_eqdec (fv_set_p p) (fv_set_p q)
-    | p --> q => set_union id_eqdec (fv_set_p p) (fv_set_p q)
     | _ => nil
   end
 
@@ -302,7 +343,6 @@ Fixpoint subst_p'
       end
     | P || Q => (subst_p' b P opto x) || (subst_p' b Q opto x)
     | P && Q => (subst_p' b P opto x) && (subst_p' b Q opto x)
-    | P --> Q => (subst_p' (negb b) P opto x) --> (subst_p' b Q opto x)
     | _ => p
   end
 
@@ -334,6 +374,7 @@ with subst_f
         | right _, false => Some f
         | right _, true => None
       end
+
   end
 
 with subst_t'
@@ -361,6 +402,12 @@ with subst_t'
 which the negative case may then be called.  *) 
 Definition subst_p := subst_p' true.
 Definition subst_t := subst_t' true.
+
+Lemma split_nonnil {X:Type} : forall l1 l2 (x:X),
+nil <> l1 ++ (x :: l2).
+Proof.
+  intros. destruct l1; destruct l2; crush.
+Qed.
 
 
 (** All uses of subst_p' and subst_t' "in the wild" call the positive case, from
@@ -423,173 +470,118 @@ Inductive SubObj : relation (opt object) :=
 | SO_Top : forall x, SubObj x None.
 
 (** ** Proves Relation *)
-(** "Proves P Q" means proposition "P implies Q" is tautilogical. *)
 
-Definition model := object -> set fact.
-Definition emptyM : model := fun _ => nil.
-Definition extend (f:fact) (m:model) : model :=
-(fun o => 
-  match f with
-    | istype o' t =>
-      if obj_eqdec o o' 
-      then f :: (m o)
-      else m o
-    | nottype o' t =>
-      if obj_eqdec o o' 
-      then f :: (m o)
-      else m o
-  end).
+(*** ***Proves Relation
+    This relation "Proves Γ P" can be interpreted as follows:
+    if we assume all propositions in Γ evaluate to true
+    then E evaluates to true.
 
-Definition join (m1 m2:model) : model :=
-fun o => set_union fact_eqdec (m1 o) (m2 o).
+    This means "Unknown" propositions in Γ may not truly
+    be of unknown value (i.e. we may be able to deduce their
+    underlying value from the assumption that their 
+    containing formula is true). This merely means Unk
+    values in Γ are like truth-functional variables 
+    that are not equal to any other truth-functional variables
+    in the universe of discourse (i.e. if we infer some Unk is true,
+    that fact alone does not imply any other Unk is true). On the
+    right hand side of the relation (in the prop P), Unk propositions
+    are *truly* unknown; It is impossible to deduce their truth value,
+    and they merely are either ignored or act as barriers to what can 
+    be proven depending on their context (e.g. (P || Unk) can only
+    be proven if P can be proven, and (P && Unk) can never be proven).
+ *)
 
-Definition MAnd (p:prop) (mq:opt prop) : prop :=
-  match mq with
-    | None => p
-    | Some q => p && q
-  end.
-
-Definition fNot (f:fact) : fact :=
-  match f with
-    | istype o t => nottype o t
-    | nottype o t => istype o t
-  end.
-
-Fixpoint Not (p:prop) : prop :=
-  match p with 
-    | TT => FF
-    | FF => TT
-    | Unk => Unk
-    | P && Q => (Not P) || (Not Q)
-    | P || Q => (Not P) && (Not Q)
-    | P --> Q => (And P (Not Q))
-    | Atom f => Atom (fNot f)
-  end.
-
-Fixpoint propsize (p:prop) : nat :=
-  match p with 
-    | P && Q => S (plus (propsize P) (propsize Q))
-    | P || Q => S (plus (propsize P) (propsize Q))
-    | P --> Q => S (plus (propsize P) (propsize Q))
-    | _ => 1
-  end.
-
-Definition opt_propsize (op:opt prop) : nat :=
-  match op with
-    | None => 0
-    | Some p => propsize p
-  end.
-
-Lemma propsize_Not : forall P,
-propsize (Not P) = propsize P.
-Proof.
-  intros.
-  induction P; crush.
-Qed.
-Hint Rewrite propsize_Not.
-
-
-Program Fixpoint generate_models' 
-(p:prop) (k: model -> list model) (m:model) 
-{measure (propsize p)}:
-  list model :=
-  match p with
-    | Atom f => (k (extend f m))
-    | P && Q => generate_models' P (fun m' => (generate_models' Q k m')) m
-    | P || Q => app (generate_models' P k m)
-                    (generate_models' Q k m)
-    | P --> Q => app (generate_models' (Not P) k m)
-                     (generate_models' Q k m)
-    | TT => (k m)
-    | FF => 
-      let fbot := istype (var (Id 0)) tBot in
-      (k (extend fbot m))
-    | Unk => (k m)
-  end.
-Solve Obligations using crush.
-
-Definition generate_models (p:prop) : list model :=
-generate_models' p (fun x => [x]) emptyM.
-
-Inductive Proves : relation prop :=
-| P_Refl_Is : 
-    forall Γ τ σ ox P,
-      -> Proves (Atom (ox ::= τ)) (Atom (ox ::= τ))
-| P_Refl_Not : 
-    forall Γ τ σ ox P,
-      -> Proves (Atom (ox ::~ τ)) (Atom (ox ::~ τ))
-| P_Sub :
-    forall τ σ ox P,
-      SubType τ σ
-              
-      -> Proves (ox ::= τ) (ox ::= σ)
-| P_SubNot :
-    forall τ σ ox,
-      SubType τ σ
-      -> Proves (ox ::~ σ) (ox ::~ τ)
+Inductive Proves : env -> prop -> Prop :=
+| P_Atom :
+    forall Γ f,
+    In (Atom f) Γ
+    -> Proves Γ (Atom f)
+| P_Contra :
+    forall Γ f P,
+      In (Atom f) Γ
+      -> In (Not (Atom f)) Γ
+      -> Proves Γ P
 | P_True :
-    forall P,
-      Proves P TT
+    forall Γ,
+      Proves Γ TT
 | P_False :
-    forall P,
-      Proves FF P
-| P_Conjr :
-    forall P Q R,
-      Proves P Q 
-      -> Proves P R 
-      -> Proves P (Q && R)
+    forall Γ P,
+      In FF Γ
+      -> Proves Γ P
+| P_Conj :
+    forall Γ P Q,
+      Proves Γ P
+      -> Proves Γ Q
+      -> Proves Γ (P && Q)
 | P_Add_lhs :
-    forall P Q R,
-      Proves P Q
-      -> Proves P (Q || R)
+    forall Γ P Q,
+      Proves Γ P
+      -> Proves Γ (P || Q)
 | P_Add_rhs :
-    forall P Q R,
-      Proves P R
-      -> Proves P (Q || R)
-| P_DisjElim :
-    forall P Q R,
-      Proves P R
-      -> Proves Q R
-      -> Proves (P || Q) R
-| P_Conjl_lhs :
-    forall P Q R,
-      Proves P R
-      -> Proves (P && Q) R
-| P_Conjl_rhs :
-    forall P Q R,
-      Proves Q R
-      -> Proves (P && Q) R
-| P_HypSyl :
-    forall P Q R,
-      Proves P Q
-      -> Proves Q R
-      -> Proves P R
-| P_ConstrDilemma :
-    forall P Q R X Y,
-      Proves (P && Q) X
-      -> Proves (P && R) Y
-      -> Proves (P && (Q || R)) (X || Y)
-| P_RestrictBot :
-    forall ox τ σ,
-      common_subtype τ σ = false
-      -> Proves ((ox ::= τ) && (ox ::= σ)) FF
-| P_RemoveBot :
-    forall τ σ ox,
-      SubType τ σ
-      -> Proves ((ox ::= τ) && (ox ::~ σ))
-                FF
-| P_Bot : 
-    forall ox,
-      Proves (ox ::= tBot) FF
-| P_PairUpdate :
-    forall π x τ σ,
-      Proves (((obj (π ++ [car]) x) ::= τ)
-                && ((obj (π ++ [cdr]) x) ::= σ)) 
-             ((obj π x) ::= (tCons τ σ))
-| P_UnionDisj :
-    forall o τ1 τ2,
-      Proves (o ::= (tU τ1 τ2)) ((o ::= τ1) ||  (o ::= τ2))
-
+    forall Γ P Q,
+      Proves Γ Q
+      -> Proves Γ (P || Q)
+| P_Cons :
+    forall Γ P Q,
+      Proves Γ Q
+      -> Proves (P << Γ) Q
+| P_Simp :
+    forall Γ Γ1 Γ2 P Q f,
+      Γ = Γ1 <++> ((P && Q) << Γ2)
+      -> Proves ((P << Q << Γ1) <++> Γ2) (Atom f)
+      -> Proves Γ (Atom f)
+| P_Dil :
+    forall Γ Γ1 Γ2 P Q f,
+      Γ = Γ1 <++> ((P || Q) << Γ2)
+      -> Proves ((P << Γ1) <++> Γ2) (Atom f)
+      -> Proves ((Q << Γ1) <++> Γ2) (Atom f)
+      -> Proves Γ (Atom f)
+| P_Type_Sub :
+    forall τ σ o Γ,
+      In (o ::= τ) Γ
+      -> SubType τ σ
+      -> Proves Γ (o ::= σ)
+| P_Type_SubNot :
+    forall τ σ o Γ,
+      In (o ::~ σ) Γ
+      -> SubType τ σ
+      -> Proves Γ (o ::~ τ)
+| P_Type_RestrictAbsurd :
+    forall Γ o τ σ P,
+    In (o ::= τ) Γ
+    -> In (o ::= σ) Γ
+    -> common_subtype τ σ = false
+    -> Proves Γ P
+| P_Type_RemoveAbsurd :
+    forall Γ P o τ σ,
+    In (o ::= τ) Γ
+    -> In (o ::~ σ) Γ
+    -> SubType τ σ
+    -> Proves Γ P
+| P_Type_Bottom :
+    forall Γ P o,
+      In (o ::= tBot) Γ 
+      -> Proves Γ P
+| P_Type_Cons :
+    forall Γ π x τ σ,
+    Proves Γ ((obj (π ++ [car]) x) ::= τ)
+    -> Proves Γ ((obj (π ++ [cdr]) x) ::= σ)
+    -> Proves Γ ((obj π x) ::= (tCons τ σ))
+| P_Type_ConsReduce :
+    forall Γ Γ1 Γ2 π x τ σ P,
+    Proves (((obj (π ++ [car]) x) ::= τ) 
+            << ((obj (π ++ [cdr]) x) ::= σ) 
+            << Γ) 
+           P
+    -> Γ = Γ1 <++> (((obj π x) ::= (tCons τ σ)) << Γ2)
+    -> Proves Γ P
+| P_Type_UnionReduce :
+    forall Γ Γ1 Γ2 o τ σ P,
+    Proves ((o ::= τ) << Γ1 <++> Γ2) P
+    -> Proves ((o ::= σ) << Γ1 <++> Γ2) P
+    -> Γ = Γ1 <++> ((o ::= (tU τ σ)) << Γ2)
+    -> Proves Γ P
+  
 (** SubType *)
 with SubType : relation type :=
 | S_Refl : 
@@ -615,7 +607,7 @@ with SubType : relation type :=
     forall x y τ τ' σ σ' ψ ψ' o o',
       SubType (subst_t τ (Some (var y)) x) τ'
       -> SubType σ' (subst_t σ (Some (var y)) x) 
-      -> Proves (subst_p ψ (Some (var y)) x) ψ'
+      -> Proves [|(subst_p ψ (Some (var y)) x)|] ψ'
       -> SubObj (subst_o o (Some (var y)) x) o'
       -> SubType (tλ x σ τ ψ o)
                  (tλ y σ' τ' ψ' o')
@@ -624,6 +616,89 @@ with SubType : relation type :=
       SubType τ1 τ2
       -> SubType σ1 σ2
       -> SubType (tCons τ1 σ1) (tCons τ2 σ2).
+
+Scheme propenv_mut := Induction for prop Sort Set
+with   envprop_mut := Induction for env Sort Set.
+
+Lemma split_env_nonnil : forall E1 E2 p,
+[||] <> E1 <++> (p << E2).
+Proof.
+  destruct E1; destruct E2; crush.
+Qed.
+
+Scheme envtype_mut := Induction for env Sort Set
+with   typeenv_mut := Induction for type Sort Set.
+
+
+Lemma nil_Proves_istype_dec : forall t o,
+Proves [||] (Atom (istype o t)) \/ ~ Proves [||] (Atom (istype o t)).
+Proof with
+crush; try(match goal with
+    | [H : [||] = ?E1 <++> (?p << ?E2) |- _] =>
+      apply (split_env_nonnil E1 E2 p) in H; crush
+    end).
+  intros t. induction t; intros. 
+  right; intros contra; inversion contra...
+  right; intros contra; inversion contra...
+  right; intros contra; inversion contra...
+  right; intros contra; inversion contra...
+  right; intros contra; inversion contra...
+  right; intros contra; inversion contra...
+  right; intros contra; inversion contra...
+  destruct o as [π x].
+  specialize (IHt1 (obj (π ++ [car]) x)).  
+  specialize (IHt2 (obj (π ++ [cdr]) x)).
+  destruct IHt1; destruct IHt2.
+  left. apply P_Type_Cons; auto.
+  right; intros contra; inversion contra; crush...
+  right; intros contra; inversion contra; crush...
+  right; intros contra; inversion contra; crush...
+  right; intros contra; inversion contra; crush...
+Qed.
+
+
+Lemma Proves_fact_dec : forall o,
+(forall t1 t2 : type, SubType t1 t2 \/ ~ SubType t1 t2)
+-> (forall E t, Proves E (Atom (istype o t)) \/ ~ Proves E (Atom (istype o t))).
+Proof with
+try(match goal with
+    | [H : [||] = ?E1 <++> (?p << ?E2) |- _] =>
+      apply (split_env_nonnil E1 E2 p) in H; crush
+    end).
+  intros o STdec.
+  apply (envtype_mut 
+           (fun E : env => forall t, Proves E (Atom (istype o t)) 
+                                     \/ ~ Proves E (Atom (istype o t)))
+           (fun t : type => forall E, Proves E (Atom (istype o t)) 
+                                      \/ ~ Proves E (Atom (istype o t)))).  
+  intros t. apply nil_Proves_istype_dec.
+  intros.
+  
+
+Lemma Proves_dec : forall (P : prop) (Γ : env), Proves Γ P \/ ~Proves Γ P
+with SubType_dec : forall (t1 t2 : type),  SubType t1 t2 \/ ~SubType t1 t2.
+Proof.
+  (* Proves_dec *)
+  clear Proves_dec.
+  apply (propenv_mut 
+           (fun P : prop => forall Γ : env, Proves Γ P \/ ~Proves Γ P)
+           (fun Γ : env => forall P : prop, Proves Γ P \/ ~Proves Γ P)).
+  intros f E.
+
+
+Fixpoint Proves_dec (Γ : env) (P : prop) : {Proves Γ P} + {~Proves Γ P}
+with SubType_dec (t1 t2 : type) : {SubType t1 t2} + {~SubType t1 t2}.
+Proof.
+  eapply propenv_mut.
+  Print propenv_mut.
+  apply Proves_dec.
+  apply SubType_dec. 
+Qed.
+  clear Proves_dec.
+  
+
+Print Proves_mut.
+
 
 (** ** TypeOf *)
 

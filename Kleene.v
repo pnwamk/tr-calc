@@ -118,6 +118,8 @@ Proof.
   intros. destruct P; destruct Q; destruct R; crush.
 Qed.
 
+Theorem Meta_HypSul : forall P Q
+
 Theorem ConstructiveDilemma : forall P Q R S,
 (P --> Q)
 -> (R --> S)

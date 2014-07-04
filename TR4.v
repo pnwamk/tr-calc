@@ -53,28 +53,21 @@ with prop : Set :=
 | Atom : fact -> prop
 | And  : prop -> prop -> prop
 | Or   : prop -> prop -> prop
-| TT   : prop
+| Imp  : prop -> prop -> prop
 | FF   : prop
 | Unk  : prop
 
 with fact : Set :=
-| istype : object -> type -> fact
-| nottype : object -> type -> fact.
+| istype : object -> type -> fact.
 Hint Constructors type prop fact.
-
-Definition fNot (f:fact) : fact :=
-  match f with
-    | istype o t => nottype o t
-    | nottype o t => istype o t
-  end.
 
 Fixpoint Not (P:prop) : prop :=
   match P with
-    | Atom f => Atom (fNot f)
+    | Atom f => (Imp (Atom f) FF)
     | And P Q => Or (Not P) (Not Q)
     | Or P Q  => And (Not P) (Not Q)
-    | FF => TT
-    | TT => FF
+    | Imp P Q => And P (Not Q)
+    | FF => (Imp FF FF)
     | Unk => Unk
   end.
 
@@ -84,11 +77,13 @@ Notation tBool := (tU tT tF).
 
 Infix "::=" := (fun o t => Atom (istype o t)) 
                  (at level 30, right associativity).
-Infix "::~" := (fun o t => (Atom (nottype o t)))
+Infix "::~" := (fun o t => (Imp (Atom (istype o t)) FF))
                  (at level 30, right associativity).
 Notation "P '&&' Q" := (And P Q) (at level 40, left associativity).
 Notation "P '||' Q" := (Or P Q) (at level 50, left associativity).
-Notation "P '-->' Q" := (Or (Not P) Q) (at level 90).
+Notation "P '-->' Q" := (Imp P Q) (at level 90).
+Notation TT := (Imp FF FF).
+
 
 (** Expressions and primitive operations: *)
 Inductive const_op :=
@@ -289,8 +284,6 @@ with fv_set_f (f:fact) : set id :=
   match f with
     | istype o t => 
       set_union id_eqdec (fv_set_o (Some o)) (fv_set_t t)
-    | nottype o t => 
-      set_union id_eqdec (fv_set_o (Some o)) (fv_set_t t)
   end.
 
 (** Substitution functions: *)
@@ -340,18 +333,6 @@ with subst_f
         | right _, false => Some f
         | right _, true => None
       end
-    | nottype (obj pth1 z) t =>
-      match id_eqdec x z , set_mem id_eqdec z (fv_set_t t) with
-        | left _, _ =>
-          match opto with
-            | None => None
-            | Some (obj pth2 y) =>
-              Some (nottype (obj (pth1 ++ pth2) y) (subst_t' b t opto x))
-          end
-        | right _, false => Some f
-        | right _, true => None
-      end
-
   end
 
 with subst_t'
@@ -484,9 +465,6 @@ Inductive Proves : (list prop * prop) -> Prop :=
                -> Valid absurd_fact Γ)
     -> Proves P Q
 *)
-| P_True :
-    forall Γ,
-      Proves (Γ,TT)
 | P_False :
     forall Γ P,
       In FF Γ
@@ -502,6 +480,12 @@ Inductive Proves : (list prop * prop) -> Prop :=
       -> Proves ((P::(rem (P || Q) Γ)), R)
       -> Proves ((Q::(rem (P || Q) Γ)), R)
       -> Proves (Γ, R)
+| P_MP :
+     forall Γ P Q R,
+       In (P --> Q) Γ
+       -> Proves ((rem (P --> Q) Γ), P)
+       -> Proves ((P::Q::(rem (P --> Q) Γ)), R)
+       -> Proves (Γ, R)
 | P_Conj :
     forall P Q Γ,
       Proves (Γ, P)
@@ -515,7 +499,11 @@ Inductive Proves : (list prop * prop) -> Prop :=
     forall Γ P Q,
       Proves (Γ, Q)
       -> Proves (Γ, (P || Q))
- 
+ | P_CP :
+     forall Γ P Q,
+       Proves ((P::Γ), Q)
+       -> Proves (Γ, (P --> Q))
+
 (** SubType *)
 with SubType : relation type :=
 | S_Refl : 
@@ -556,8 +544,8 @@ Fixpoint prop_weight (p:prop) : nat :=
     | Atom f => 1
     | And P Q => 1 + (prop_weight P) + (prop_weight Q)
     | Or P Q => 1 + (prop_weight P) + (prop_weight Q)
+    | Imp P Q => 1 + (prop_weight P) + (prop_weight Q)
     | FF => 1
-    | TT => 1
     | Unk => 1
   end.
 
@@ -622,11 +610,9 @@ Lemma Verifier_dec : forall P2 P1,
 -> {Verifier P1 P2} + {~Verifier P1 P2}.
 Proof.
   intros P1 P2 ST_dec.
-  destruct P1 as [[o t | o t]|P3 P4|P3 P4| | | ];
-  try (solve[  right; intros contra; inversion contra; crush]).
-  destruct P2 as [[o' t' | o' t']|P3' P4'|P3' P4'| | | ];
-  try (solve[  right; intros contra; inversion contra; crush]).
-  destruct (obj_eqdec o o').
+  destruct P1; try (solve [right; intros contra; inversion contra; crush]).
+  destruct f as [o t]. destruct P2; try (solve [right; intros contra; inversion contra; crush]).
+  destruct f as [o' t']. destruct (obj_eqdec o o').
   subst. destruct (ST_dec t t') as [Hsub|HNsub].
   left; apply V_subtype; crush.
   right; intros contra; inversion contra; crush.
@@ -646,6 +632,7 @@ destruct (prop_eqdec P1 a) as [HP1e|HP1n].
   exists (a::L2). rewrite perm_swap.
   rewrite <-HL2. auto.
 Qed.
+
 Lemma rem_hd : forall P L,
 rem P (P::L) = L.
 Proof.
@@ -700,6 +687,36 @@ Proof.
   destruct (prop_eqdec (P1 || P2) a). crush.
   apply IHL in H. fold rem. unfold proof_weight in *. crush.
 Qed.  
+
+Lemma rem_Imp_weight_lhs : forall P P1 P2 L,
+In (P1 --> P2) L 
+-> proof_weight (rem (P1 --> P2) L, P1) < proof_weight (L,P).
+Proof.
+  intros.
+  induction L. crush.
+  destruct H. subst.
+  unfold proof_weight in *. unfold rem.
+  destruct (prop_eqdec (P1 --> P2) (P1 --> P2)).
+  crush. crush.
+  unfold proof_weight. unfold rem.
+  destruct (prop_eqdec (P1 --> P2) a). crush.
+  apply IHL in H. fold rem. unfold proof_weight in *. crush.
+Qed.
+
+Lemma rem_Imp_weight_rhs : forall P P1 P2 L,
+In (P1 --> P2) L 
+-> proof_weight (P1 :: P2 :: rem (P1 --> P2) L, P) < proof_weight (L, P).
+Proof.
+  intros.
+  induction L. crush.
+  destruct H. subst.
+  unfold proof_weight in *. unfold rem.
+  destruct (prop_eqdec (P1 --> P2) (P1 --> P2)).
+  crush. crush.
+  unfold proof_weight. unfold rem.
+  destruct (prop_eqdec (P1 --> P2) a). crush.
+  apply IHL in H. fold rem. unfold proof_weight in *. crush.
+Qed.
 
 Lemma split_And_weight_lhs : forall L P1 P2,
 proof_weight (L, P1) < proof_weight (L, P1 && P2).
@@ -760,67 +777,81 @@ Proof.
       | P1 && P2 => Proves ((P1::P2::(rem (P1 && P2) Γ)), P)
       | P1 || P2 => Proves ((P1::(rem (P1 || P2) Γ)), P) 
                     /\ Proves ((P2::(rem (P1 || P2) Γ)), P)
+      | P1 --> P2 =>  (Proves ((rem (P1 --> P2) Γ), P1))
+                      /\ (Proves ((P1::P2::(rem (P1 --> P2) Γ)), P))
       | _ => False
       end
     ) Γ) as [(a,(HaA,HaB))|antecedent_nonexist].
-  intros a HIn.
-  destruct a as [f|P1 P2|P1 P2| | |]; try (solve[auto]).
-  apply IH. apply (rem_And_weight P) in HIn. crush.
-  assert ({Proves ((P1 :: rem (P1 || P2) Γ), P)} + 
+- intros a HIn.
+  destruct a as [f|P1 P2|P1 P2|P1 P2| |]; try (solve[auto]).
++ apply IH. apply (rem_And_weight P) in HIn. crush.
++ assert ({Proves ((P1 :: rem (P1 || P2) Γ), P)} + 
           {~(Proves ((P1 :: rem (P1 || P2) Γ), P))}) as Hlhs.
-  apply IH. apply (rem_Or_lhs_weight P) in HIn. crush.
-  assert ({Proves ((P2 :: rem (P1 || P2) Γ), P)} + 
+* apply IH. apply (rem_Or_lhs_weight P) in HIn. crush.
+* assert ({Proves ((P2 :: rem (P1 || P2) Γ), P)} + 
           {~(Proves ((P2 :: rem (P1 || P2) Γ), P))}) as Hrhs.
   apply IH. apply (rem_Or_rhs_weight P) in HIn. crush.
   crush.
-  left. destruct a as [f|P1 P2|P1 P2| | |]; crush.
++ assert ({Proves (rem (P1 --> P2) Γ, P1)} +
+   {~ (Proves (rem (P1 --> P2) Γ, P1))}) as Hlhs.
+  apply IH. apply (rem_Imp_weight_lhs P) in HIn. crush.
+  assert ({Proves (P1 :: P2 :: rem (P1 --> P2) Γ, P)} +
+   {~ Proves (P1 :: P2 :: rem (P1 --> P2) Γ, P)}) as Hrhs.
+  apply IH. apply (rem_Imp_weight_rhs P) in HIn. crush.
+  crush.
+- left. destruct a as [f|P1 P2|P1 P2|P1 P2| |]; crush.
   apply (P_Simpl _ P1 P2); crush.
   apply (P_DisjElim _ P1 P2); crush.
+  apply (P_MP _ P1 P2); crush.
   apply P_False; auto.
-  assert (succedent_dec:
+- assert (succedent_dec:
   {
     match P with
-    | PA && PB => Proves (Γ, PA) /\ Proves (Γ, PB)
-    | PA || PB => Proves (Γ, PA) \/ Proves (Γ, PB)
-    | TT => True
+    | PA && PB  => Proves (Γ, PA) /\ Proves (Γ, PB)
+    | PA || PB  => Proves (Γ, PA) \/ Proves (Γ, PB)
+    | PA --> PB => Proves (PA::Γ, PB)
     | _ => False
     end
   } + {~
     match P with
     | PA && PB => Proves (Γ, PA) /\ Proves (Γ, PB)
     | PA || PB => Proves (Γ, PA) \/ Proves (Γ, PB)
-    | TT => True
+    | PA --> PB => Proves (PA::Γ, PB)
     | _ => False
     end
   }).
-  destruct P as [f|P1 P2|P1 P2| | |]; try (solve[auto]).
-  assert ({Proves (Γ, P1)} + {~ (Proves (Γ, P1))}) as Hlhs.
+  destruct P as [f|P1 P2|P1 P2|P1 P2| |]; try (solve[auto]).
++ assert ({Proves (Γ, P1)} + {~ (Proves (Γ, P1))}) as Hlhs.
     apply IH. unfold ltof. auto. 
   assert ({Proves (Γ, P2)} + {~ (Proves (Γ, P2))}) as Hrhs.
     apply IH. unfold ltof. auto. 
   crush.
-  assert ({Proves (Γ, P1)} + {~ (Proves (Γ, P1))}) as Hlhs.
++ assert ({Proves (Γ, P1)} + {~ (Proves (Γ, P1))}) as Hlhs.
     apply IH. unfold ltof. auto. 
   assert ({Proves (Γ, P2)} + {~ (Proves (Γ, P2))}) as Hrhs.
     apply IH. unfold ltof. auto. 
   crush.
-  destruct succedent_dec as [succedent_exist|succedent_nonexist].
++ assert ({Proves (P1::Γ, P2)} + {~ (Proves (P1::Γ, P2))}) as Himpl.
+    apply IH. unfold ltof. unfold proof_weight. crush. 
+  crush.
++ destruct succedent_dec as [succedent_exist|succedent_nonexist].
   left.
-  destruct P as [f|P1 P2|P1 P2| | |]; try (solve[crush]).
+  destruct P as [f|P1 P2|P1 P2|P1 P2| |]; try (solve[crush]).
   apply P_Conj; crush.
   destruct succedent_exist as [Hlhs | Hrhs].
   apply P_Add_lhs; auto.
   apply P_Add_rhs; auto.
-  apply P_True.
+  apply P_CP; auto.
   destruct (In_dec prop_eqdec FF Γ).
   left; apply P_False; auto.
   right; intros contra; inversion contra; subst; try (solve[crush]).
   apply (No_Ver _ H2). auto. 
   apply (antecedent_nonexist (P0 && Q) H1). auto.
   apply (antecedent_nonexist (P0 || Q) H1). auto.
+  apply (antecedent_nonexist (P0 --> Q) H1). auto.
 
   (* SubType *)
-  (* BOOMKARK
+-  (* BOOMKARK
   induction (t,t') as ((t, t'),IHSub) using
     (well_founded_induction
       (well_founded_ltof _ type_pair_weight)).

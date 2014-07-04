@@ -452,12 +452,12 @@ Fixpoint rem (p:prop) (l:list prop) : list prop :=
       else p' :: (rem p ps)
   end.
 
-Inductive Proves : list prop -> prop -> Prop :=
+Inductive Proves : (list prop * prop) -> Prop :=
 | P_SubType :
   forall t' t o Γ,
     SubType t t'
     -> In (Atom (istype o t')) Γ
-    -> Proves Γ (Atom (istype o t))
+    -> Proves (Γ, (Atom (istype o t)))
 (*
 | P_Absurd :
   forall P Q,
@@ -468,41 +468,41 @@ Inductive Proves : list prop -> prop -> Prop :=
 | P_False :
     forall Γ P,
       In FF Γ
-      -> Proves Γ P
+      -> Proves (Γ, P)
 | P_Simpl :
     forall Γ P Q R,
       In (P && Q) Γ
-      -> Proves (P::Q::(rem (P && Q) Γ)) R
-      -> Proves Γ R
+      -> Proves ((P::Q::(rem (P && Q) Γ)), R)
+      -> Proves (Γ, R)
 | P_DisjElim :
     forall Γ P Q R,
       In (P || Q) Γ
-      -> Proves (P::(rem (P || Q) Γ)) R
-      -> Proves (Q::(rem (P || Q) Γ)) R
-      -> Proves Γ R
+      -> Proves ((P::(rem (P || Q) Γ)), R)
+      -> Proves ((Q::(rem (P || Q) Γ)), R)
+      -> Proves (Γ, R)
 | P_MP :
     forall Γ P Q R,
       In (P --> Q) Γ
-      -> Proves (rem (P --> Q) Γ) P
-      -> Proves (P::Q::(rem (P --> Q) Γ)) R
-      -> Proves Γ R
+      -> Proves ((rem (P --> Q) Γ), P)
+      -> Proves ((P::Q::(rem (P --> Q) Γ)), R)
+      -> Proves (Γ, R)
 | P_Conj :
     forall P Q Γ,
-      Proves Γ P
-      -> Proves Γ Q
-      -> Proves Γ (P && Q)
+      Proves (Γ, P)
+      -> Proves (Γ, Q)
+      -> Proves (Γ, (P && Q))
 | P_Add_lhs :
     forall P Q Γ,
-      Proves Γ P
-      -> Proves Γ (P || Q)
+      Proves (Γ, P)
+      -> Proves (Γ, (P || Q))
 | P_Add_rhs :
     forall Γ P Q,
-      Proves Γ Q
-      -> Proves Γ (P || Q)
+      Proves (Γ, Q)
+      -> Proves (Γ, (P || Q))
 | P_CP :
     forall Γ P Q,
-      Proves (P::Γ) Q
-      -> Proves Γ (P --> Q)
+      Proves ((P::Γ), Q)
+      -> Proves (Γ, (P --> Q))
  
 (** SubType *)
 with SubType : relation type :=
@@ -529,7 +529,7 @@ with SubType : relation type :=
     forall x y τ τ' σ σ' ψ ψ' o o',
       SubType (subst_t τ (Some (var y)) x) τ'
       -> SubType σ' (subst_t σ (Some (var y)) x) 
-      -> Proves [(subst_p ψ (Some (var y)) x)] ψ'
+      -> Proves ([(subst_p ψ (Some (var y)) x)], ψ')
       -> SubObj (subst_o o (Some (var y)) x) o'
       -> SubType (tλ x σ τ ψ o)
                  (tλ y σ' τ' ψ' o')
@@ -724,17 +724,17 @@ Qed.
 
 Hint Constructors Verifier.
 
-Lemma Proves_dec : forall (Γ:list prop) (P: prop), {Proves Γ P} + {~Proves Γ P}
+Lemma Proves_dec : forall (Γ:list prop) (P: prop), {Proves (Γ, P)} + {~Proves (Γ, P)}
 with SubType_dec : forall (t1 t2 : type),  {SubType t1 t2} + {~SubType t1 t2}.
 Proof.
   (* Proves_dec *)
   clear Proves_dec.
-  intros Γ.
-  induction Γ as (Γ',IH') using
+  intros Γ' P'.
+  induction (Γ',P') as ((Γ, P),IH) using
     (well_founded_induction
-      (well_founded_ltof _ env_weight)).
-  intros P.
-  destruct (find_witness _ (fun P' => Verifier P' P) Γ' (fun P' => (Verifier_dec P P' SubType_dec)))
+      (well_founded_ltof _ proof_weight)).
+  clear Γ' P'.
+  destruct (find_witness _ (fun P' => Verifier P' P) Γ (fun P' => (Verifier_dec P P' SubType_dec)))
   as [[ver [ver_In Is_Ver]] | No_Ver].
   (* Verifier! *)
   left. destruct Is_Ver. apply (P_SubType t'); auto.
@@ -743,21 +743,23 @@ Proof.
     find_In_witness _ (fun a =>
       match a with
       | FF => True
-      | P1 && P2 => Proves (P1::P2::(rem (P1 && P2) Γ')) P
-      | P1 || P2 => Proves (P1::(rem (P1 || P2) Γ')) P 
-                    /\ Proves (P2::(rem (P1 || P2) Γ')) P
-      | P1 --> P2 =>  Proves (rem (P1 --> P2) Γ') P1
-                      /\ Proves (P1::P2::(rem (P1 --> P2) Γ')) P
+      | P1 && P2 => Proves ((P1::P2::(rem (P1 && P2) Γ)), P)
+      | P1 || P2 => Proves ((P1::(rem (P1 || P2) Γ)), P) 
+                    /\ Proves ((P2::(rem (P1 || P2) Γ)), P)
+      | P1 --> P2 =>  (Proves ((rem (P1 --> P2) Γ), P1))
+                      /\ (Proves ((P1::P2::(rem (P1 --> P2) Γ)), P))
       | _ => False
       end
-    ) Γ') as [(a,(HaA,HaB))|antecedent_nonexist].
+    ) Γ) as [(a,(HaA,HaB))|antecedent_nonexist].
   intros a HIn.
   destruct a as [f|P1 P2|P1 P2|P1 P2| |].
   right; intros contra; tryfalse.
-  apply IH'. apply rem_And_weight in HIn. crush.
-  assert ({Proves (P1 :: rem (P1 || P2) Γ') P} + 
-          {~(Proves (P1 :: rem (P1 || P2) Γ') P)}) as Hlhs.
-  apply IH'. apply rem_Or_lhs_weight in HIn. crush.
+  (* BOOKMARK!! Seems like it's working! But now my prop_weight lemmas
+     don't work for these  proof_weight goals - slight update needed there.*)
+  apply IH. apply rem_And_weight in HIn. unfold simpl. crush.
+  assert ({Proves ((P1 :: rem (P1 || P2) Γ), P)} + 
+          {~(Proves ((P1 :: rem (P1 || P2) Γ), P))}) as Hlhs.
+  apply IH. apply rem_Or_lhs_weight in HIn. crush.
   assert ({Proves (P2 :: rem (P1 || P2) Γ') P} + 
           {~(Proves (P2 :: rem (P1 || P2) Γ') P)}) as Hrhs.
   apply IH'. apply rem_Or_rhs_weight in HIn. crush.

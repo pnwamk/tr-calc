@@ -373,20 +373,59 @@ which the negative case may then be called.  *)
 
 (** A few helpers to reason about subtyping: *)
 
-Inductive isUnion : type -> Prop :=
-| isU : forall t1 t2, isUnion (tU t1 t2).
+Fixpoint is_tU (t:type) : opt (type * type) :=
+  match t with
+    | tU t1 t2 => Some (t1,t2)
+    | _ => None
+  end.
 
-Fixpoint typesize (t:type) : nat :=
+Lemma is_tU_eq : forall t t1 t2,
+Some (t1,t2) = is_tU t
+-> t = tU t1 t2.
+Proof.
+  intros.
+  destruct t; crush.
+Qed.
+  
+Fixpoint is_tλ (t:type) : opt (id * type * type * prop * (opt object)) :=
+  match t with
+    | tλ x t1 t2 p opto => Some (x,t1,t2,p,opto)
+    | _ => None
+  end.
+
+Lemma is_tλ_eq : forall t x t1 t2 p opto,
+Some (x,t1,t2,p,opto) = is_tλ t
+-> t = tλ x t1 t2 p opto.
+Proof.
+  intros.
+  destruct t; crush.
+Qed.
+
+Fixpoint is_tCons (t:type) : opt (type * type) :=
+  match t with
+    | tCons t1 t2 => Some (t1,t2)
+    | _ => None
+  end.
+
+Lemma is_tCons_eq : forall t t1 t2,
+Some (t1,t2) = is_tCons t
+-> t = tCons t1 t2.
+Proof.
+  intros.
+  destruct t; crush.
+Qed.
+
+Fixpoint type_weight (t:type) : nat :=
   match t with
     | tU t1 t2 =>
-      S (plus (typesize t1) (typesize t2))
-    | tλ x t1 t2 _ _ => S (plus (typesize t1) (typesize t2))
-    | tCons t1 t2 => S (plus (typesize t1) (typesize t2))
+      S (plus (type_weight t1) (type_weight t2))
+    | tλ x t1 t2 _ _ => S (plus (type_weight t1) (type_weight t2))
+    | tCons t1 t2 => S (plus (type_weight t1) (type_weight t2))
     | _ => 1
   end.
 
 Program Fixpoint common_subtype (type1 type2:type)
-        {measure (plus (typesize type1) (typesize type2))} : bool :=
+        {measure (plus (type_weight type1) (type_weight type2))} : bool :=
   match type1, type2 with
     | tTop , _ => true
     | _, tTop => true
@@ -424,6 +463,17 @@ Inductive SubObj : relation (opt object) :=
 | SO_Refl : forall x, SubObj x x
 | SO_Top : forall x, SubObj x None.
 
+Lemma SO_dec : forall opto1 opto2,
+{SubObj opto1 opto2} + {~SubObj opto1 opto2}.
+Proof.
+  intros.
+  destruct opto2; destruct opto1; 
+  try (solve[right; intros contra; inversion contra; crush]).
+  destruct (obj_eqdec o o0). subst. left. apply SO_Refl.
+  right; intros contra; inversion contra; crush.
+  left; apply SO_Top. left; apply SO_Top.
+Defined.
+
 (** ** Proves Relation *)
 
 (*** ***Proves Relation This relation "Proves Γ P" can be interpreted
@@ -455,7 +505,7 @@ Fixpoint rem (p:prop) (l:list prop) : list prop :=
 Inductive Proves : (list prop * prop) -> Prop :=
 | P_SubType :
   forall t' t o Γ,
-    SubType t t'
+    SubType (t, t')
     -> In (Atom (istype o t')) Γ
     -> Proves (Γ, (Atom (istype o t)))
 (*
@@ -505,39 +555,39 @@ Inductive Proves : (list prop * prop) -> Prop :=
        -> Proves (Γ, (P --> Q))
 
 (** SubType *)
-with SubType : relation type :=
+with SubType : (type * type) -> Prop :=
 | S_Refl : 
-    forall τ, SubType τ τ
+    forall τ, SubType (τ, τ)
 | S_Top : 
-    forall τ, SubType τ tTop
+    forall τ, SubType (τ, tTop)
 | S_Bot : 
-    forall τ, SubType tBot τ
+    forall τ, SubType (tBot, τ)
 | S_UnionSuper_lhs :
     forall τ σ1 σ2,
-      SubType τ σ1
-      -> SubType τ (tU σ1 σ2)
+      SubType (τ, σ1)
+      -> SubType (τ, (tU σ1 σ2))
 | S_UnionSuper_rhs :
     forall τ σ1 σ2,
-      SubType τ σ2
-      -> SubType τ (tU σ1 σ2)
+      SubType (τ, σ2)
+      -> SubType (τ, (tU σ1 σ2))
 | S_UnionSub :
     forall τ1 τ2 σ,
-      SubType τ1 σ
-      -> SubType τ2 σ
-      -> SubType (tU τ1 τ2) σ
+      SubType (τ1, σ)
+      -> SubType (τ2, σ)
+      -> SubType ((tU τ1 τ2), σ)
 | S_Abs :
     forall x y τ τ' σ σ' ψ ψ' o o',
-      SubType (subst_t τ (Some (var y)) x) τ'
-      -> SubType σ' (subst_t σ (Some (var y)) x) 
+      SubType ((subst_t τ (Some (var y)) x), τ')
+      -> SubType (σ', (subst_t σ (Some (var y)) x))
       -> Proves ([(subst_p ψ (Some (var y)) x)], ψ')
       -> SubObj (subst_o o (Some (var y)) x) o'
-      -> SubType (tλ x σ τ ψ o)
-                 (tλ y σ' τ' ψ' o')
+      -> SubType ((tλ x σ τ ψ o),
+                 (tλ y σ' τ' ψ' o'))
 | S_Cons :
     forall τ1 σ1 τ2 σ2,
-      SubType τ1 τ2
-      -> SubType σ1 σ2
-      -> SubType (tCons τ1 σ1) (tCons τ2 σ2).
+      SubType (τ1, τ2)
+      -> SubType (σ1, σ2)
+      -> SubType ((tCons τ1 σ1), (tCons τ2 σ2)).
 
 Fixpoint prop_weight (p:prop) : nat :=
   match p with
@@ -602,11 +652,11 @@ Qed.
 Inductive Verifier : relation prop :=
 | V_subtype : 
     forall o t t',
-      SubType t t' ->
+      SubType (t, t') ->
       Verifier (Atom (istype o t')) (Atom (istype o t)).
 
 Lemma Verifier_dec : forall P2 P1,
-(forall (t1 t2 : type),  {SubType t1 t2} + {~SubType t1 t2})
+(forall (t1 t2 : type),  {SubType (t1, t2)} + {~SubType (t1, t2)})
 -> {Verifier P1 P2} + {~Verifier P1 P2}.
 Proof.
   intros P1 P2 ST_dec.
@@ -756,7 +806,7 @@ Hint Resolve split_And_weight_lhs split_And_weight_rhs
 Hint Constructors Verifier.
 
 Lemma Proves_dec : forall (Γ:list prop) (P: prop), {Proves (Γ, P)} + {~Proves (Γ, P)}
-with SubType_dec : forall (t1 t2 : type),  {SubType t1 t2} + {~SubType t1 t2}.
+with SubType_dec : forall (t1 t2 : type),  {SubType (t1, t2)} + {~SubType (t1, t2)}.
 Proof.
   (* Proves_dec *)
   clear Proves_dec.
@@ -851,11 +901,55 @@ Proof.
   apply (antecedent_nonexist (P0 --> Q) H1). auto.
 
   (* SubType *)
--  (* BOOMKARK
-  induction (t,t') as ((t, t'),IHSub) using
+- clear SubType_dec. 
+  intros t t'.
+  induction (t,t') as ((t1, t2),IHSub) using
     (well_founded_induction
-      (well_founded_ltof _ type_pair_weight)).
-   *)
+      (well_founded_ltof _ (fun tp => ((type_weight (fst tp)) 
+                                       + (type_weight (snd tp)))))).
+  clear t t'.
+  destruct (type_eqdec t1 t2); subst.
+  left; apply S_Refl.
+  destruct (type_eqdec t2 tTop); subst.
+  left; apply S_Top.
+  destruct (type_eqdec t1 tBot); subst.
+  left; apply S_Bot.
+  remember (is_tU t2) as HU2.
+  destruct HU2 as [[ta tb]|].
++ apply is_tU_eq in HeqHU2. subst.
+  assert ({SubType (t1, ta)} + {~ SubType (t1, ta)}) as HrUlhs.
+  apply IHSub. unfold ltof. crush. 
+  assert ({SubType (t1, tb)} + {~ SubType (t1, tb)}) as HrUrhs.
+  apply IHSub. unfold ltof. crush. 
+  destruct HrUlhs.
+  left; apply S_UnionSuper_lhs; auto.
+  destruct HrUrhs.
+  left; apply S_UnionSuper_rhs; auto.
+  right; intros contra.
+  apply n2.
+  inversion contra.
+  right; intros contra; inversion contra; crush.
+  inversion H1; crush.
+
+  destruct Hlhs.
+  assert ({SubType (tb, t2)} + {~ SubType (tb, t2)}) as Hrhs.
+  apply IHSub. unfold ltof. crush. 
+  destruct Hrhs.
+  left; apply S_UnionSub; auto.
+  right; intros contra; inversion contra; crush.
+  
+
+  remember (is_tU t2) as HU2.
+  remember (is_tλ t1) as Hλ.
+  remember (is_tCons t1) as HC.
+  
+
+  destruct HU. destruct i.
+  destruct (is_tU_dec t1) as [[ta tb] | HnotU].
+  des
+
+
+
 (** ** TypeOf *)
 
 Inductive TypeOf : prop -> exp -> type -> prop -> opt object -> Prop :=
@@ -943,38 +1037,6 @@ Inductive TypeOf : prop -> exp -> type -> prop -> opt object -> Prop :=
 
 (** * Proof Helpers *)
 
-Lemma Proves_decidability : forall (p q : prop) 
-(stdec : forall t1 t2, {SubType t1 t2} + {~ SubType t1 t2}),
-{Proves p q} + {~ Proves p q}.
-Proof.
-  intros p q. generalize dependent p.
-  induction q; intros.
-  induction p.
-  specialize (stdec t0 t).
-  destruct (obj_eqdec o o0); subst.
-  destruct stdec. 
-  left. apply P_Sub; auto.
-  right. intros contra; inversion contra; subst. auto.
-  apply (P_HypSyl _ _ H) in H0.
-  destruct (obj_eqdec o o0); subst.
-  left. apply P_Sub; auto.
-  right; intros contra; inversion contra; crush.
-  inversion H; subst.
-
-Fixpoint Proves_dec (p : prop) : forall q, {Proves p q} + {~ Proves p q}
-with Subtype_dec (t1 : type) : forall t2, {SubType t1 t2} + {~ SubType t1 t2}.
-Proof.
-  intros
-  intros q; crush.
-  intros t2; crush.
-Qed.
-Print Proves_dec.
-  induction p; crush.
-  
-  intros q.
-  destruct q.
-  crush.
-  crush.
 (** * Proof Helpers/Lemmas and Automation *)
 Hint Resolve P_DisjElim P_Conjr.
 
@@ -1343,7 +1405,7 @@ match U with
   | _ => false
 end.
 
-Lemma in_type_Subtype : forall t2 t1,
+Lemma in_type_SubType : forall t2 t1,
 in_type t1 t2 = true
 -> SubType t1 t2.
 Proof.

@@ -900,54 +900,120 @@ Proof.
   apply (antecedent_nonexist (P0 || Q) H1). auto.
   apply (antecedent_nonexist (P0 --> Q) H1). auto.
 
+
+
+
+Hint Resolve S_Refl S_Bot S_Top S_UnionSub.
+
+
+Lemma U_super : forall t t1 t2,
+is_tU t = None
+-> (forall y : type * type,
+          type_weight (fst y) + type_weight (snd y) <
+          type_weight (fst (t, tU t1 t2)) +
+          type_weight (snd (t, tU t1 t2)) ->
+          {SubType y} + {~ SubType y})
+-> {SubType (t, tU t1 t2)} + {~ SubType (t, tU t1 t2)}.
+Proof.
+  intros t t1 t2 HnoU IHSub.
+  assert ({SubType (t, t1)} + {~ SubType (t, t1)}) as Hlhs.
+    apply IHSub. crush. 
+  assert ({SubType (t, t2)} + {~ SubType (t, t2)}) as Hrhs.
+    apply IHSub. crush.
+  destruct Hlhs. left. apply S_UnionSuper_lhs; auto.
+  destruct Hrhs. left. apply S_UnionSuper_rhs; auto.
+  right; intros contra; inversion contra; crush.
+Qed.
+
+Lemma U_sub : forall t t1 t2,
+is_tU t = None
+-> (forall y : type * type,
+          type_weight (fst y) + type_weight (snd y) <
+          type_weight (fst (tU t1 t2, t)) +
+          type_weight (snd (tU t1 t2, t)) ->
+          {SubType y} + {~ SubType y})
+-> {SubType (tU t1 t2, t)} + {~ SubType (tU t1 t2, t)}.
+Proof.
+  intros t t1 t2 HnoU IHSub.
+  assert ({SubType (t1, t)} + {~ SubType (t1, t)}) as Hlhs.
+    apply IHSub. crush. 
+  assert ({SubType (t2, t)} + {~ SubType (t2, t)}) as Hrhs.
+    apply IHSub. crush.
+  destruct Hlhs. destruct Hrhs. left. apply S_UnionSub; auto.
+  right; intros contra; inversion contra; crush.
+  right; intros contra; inversion contra; crush.
+Qed.
+
+
   (* SubType *)
 - clear SubType_dec. 
-  intros t t'.
+  intros t t'. 
   induction (t,t') as ((t1, t2),IHSub) using
     (well_founded_induction
       (well_founded_ltof _ (fun tp => ((type_weight (fst tp)) 
                                        + (type_weight (snd tp)))))).
-  clear t t'.
-  destruct (type_eqdec t1 t2); subst.
-  left; apply S_Refl.
-  destruct (type_eqdec t2 tTop); subst.
-  left; apply S_Top.
-  destruct (type_eqdec t1 tBot); subst.
-  left; apply S_Bot.
-  remember (is_tU t2) as HU2.
-  destruct HU2 as [[ta tb]|].
-+ apply is_tU_eq in HeqHU2. subst.
-  assert ({SubType (t1, ta)} + {~ SubType (t1, ta)}) as HrUlhs.
-  apply IHSub. unfold ltof. crush. 
-  assert ({SubType (t1, tb)} + {~ SubType (t1, tb)}) as HrUrhs.
-  apply IHSub. unfold ltof. crush. 
-  destruct HrUlhs.
-  left; apply S_UnionSuper_lhs; auto.
-  destruct HrUrhs.
-  left; apply S_UnionSuper_rhs; auto.
-  right; intros contra.
-  apply n2.
-  inversion contra.
-  right; intros contra; inversion contra; crush.
-  inversion H1; crush.
+  clear t t'. unfold ltof in IHSub.
+  destruct t1; destruct t2; 
+    try (solve[right; intros contra; inversion contra; crush |
+               left; crush |
+               apply U_super; crush |
+               apply U_sub; crush]).
+  assert ({SubType (tU t1_1 t1_2, t2_1)} 
+          + {~ SubType (tU t1_1 t1_2, t2_1)}) as Hrlhs.
+    apply IHSub. crush. 
+  assert ({SubType (tU t1_1 t1_2, t2_2)} 
+          + {~ SubType (tU t1_1 t1_2, t2_2)}) as Hrrhs.
+    apply IHSub. crush.
+  assert ({SubType (t1_1, tU t2_1 t2_2)} 
+          + {~ SubType (t1_1, tU t2_1 t2_2)}) as Hllhs.
+    apply IHSub. crush. 
+  assert ({SubType (t1_2, tU t2_1 t2_2)} 
+          + {~ SubType (t1_2, tU t2_1 t2_2)}) as Hlrhs.
+    apply IHSub. crush.
+  destruct (type_eqdec (tU t1_1 t1_2) (tU t2_1 t2_2)) as [Heq | Hneq].
+  rewrite Heq. left; apply S_Refl.
+  destruct Hrlhs. left. apply S_UnionSuper_lhs; auto. 
+  destruct Hrrhs. left. apply S_UnionSuper_rhs; auto.
+  destruct Hllhs. destruct Hlrhs. left. apply S_UnionSub; auto.
+  right; intros contra; inversion contra; try (solve[crush]).
+  right; intros contra; inversion contra; try (solve[crush]).
+  assert ({SubType (t1_1, t2_1)} 
+          + {~ SubType (t1_1, t2_1)}) as Hlhs.
+    apply IHSub. crush. 
+  assert ({SubType (t1_2, t2_2)} 
+          + {~ SubType (t1_2, t2_2)}) as Hrhs.
+    apply IHSub. crush.
+  destruct Hlhs; destruct Hrhs; 
+    try(solve [left; apply S_Cons; auto |
+               right; intros contra; inversion contra; crush]).
 
-  destruct Hlhs.
-  assert ({SubType (tb, t2)} + {~ SubType (tb, t2)}) as Hrhs.
-  apply IHSub. unfold ltof. crush. 
-  destruct Hrhs.
-  left; apply S_UnionSub; auto.
-  right; intros contra; inversion contra; crush.
-  
-
-  remember (is_tU t2) as HU2.
-  remember (is_tλ t1) as Hλ.
-  remember (is_tCons t1) as HC.
-  
-
-  destruct HU. destruct i.
-  destruct (is_tU_dec t1) as [[ta tb] | HnotU].
-  des
-
+Lemma subst_t_weight : forall t x y,
+type_weight (subst_t t (Some (var y)) x) = type_weight t.
+Proof.
+  induction t; crush.
+  unfold subst_t. simpl.
+  destruct (id_eqdec x i). subst.
+  simpl. crush.
+  crush.
+Qed.  
+    assert ({SubType ((subst_t t1_2 (Some (var i0)) i), t2_2)} 
+          + {~ SubType ((subst_t t1_2 (Some (var i0)) i), t2_2)}) as Hrhs.
+    apply IHSub. simpl. rewrite (subst_t_weight t1_2 i i0). crush.
+    assert ({SubType (t2_1, (subst_t t1_1 (Some (var i0)) i))} 
+          + {~ SubType (t2_1, (subst_t t1_1 (Some (var i0)) i))}) as Hlhs.
+      apply IHSub. simpl. rewrite (subst_t_weight t1_1 i i0). crush.
+    assert ({Proves ([(subst_p p (Some (var i0)) i)], p0)} 
+            + {~Proves ([(subst_p p (Some (var i0)) i)], p0)}) as HP.
+      apply Proves_dec.
+    assert ({(SubObj (subst_o o (Some (var i0)) i) o0)} 
+            + {~(SubObj (subst_o o (Some (var i0)) i) o0)})  as HO.
+      apply SO_dec.
+  destruct (type_eqdec (tλ i t1_1 t1_2 p o) (tλ i0 t2_1 t2_2 p0 o0)) as [Heq | Hneq].
+  rewrite Heq. left; apply S_Refl.
+  destruct Hlhs; destruct Hrhs; destruct HP; destruct HO;
+    try(solve[right; intros contra; inversion contra; crush |
+              left; apply S_Abs; crush]).
+Qed.
 
 
 (** ** TypeOf *)

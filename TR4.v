@@ -656,14 +656,14 @@ Inductive Verifier : relation prop :=
       Verifier (Atom (istype o t')) (Atom (istype o t)).
 
 Lemma Verifier_dec : forall P2 P1,
-(forall (t1 t2 : type),  {SubType (t1, t2)} + {~SubType (t1, t2)})
+(forall (tp : (type*type)),  {SubType tp} + {~SubType tp})
 -> {Verifier P1 P2} + {~Verifier P1 P2}.
 Proof.
   intros P1 P2 ST_dec.
   destruct P1; try (solve [right; intros contra; inversion contra; crush]).
   destruct f as [o t]. destruct P2; try (solve [right; intros contra; inversion contra; crush]).
   destruct f as [o' t']. destruct (obj_eqdec o o').
-  subst. destruct (ST_dec t t') as [Hsub|HNsub].
+  subst. destruct (ST_dec (t, t')) as [Hsub|HNsub].
   left; apply V_subtype; crush.
   right; intros contra; inversion contra; crush.
   right; intros contra; inversion contra; crush.
@@ -805,17 +805,15 @@ Hint Resolve split_And_weight_lhs split_And_weight_rhs
 
 Hint Constructors Verifier.
 
-Lemma Proves_dec : forall (Γ:list prop) (P: prop), {Proves (Γ, P)} + {~Proves (Γ, P)}
-with SubType_dec : forall (t1 t2 : type),  {SubType (t1, t2)} + {~SubType (t1, t2)}.
+Lemma Proves_dec : forall (goal:(list prop * prop)), {Proves goal} + {~Proves goal}
+with SubType_dec : forall (tpair : (type * type)),  {SubType tpair} + {~SubType tpair}.
 Proof.
   (* Proves_dec *)
   clear Proves_dec.
-  intros Γ' P'.
-  induction (Γ',P') as ((Γ, P),IH) using
+  induction goal as ((Γ, P),IH) using
     (well_founded_induction
       (well_founded_ltof _ proof_weight)).
-  clear Γ' P'.
-  destruct (find_witness _ (fun P' => Verifier P' P) Γ (fun P' => (Verifier_dec P P' SubType_dec)))
+  destruct (find_witness _ (fun P' => Verifier P' P) Γ (fun P' => (Verifier_dec P P' (fun tp => SubType_dec tp))))
   as [[ver [ver_In Is_Ver]] | No_Ver].
   (* Verifier! *)
   left. destruct Is_Ver. apply (P_SubType t'); auto.
@@ -947,12 +945,12 @@ Qed.
 
   (* SubType *)
 - clear SubType_dec. 
-  intros t t'. 
-  induction (t,t') as ((t1, t2),IHSub) using
+  intros tp. 
+  induction tp as ((t1, t2),IHSub) using
     (well_founded_induction
       (well_founded_ltof _ (fun tp => ((type_weight (fst tp)) 
                                        + (type_weight (snd tp)))))).
-  clear t t'. unfold ltof in IHSub.
+  unfold ltof in IHSub.
   destruct t1; destruct t2; 
     try (solve[right; intros contra; inversion contra; crush |
                left; crush |

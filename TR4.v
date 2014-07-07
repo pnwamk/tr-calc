@@ -1107,6 +1107,18 @@ Proof.
   induction goal as ((Γ, P),IH) using
     (well_founded_induction
       (well_founded_ltof _ proof_weight)).
+  (* P_Contra *)
+  remember (contains_contradiction Γ) as contra.
+  symmetry in Heqcontra.
+  destruct contra as [[[o t1] t2]|].
+  apply contains_contradiction_Some in Heqcontra.
+  left; apply (P_Contradiction o t1 t2); crush.
+  (* No contradictions *)
+  assert (forall o t1 t2, 
+      In (o ::= t1) Γ 
+      -> In (o ::= t2) Γ
+      -> CommonSubtype (t1, t2)) as HNoContra.
+  apply contains_contradiction_None; crush. clear Heqcontra. 
   (* BOOKMARK *)
   destruct (
     find_In_witness _ (fun a =>

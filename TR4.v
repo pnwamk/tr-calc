@@ -45,8 +45,9 @@ Inductive type : Set :=
 | tStr  : type
 | tT    : type
 | tF    : type
+| tCons : type
 | tU    : type -> type -> type
-| tCons : type -> type -> type
+| tPair : type -> type -> type
 | tλ    : id -> type -> type -> prop -> opt object -> type
 
 with prop : Set :=
@@ -200,7 +201,7 @@ Definition const_type (c : const_op) (x:id) : type :=
     | opIsCons =>
       (tλ x 
           tTop tBool
-          ((var x) ::= (tCons tTop tTop))
+          ((var x) ::= (tPair tTop tTop))
           None)
     | opAdd1 =>
       (tλ x 
@@ -264,7 +265,7 @@ Fixpoint fv_set_t (t : type) : set id :=
              (fv_set_t t2);
              (fv_set_p p1);
              (fv_set_o o)]
-    | tCons t1 t2 =>
+    | tPair t1 t2 =>
       set_union id_eqdec
                 (fv_set_t t1)
                 (fv_set_t t2)
@@ -351,7 +352,7 @@ with subst_t'
                 (subst_t' b t2 opto x)
                 (subst_p' b p1 opto x)
                 (subst_o opto2 opto x)
-    | tCons t1 t2 => tCons (subst_t' b t1 opto x)
+    | tPair t1 t2 => tPair (subst_t' b t1 opto x)
                            (subst_t' b t2 opto x)
     | _ => t
   end.
@@ -401,15 +402,15 @@ Proof.
   destruct t; crush.
 Qed.
 
-Fixpoint is_tCons (t:type) : opt (type * type) :=
+Fixpoint is_tPair (t:type) : opt (type * type) :=
   match t with
-    | tCons t1 t2 => Some (t1,t2)
+    | tPair t1 t2 => Some (t1,t2)
     | _ => None
   end.
 
-Lemma is_tCons_eq : forall t t1 t2,
-Some (t1,t2) = is_tCons t
--> t = tCons t1 t2.
+Lemma is_tPair_eq : forall t t1 t2,
+Some (t1,t2) = is_tPair t
+-> t = tPair t1 t2.
 Proof.
   intros.
   destruct t; crush.
@@ -418,36 +419,28 @@ Qed.
 Fixpoint type_weight (t:type) : nat :=
   match t with
     | tU t1 t2 =>
-      S (plus (type_weight t1) (type_weight t2))
+      2 + (plus (type_weight t1) (type_weight t2))
     | tλ x t1 t2 _ _ => S (plus (type_weight t1) (type_weight t2))
-    | tCons t1 t2 => S (plus (type_weight t1) (type_weight t2))
+    | tPair t1 t2 => 4 + (plus (type_weight t1) (type_weight t2))
     | _ => 1
   end.
 
 Program Fixpoint common_subtype (type1 type2:type)
         {measure (plus (type_weight type1) (type_weight type2))} : bool :=
+if (type_eqdec type1 type2) then true else
   match type1, type2 with
     | tTop , _ => true
     | _, tTop => true
-    | tBot, _ => false
-    | _, tBot => false
     | tU t1 t2, _ => orb (common_subtype t1 type2) 
                          (common_subtype t2 type2)
     | _, tU t1 t2 => orb (common_subtype type1 t1) 
                          (common_subtype type1 t2)
-    | tNat, tNat => true
-    | tNat, _ => false
-    | tStr, tStr => true
-    | tStr, _ => false
-    | tT, tT => true
-    | tT, _ => false
-    | tF, tF => true
-    | tF, _ => false
     | tλ _ _ _ _ _, tλ _ _ _ _ _ => true
-    | tλ _ _ _ _ _, _ => false
-    | tCons t1 t2, tCons t3 t4 => andb (common_subtype t1 t3)
+    | tPair t1 t2, tPair t3 t4 => andb (common_subtype t1 t3)
                                        (common_subtype t2 t4)
-    | tCons _ _, _ => false
+    | tPair _ _, tCons => true
+    | tCons, tPair _ _ => true
+    | _, _ => false
   end.
 Solve Obligations using crush.
 
@@ -476,23 +469,6 @@ Defined.
 
 (** ** Proves Relation *)
 
-(*** ***Proves Relation This relation "Proves Γ P" can be interpreted
-    as follows: if we assume all propositions in Γ evaluate to true
-    then E evaluates to true.
-
-    This means "Unknown" propositions in Γ may not truly be of unknown
-    value (i.e. we may be able to deduce their underlying value from
-    the assumption that their containing formula is true). This merely
-    means Unk values in Γ are like truth-functional variables that are
-    not equal to any other truth-functional variables in the universe
-    of discourse (i.e. if we infer some Unk is true, that fact alone
-    does not imply any other Unk is true). On the right hand side of
-    the relation (in the prop P), Unk propositions are *truly*
-    unknown; It is impossible to deduce their truth value, and they
-    merely are either ignored or act as barriers to what can be proven
-    depending on their context (e.g. (P || Unk) can only be proven if
-    P can be proven, and (P && Unk) can never be proven).  *)
-
 Fixpoint rem (p:prop) (l:list prop) : list prop :=
   match l with
     | nil => nil
@@ -502,19 +478,62 @@ Fixpoint rem (p:prop) (l:list prop) : list prop :=
       else p' :: (rem p ps)
   end.
 
+
 Inductive Proves : (list prop * prop) -> Prop :=
-| P_SubType :
-  forall t' t o Γ,
-    SubType (t, t')
-    -> In (Atom (istype o t')) Γ
-    -> Proves (Γ, (Atom (istype o t)))
-(*
-| P_Absurd :
-  forall P Q,
-    (forall Γ, In Γ (poss_truth_tables P)
-               -> Valid absurd_fact Γ)
-    -> Proves P Q
-*)
+| P_Axiom :
+    forall f Γ,
+      In (Atom f) Γ
+    -> Proves (Γ, (Atom f))
+| P_Contradiction :
+    forall o t1 t2 Γ P,
+      In (o ::= t1) Γ
+      -> In (o ::= t2) Γ
+      -> common_subtype t1 t2 = false
+      -> Proves (Γ, P)
+| P_UnionElim :
+    forall P t1 t2 o Γ,
+      In (o ::= (tU t1 t2)) Γ
+      -> Proves (((o ::= t1)::(rem (o ::= (tU t1 t2)) Γ)), P)
+      -> Proves (((o ::= t2)::(rem (o ::= (tU t1 t2)) Γ)), P)
+      -> Proves (Γ, P)
+| P_PairElim :
+    forall t1 t2 x π Γ P,
+      In ((obj π x) ::= (tPair t1 t2)) Γ
+      -> Proves ((((obj π x) ::= tCons)
+                    ::((obj (π ++ [car]) x) ::= t1)
+                    ::((obj (π ++ [cdr]) x) ::= t2)
+                    ::(rem ((obj π x) ::= (tPair t1 t2)) Γ)), P)
+      -> Proves (Γ, P)
+| P_Top :
+  forall t o Γ,
+    In (o ::= t) Γ
+    -> Proves (Γ, (o ::= tTop))
+| P_Union_lhs :
+    forall t1 t2 o Γ,
+      Proves (Γ, (o ::= t1))
+      -> Proves (Γ, (o ::= (tU t1 t2)))
+| P_Union_rhs :
+    forall t1 t2 o Γ,
+      Proves (Γ, (o ::= t2))
+      -> Proves (Γ, (o ::= (tU t1 t2)))
+| P_Pair :
+    forall t1 t2 x π Γ,
+      Proves (Γ, ((obj (π ++ [car]) x) ::= t1))
+      -> Proves (Γ, ((obj (π ++ [cdr]) x) ::= t2))
+      -> Proves (Γ, ((obj π x) ::= tCons))
+      -> Proves (Γ, ((obj π x) ::= (tPair t1 t2)))
+| P_Abs :
+    forall x y τ τ' σ σ' ψ ψ' o o' ox Γ,
+      In (ox ::= (tλ x σ τ ψ o)) Γ
+      -> Proves ([(ox ::= (subst_t τ (Some (var y)) x))], (ox ::= τ'))
+      -> Proves ([(ox ::= σ')], (ox ::= (subst_t σ (Some (var y)) x)))
+      -> Proves ([(subst_p ψ (Some (var y)) x)], ψ')
+      -> SubObj (subst_o o (Some (var y)) x) o'
+      -> Proves (Γ, (ox ::= (tλ y σ' τ' ψ' o')))
+| P_Bot :
+    forall Γ P o,
+      In (o ::= tBot) Γ
+      -> Proves (Γ, P)
 | P_False :
     forall Γ P,
       In FF Γ
@@ -552,61 +571,35 @@ Inductive Proves : (list prop * prop) -> Prop :=
  | P_CP :
      forall Γ P Q,
        Proves ((P::Γ), Q)
-       -> Proves (Γ, (P --> Q))
+       -> Proves (Γ, (P --> Q)).
 
-(** SubType *)
-with SubType : (type * type) -> Prop :=
-| S_Refl : 
-    forall τ, SubType (τ, τ)
-| S_Top : 
-    forall τ, SubType (τ, tTop)
-| S_Bot : 
-    forall τ, SubType (tBot, τ)
-| S_UnionSuper_lhs :
-    forall τ σ1 σ2,
-      SubType (τ, σ1)
-      -> SubType (τ, (tU σ1 σ2))
-| S_UnionSuper_rhs :
-    forall τ σ1 σ2,
-      SubType (τ, σ2)
-      -> SubType (τ, (tU σ1 σ2))
-| S_UnionSub :
-    forall τ1 τ2 σ,
-      SubType (τ1, σ)
-      -> SubType (τ2, σ)
-      -> SubType ((tU τ1 τ2), σ)
-| S_Abs :
-    forall x y τ τ' σ σ' ψ ψ' o o',
-      SubType ((subst_t τ (Some (var y)) x), τ')
-      -> SubType (σ', (subst_t σ (Some (var y)) x))
-      -> Proves ([(subst_p ψ (Some (var y)) x)], ψ')
-      -> SubObj (subst_o o (Some (var y)) x) o'
-      -> SubType ((tλ x σ τ ψ o),
-                 (tλ y σ' τ' ψ' o'))
-| S_Cons :
-    forall τ1 σ1 τ2 σ2,
-      SubType (τ1, τ2)
-      -> SubType (σ1, σ2)
-      -> SubType ((tCons τ1 σ1), (tCons τ2 σ2)).
+Definition fact_weight (f:fact) : nat :=
+  match f with 
+    | istype o t => type_weight t
+  end.
+Hint Unfold fact_weight.
 
 Fixpoint prop_weight (p:prop) : nat :=
   match p with
-    | Atom f => 1
+    | Atom f => fact_weight f
     | And P Q => 1 + (prop_weight P) + (prop_weight Q)
     | Or P Q => 1 + (prop_weight P) + (prop_weight Q)
     | Imp P Q => 1 + (prop_weight P) + (prop_weight Q)
     | FF => 1
     | Unk => 1
   end.
+Hint Unfold prop_weight.
 
 Fixpoint env_weight (l:list prop) : nat :=
   match l with
     | nil => 0
     | p :: ps => (prop_weight p) + (env_weight ps)
   end.
+Hint Unfold env_weight.
 
 Definition proof_weight (p:(list prop) * prop) : nat :=
 plus (env_weight (fst p)) (prop_weight (snd p)).
+Hint Unfold proof_weight.
 
 Lemma find_witness:
   forall(A:Type) (P:A->Prop) (L:list A),
@@ -647,26 +640,6 @@ destruct IHL as [(b,(HbA,HbB))|IHL].
     intros b [Hb|Hb].
     * rewrite <-Hb. crush.
     * apply IHL. crush.
-Qed.
-
-Inductive Verifier : relation prop :=
-| V_subtype : 
-    forall o t t',
-      SubType (t, t') ->
-      Verifier (Atom (istype o t')) (Atom (istype o t)).
-
-Lemma Verifier_dec : forall P2 P1,
-(forall (tp : (type*type)),  {SubType tp} + {~SubType tp})
--> {Verifier P1 P2} + {~Verifier P1 P2}.
-Proof.
-  intros P1 P2 ST_dec.
-  destruct P1; try (solve [right; intros contra; inversion contra; crush]).
-  destruct f as [o t]. destruct P2; try (solve [right; intros contra; inversion contra; crush]).
-  destruct f as [o' t']. destruct (obj_eqdec o o').
-  subst. destruct (ST_dec (t, t')) as [Hsub|HNsub].
-  left; apply V_subtype; crush.
-  right; intros contra; inversion contra; crush.
-  right; intros contra; inversion contra; crush.
 Qed.
 
 Lemma prop_in_get:
@@ -801,23 +774,47 @@ Proof.
 Qed.
 Hint Resolve split_And_weight_lhs split_And_weight_rhs 
              split_Or_weight_lhs split_Or_weight_rhs.
-     
 
-Hint Constructors Verifier.
+Definition typing (p:prop) : bool :=
+match p with
+  | (Atom (istype o t)) => true
+  | _ => false
+end.
 
-Lemma Proves_dec : forall (goal:(list prop * prop)), {Proves goal} + {~Proves goal}
-with SubType_dec : forall (tpair : (type * type)),  {SubType tpair} + {~SubType tpair}.
+Fixpoint types_in (o:object) (L:list prop) : list type :=
+  match L with
+    | nil => nil
+    | (Atom (istype o' t)) :: ps => 
+      if (obj_eqdec o o')
+      then t :: types_in o ps
+      else types_in o ps
+    | _ :: ps => types_in o ps
+  end.
+
+Lemma types_in_In : forall o t L,
+In t (types_in o L)
+-> In (o ::= t) L.
+Proof.
+  intros o t L. generalize dependent o.
+  generalize dependent t.
+  induction L as [| p ps]; auto.
+  intros t o HIn.
+  simpl in HIn. destruct p;
+    try (solve[right; auto]).
+  destruct f as [o' t'].
+  destruct (obj_eqdec o o'); subst.
+  destruct HIn. subst. left; auto.
+  right; auto. right; auto.
+Qed.
+
+(*  *)
+Lemma Proves_dec : forall (goal:(list prop * prop)), {Proves goal} + {~Proves goal}.
 Proof.
   (* Proves_dec *)
-  clear Proves_dec.
   induction goal as ((Γ, P),IH) using
     (well_founded_induction
       (well_founded_ltof _ proof_weight)).
-  destruct (find_witness _ (fun P' => Verifier P' P) Γ (fun P' => (Verifier_dec P P' (fun tp => SubType_dec tp))))
-  as [[ver [ver_In Is_Ver]] | No_Ver].
-  (* Verifier! *)
-  left. destruct Is_Ver. apply (P_SubType t'); auto.
-  (* No Verifier =( *)
+  (* BOOKMARK *)
   destruct (
     find_In_witness _ (fun a =>
       match a with
@@ -827,11 +824,22 @@ Proof.
                     /\ Proves ((P2::(rem (P1 || P2) Γ)), P)
       | P1 --> P2 =>  (Proves ((rem (P1 --> P2) Γ), P1))
                       /\ (Proves ((P1::P2::(rem (P1 --> P2) Γ)), P))
+      | Atom (istype o (tU t1 t2)) => 
+        (Proves (((o ::= t1)::(rem (o ::= (tU t1 t2)) Γ)), P))
+        /\ (Proves (((o ::= t2)::(rem (o ::= (tU t1 t2)) Γ)), P))
+      | Atom (istype o tBot) => True
+      | Atom (istype o t) => typing P = true /\ Proves ([a], P)
       | _ => False
       end
     ) Γ) as [(a,(HaA,HaB))|antecedent_nonexist].
 - intros a HIn.
   destruct a as [f|P1 P2|P1 P2|P1 P2| |]; try (solve[auto]).
++ destruct f. destruct P as [[o' t']|P1 P2|P1 P2|P1 P2| |];
+              try (solve[right; intros contra; inversion contra; crush]).
+  destruct (obj_eqdec o o'). destruct (SubType_dec (t', t)).
+  subst.  left; apply V_subtype. auto.
+  right; intros contra; inversion contra; crush.
+  right; intros contra; inversion contra; crush.
 + apply IH. apply (rem_And_weight P) in HIn. crush.
 + assert ({Proves ((P1 :: rem (P1 || P2) Γ), P)} + 
           {~(Proves ((P1 :: rem (P1 || P2) Γ), P))}) as Hlhs.
@@ -848,6 +856,8 @@ Proof.
   apply IH. apply (rem_Imp_weight_rhs P) in HIn. crush.
   crush.
 - left. destruct a as [f|P1 P2|P1 P2|P1 P2| |]; crush.
+  destruct HaB.
+  apply (P_SubType t' t o Γ); auto.
   apply (P_Simpl _ P1 P2); crush.
   apply (P_DisjElim _ P1 P2); crush.
   apply (P_MP _ P1 P2); crush.
@@ -893,7 +903,8 @@ Proof.
   destruct (In_dec prop_eqdec FF Γ).
   left; apply P_False; auto.
   right; intros contra; inversion contra; subst; try (solve[crush]).
-  apply (No_Ver _ H2). auto. 
+  apply (antecedent_nonexist (Atom (istype o t'))). auto.
+  apply V_subtype; auto.
   apply (antecedent_nonexist (P0 && Q) H1). auto.
   apply (antecedent_nonexist (P0 || Q) H1). auto.
   apply (antecedent_nonexist (P0 --> Q) H1). auto.
@@ -1063,18 +1074,18 @@ Inductive TypeOf : prop -> exp -> type -> prop -> opt object -> Prop :=
     forall τ1 τ2 o1 o2 Γ e1 ψ1 e2 ψ2,
       TypeOf Γ e1 τ1 ψ1 o1
       -> TypeOf Γ e2 τ2 ψ2 o2
-      -> TypeOf Γ (Cons e1 e2) (tCons τ1 τ2) TT None
+      -> TypeOf Γ (Cons e1 e2) (tPair τ1 τ2) TT None
 | T_Car :
     forall τ1 τ2 o' o Γ e ψ0 ψ x,
       (subst_p ((obj [car] x) ::~ tF) o x) = ψ
       -> (subst_o (Some (obj [car] x)) o x) = o'
-      -> TypeOf Γ e (tCons τ1 τ2) ψ0 o
+      -> TypeOf Γ e (tPair τ1 τ2) ψ0 o
       -> TypeOf Γ (Car e) τ1 ψ o'
 | T_Cdr :
     forall τ1 τ2 o' o Γ e ψ0 ψ x,
       (subst_p ((obj [cdr] x) ::~ tF) o x) = ψ
       -> (subst_o (Some (obj [cdr] x)) o x) = o'
-      -> TypeOf Γ e (tCons τ1 τ2) ψ0 o
+      -> TypeOf Γ e (tPair τ1 τ2) ψ0 o
       -> TypeOf Γ (Cdr e) τ2 ψ o'
 | T_Let :
     forall σ' τ σ o1' o0 o1 Γ e0 ψ0 e1 ψ1 x ψ1',
@@ -1485,7 +1496,7 @@ Proof.
   destruct (type_eqdec t1 (tU t2_1 t2_2)); crush.
   eapply S_UnionSuper_lhs; crush.
   eapply S_UnionSuper_rhs; crush.
-  destruct (type_eqdec t1 (tCons t2_1 t2_2)); crush.
+  destruct (type_eqdec t1 (tPair t2_1 t2_2)); crush.
   destruct (type_eqdec t1 (tλ i t2_1 t2_2 p o)); crush.
 Qed.
 
@@ -1635,7 +1646,7 @@ match tsub, tsuper with
 | _, tU t1 t2 => 
   orb (simple_subtype tsub t1)
       (simple_subtype tsub t2)
-| tCons t1 t2, tCons t3 t4 =>
+| tPair t1 t2, tPair t3 t4 =>
   andb (simple_subtype t1 t3)
        (simple_subtype t2 t4)
 | _, _ => false
@@ -2183,7 +2194,7 @@ Admitted.
 
 Example example10:
 let p := (Id 23) in
-    TypeOf ((var p) ::= (tCons tTop tTop))
+    TypeOf ((var p) ::= (tPair tTop tTop))
            (If (Nat? (Car ($ p)))
                (Add1 (Car ($ p)))
                (# 7))
@@ -2195,7 +2206,7 @@ Proof.
 
 Example example11:
 let p := (Id 23) in
-    TypeOf ((var p) ::= (tCons tTop tTop)
+    TypeOf ((var p) ::= (tPair tTop tTop)
             && ((var G) ::= (tλ X (tU tNat tNat) tNat TT None)))
            (If (AND (Nat? (Car ($ p))) (Nat? (Cdr ($ p))))
                (Apply ($ G) ($ p))
@@ -2209,11 +2220,11 @@ Admitted.
 
 Example example12:
     TypeOf TT
-           (λ X (tCons tTop tTop)
+           (λ X (tPair tTop tTop)
               (Nat? (Car ($ X))))
            (tλ Y
-               (tCons tTop tTop) (tCons tTop tTop)
-               ((var Y) ::= (tCons tNat tTop))
+               (tPair tTop tTop) (tPair tTop tTop)
+               ((var Y) ::= (tPair tNat tTop))
                None)
            TT
            None.
@@ -2237,7 +2248,7 @@ Admitted.
 
 Example example14:
   forall X y,
-    TypeOf (((var X) ::= tTop) && ((var y) ::= (tCons tTop (tU tNat tStr))))
+    TypeOf (((var X) ::= tTop) && ((var y) ::= (tPair tTop (tU tNat tStr))))
            (If (AND (Nat? ($ X)) (Str? (Cdr ($ y))))
                (Plus ($ X) (StrLen ($ y)))
                (If (Nat? ($ X))

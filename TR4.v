@@ -425,24 +425,46 @@ Fixpoint type_weight (t:type) : nat :=
     | _ => 1
   end.
 
-Program Fixpoint common_subtype (type1 type2:type)
-        {measure (plus (type_weight type1) (type_weight type2))} : bool :=
-if (type_eqdec type1 type2) then true else
-  match type1, type2 with
-    | tTop , _ => true
-    | _, tTop => true
-    | tU t1 t2, _ => orb (common_subtype t1 type2) 
-                         (common_subtype t2 type2)
-    | _, tU t1 t2 => orb (common_subtype type1 t1) 
-                         (common_subtype type1 t2)
-    | tλ _ _ _ _ _, tλ _ _ _ _ _ => true
-    | tPair t1 t2, tPair t3 t4 => andb (common_subtype t1 t3)
-                                       (common_subtype t2 t4)
-    | tPair _ _, tCons => true
-    | tCons, tPair _ _ => true
-    | _, _ => false
-  end.
-Solve Obligations using crush.
+Inductive CommonSubtype : (type * type) -> Prop :=
+| CST_Refl :
+    forall t, CommonSubtype (t, t)
+| CST_Top_rhs :
+    forall t, CommonSubtype (t, tTop)
+| CST_Top_lhs :
+    forall t, CommonSubtype (tTop, t)
+| CST_lhsUnion_lhs :
+    forall t1 t2 t, 
+      CommonSubtype (t1, t)
+      -> CommonSubtype ((tU t1 t2), t)
+| CST_lhsUnion_rhs :
+    forall t1 t2 t, 
+      CommonSubtype (t2, t)
+      -> CommonSubtype ((tU t1 t2), t)
+| CST_rhsUnion_lhs :
+    forall t1 t2 t, 
+      CommonSubtype (t, t1)
+      -> CommonSubtype (t, (tU t1 t2))
+| CST_rhsUnion_rhs :
+    forall t1 t2 t, 
+      CommonSubtype (t, t2)
+      -> CommonSubtype (t, (tU t1 t2))
+| CST_Abs :
+    forall x y t1 t2 t3 t4 p1 p2 o1 o2,
+      CommonSubtype ((tλ x t1 t2 p1 o1), (tλ y t3 t4 p2 o2))
+| CST_Pair :
+    forall t1 t2 t3 t4, 
+      CommonSubtype (t1, t3)
+      -> CommonSubtype (t2, t4)
+      -> CommonSubtype ((tPair t1 t2), (tPair t3 t4))
+| CST_Cons_lhs :
+    forall t1 t2,
+      CommonSubtype (tCons, (tPair t1 t2))
+| CST_Cons_rhs :
+    forall t1 t2,
+      CommonSubtype ((tPair t1 t2), tCons).
+Hint Resolve CST_Refl CST_Top_rhs CST_Top_lhs
+             CST_Cons_lhs CST_Cons_rhs
+             CST_Pair CST_Abs.
 
 (*
 TODO - We must prove all types have a principal type
@@ -488,7 +510,7 @@ Inductive Proves : (list prop * prop) -> Prop :=
     forall o t1 t2 Γ P,
       In (o ::= t1) Γ
       -> In (o ::= t2) Γ
-      -> common_subtype t1 t2 = false
+      -> (~CommonSubtype (t1, t2))
       -> Proves (Γ, P)
 | P_UnionElim :
     forall P t1 t2 o Γ,
@@ -807,7 +829,278 @@ Proof.
   right; auto. right; auto.
 Qed.
 
-(*  *)
+Fixpoint type_pair_weight (tp : (type * type)) : nat :=
+(type_weight (fst tp)) + (type_weight (snd tp)).
+
+Lemma CST_dec : forall tp,
+{CommonSubtype tp} + {~CommonSubtype tp}.
+Proof.
+  intros tp.
+  induction tp as ((t1, t2),IH) 
+                      using
+                      (well_founded_induction
+                         (well_founded_ltof _ type_pair_weight)).
+  destruct (type_eqdec t1 t2).
+  crush.
+  remember (is_tU t1) as Ht1U.
+  destruct Ht1U as [[ta tb] |]. apply is_tU_eq in HeqHt1U. subst.
+  assert ({CommonSubtype (ta, t2)} + {~ CommonSubtype (ta, t2)}) as Hll.
+  apply IH. unfold type_pair_weight. unfold ltof. crush.
+  assert ({CommonSubtype (tb, t2)} + {~ CommonSubtype (tb, t2)}) as Hlr.
+  apply IH. unfold type_pair_weight. unfold ltof. crush.
+  destruct Hll. left; apply CST_lhsUnion_lhs; crush. 
+  destruct Hlr. left; apply CST_lhsUnion_rhs; crush. 
+  remember (is_tU t2) as Ht2U.
+  destruct Ht2U as [[tc td] |]. apply is_tU_eq in HeqHt2U. subst.
+  assert ({CommonSubtype ((tU ta tb), tc)} + {~ CommonSubtype ((tU ta tb), tc)}) as Hrl.
+  apply IH. unfold type_pair_weight. unfold ltof. crush.
+  assert ({CommonSubtype ((tU ta tb), td)} + {~ CommonSubtype ((tU ta tb), td)}) as Hrr.
+  apply IH. unfold type_pair_weight. unfold ltof. crush.
+  destruct Hrl. left; apply CST_rhsUnion_lhs; crush. 
+  destruct Hrr. left; apply CST_rhsUnion_rhs; crush. 
+  right; intros contra; inversion contra; crush.
+  right; intros contra; inversion contra; crush.
+  remember (is_tU t2) as Ht2U.
+  destruct Ht2U as [[tc td] |]. apply is_tU_eq in HeqHt2U. subst.
+  assert ({CommonSubtype (t1, tc)} + {~ CommonSubtype (t1, tc)}) as Hrl.
+  apply IH. unfold type_pair_weight. unfold ltof. crush.
+  assert ({CommonSubtype (t1, td)} + {~ CommonSubtype (t1, td)}) as Hrr.
+  apply IH. unfold type_pair_weight. unfold ltof. crush.
+  right; intros contra; inversion contra; crush.
+  destruct t1; destruct t2; 
+    try (solve[right; intros contra; inversion contra; crush |
+               left; crush]).
+  assert ({CommonSubtype (t1_1, t2_1)} + {~ CommonSubtype (t1_1, t2_1)}) as Hlhs.
+  apply IH. unfold type_pair_weight. unfold ltof. crush.
+  assert ({CommonSubtype (t1_2, t2_2)} + {~ CommonSubtype (t1_2, t2_2)}) as Hrhs.
+  apply IH. unfold type_pair_weight. unfold ltof. crush.
+  destruct Hlhs; destruct Hrhs; crush;
+    try (solve[right; intros contra; inversion contra; crush]).
+Defined.
+
+Definition flip_pair {X:Type} (p:X*X) : X*X := ((snd p), (fst p)).
+Hint Unfold flip_pair.
+
+Ltac auto_tp_weight :=
+  unfold type_pair_weight; unfold ltof; crush.
+
+Lemma CST_symmetric : forall tp,
+CommonSubtype tp
+-> CommonSubtype (flip_pair tp).
+Proof.
+  intros tp H.
+  induction tp as ((t1, t2),IH) 
+                    using
+                    (well_founded_induction
+                       (well_founded_ltof _ type_pair_weight)).
+  remember (is_tU t1) as Ht1U.
+  destruct Ht1U as [[ta tb] |]. apply is_tU_eq in HeqHt1U. subst.
+  inversion H; crush. 
+  compute. apply CST_Top_lhs. 
+  compute. apply CST_rhsUnion_lhs. apply IH in H1. crush. auto_tp_weight.
+  compute. apply CST_rhsUnion_rhs. apply IH in H1. crush. auto_tp_weight.
+  compute. apply CST_lhsUnion_lhs. apply IH in H1. crush. auto_tp_weight.
+  compute. apply CST_lhsUnion_rhs. apply IH in H1. crush. auto_tp_weight.
+  remember (is_tU t2) as Ht2U.
+  destruct Ht2U as [[ta tb] |]. apply is_tU_eq in HeqHt2U. subst.
+  inversion H; crush. 
+  compute. apply CST_Top_rhs. 
+  compute. apply CST_lhsUnion_lhs. apply IH in H1. crush. auto_tp_weight.
+  compute. apply CST_lhsUnion_rhs. apply IH in H1. crush. auto_tp_weight.
+  destruct t1; destruct t2; 
+  try(solve[auto |
+            compute; auto |
+            inversion H; crush |
+            right; intros contra; inversion contra; crush]).
+  inversion H; subst; crush.
+  apply CST_Pair. apply IH in H2. crush. auto_tp_weight.
+  apply IH in H5. crush. auto_tp_weight. 
+Qed.
+
+Fixpoint contains_type_conflict (o:object) (t:type) (L:list prop) : opt type :=
+  match L with
+    | nil => None
+    | (Atom (istype o' t')) :: L' =>
+      if (obj_eqdec o o')
+      then if CST_dec (t, t')
+           then contains_type_conflict o t L'
+           else Some t'
+      else contains_type_conflict o t L'
+    | _ :: L' => contains_type_conflict o t L'
+  end.
+
+Lemma contains_no_conflict_lhs_In : forall L o t1 t2,
+In (o ::= t2) L
+-> contains_type_conflict o t1 L = None
+-> CommonSubtype (t1, t2).
+Proof.
+  intros L; induction L as [| p L'].
+  crush.
+  intros o t1 t2 HIn HNone.
+  destruct HIn. subst.
+  unfold contains_type_conflict in HNone.
+  destruct (obj_eqdec o o); try (solve[crush]).
+  destruct (CST_dec (t1, t2)).
+  crush. crush.
+  apply (IHL' o); auto.
+  simpl in HNone.
+  destruct p; try (solve[crush]).
+  destruct f as [o' t'].
+  destruct (obj_eqdec o o'); try (solve[crush]).
+  destruct (CST_dec (t1, t')); crush.
+Qed.  
+
+Lemma contains_conflict_None : forall L o t1 t2,
+In (o ::= t1) L
+-> contains_type_conflict o t2 L = None
+-> CommonSubtype (t1, t1).
+Proof.
+  intros L; induction L as [| p L'].
+  crush.
+  intros o t1 t2 HIn HNone.
+  destruct HIn. subst.
+  unfold contains_type_conflict in HNone.
+  destruct (obj_eqdec o o); try (solve[crush]).
+  destruct (CST_dec (t2, t1)).
+  crush. crush.
+Qed.  
+
+Lemma contains_conflict_Some : forall L o t1 t2,
+contains_type_conflict o t1 L = Some t2
+-> ~ CommonSubtype (t1,t2).
+Proof.
+  intros L; induction L as [| p L'].
+  crush.
+  intros o t1 t2 HSome.
+  unfold contains_type_conflict in HSome.
+  destruct p. destruct f as [o' t']. 
+  destruct (obj_eqdec o o').
+  destruct (CST_dec (t1, t')). subst.
+  fold contains_type_conflict in HSome.
+  apply IHL' in HSome. auto.
+  inversion HSome; crush.
+  fold contains_type_conflict in HSome.
+  apply IHL' in HSome. auto.
+  fold contains_type_conflict in HSome.
+  apply IHL' in HSome. auto.
+  fold contains_type_conflict in HSome.
+  apply IHL' in HSome. auto.
+  fold contains_type_conflict in HSome.
+  apply IHL' in HSome. auto.
+  fold contains_type_conflict in HSome.
+  apply IHL' in HSome. auto.
+  fold contains_type_conflict in HSome.
+  apply IHL' in HSome. auto.
+Qed.
+
+Lemma contains_conflict_Some_In : forall L o t1 t2,
+contains_type_conflict o t1 L = Some t2
+-> In (o ::= t2) L.
+Proof.
+  intros L; induction L as [| p L'].
+  crush.
+  intros o t1 t2 HSome.
+  unfold contains_type_conflict in HSome.
+  destruct p. destruct f as [o' t']. 
+  destruct (obj_eqdec o o').
+  destruct (CST_dec (t1, t')). subst.
+  fold contains_type_conflict in HSome.
+  apply IHL' in HSome. right; auto.
+  inversion HSome; crush.
+  fold contains_type_conflict in HSome.
+  apply IHL' in HSome. right; auto.
+  fold contains_type_conflict in HSome.
+  apply IHL' in HSome. right; auto.
+  fold contains_type_conflict in HSome.
+  apply IHL' in HSome. right; auto.
+  fold contains_type_conflict in HSome.
+  apply IHL' in HSome. right; auto.
+  fold contains_type_conflict in HSome.
+  apply IHL' in HSome. right; auto.
+  fold contains_type_conflict in HSome.
+  apply IHL' in HSome. right; auto.
+Qed.
+
+
+Fixpoint contains_contradiction (L:list prop) : opt (object * type * type) := 
+  match L with
+    | nil => None
+    | (Atom (istype o t)) :: L' =>
+      match contains_type_conflict o t L' with
+        | None => contains_contradiction L'
+        | Some t' => Some (o, t, t')
+      end
+    | _ :: L' => contains_contradiction L'
+  end.
+
+Lemma contains_contradiction_None : forall L,
+contains_contradiction L = None 
+-> (forall o t1 t2, 
+      In (o ::= t1) L 
+      -> In (o ::= t2) L
+      -> CommonSubtype (t1, t2)).
+Proof.
+  intros L; induction L as [| p L'].
+  crush.
+  intros HNone o t1 t2 Ht1In Ht2In.
+  destruct p as [[o' t']|P1 P2|P1 P2|P1 P2| |].
+  destruct Ht1In as [H1eq | ].
+  rewrite H1eq in *.
+  destruct Ht2In as [H2eq | ].
+  inversion H2eq. crush.
+  inversion H1eq; subst.
+  unfold contains_contradiction in HNone.
+  remember (contains_type_conflict o t1 L') as Hhd.
+  destruct Hhd. crush.
+  apply (contains_no_conflict_lhs_In L' o). auto. auto.
+  destruct Ht2In as [H2eq | ].
+  inversion H2eq. subst. 
+  assert ((t1, t2) = (flip_pair (t2,t1))) as Hflip; crush.
+  apply CST_symmetric.
+  apply (contains_no_conflict_lhs_In L' o). auto. 
+  destruct (contains_type_conflict o t2 L'). crush. reflexivity. 
+  eapply (IHL' _ o); auto.
+  crush. apply (H1 o); crush.
+  crush. apply (H1 o); crush.
+  crush. apply (H1 o); crush.
+  crush. apply (H1 o); crush.
+  crush. apply (H1 o); crush.
+Grab Existential Variables.
+inversion HNone.
+destruct (contains_type_conflict o' t' L'); crush.
+Qed.
+
+Lemma contains_contradiction_Some : forall L o t1 t2,
+contains_contradiction L = Some (o, t1, t2) 
+-> (In (o ::= t1) L 
+ /\ In (o ::= t2) L
+ /\ ~CommonSubtype (t1, t2)).
+Proof.
+  intros L; induction L as [| p L'].
+  crush.
+  intros o t1 t2 HSome.
+  inversion HSome. destruct p as [[o' t'] | | | | |].
+  remember (contains_type_conflict o' t' L') as Hsub.
+  destruct Hsub.
+  symmetry in HeqHsub.  
+  apply contains_conflict_Some in HeqHsub.
+  inversion H0; subst.
+  inversion HSome.
+  remember (contains_type_conflict o t1 L') as Hsubt1.
+  destruct Hsubt1. inversion H1; subst.
+  symmetry in HeqHsubt1.  
+  apply contains_conflict_Some_In in HeqHsubt1.
+  crush.
+  apply IHL' in H1. crush.
+  apply IHL' in H0. crush.
+  apply IHL' in H0. crush.
+  apply IHL' in H0. crush.
+  apply IHL' in H0. crush.
+  apply IHL' in H0. crush.
+  apply IHL' in H0. crush.
+Qed.
+
+
 Lemma Proves_dec : forall (goal:(list prop * prop)), {Proves goal} + {~Proves goal}.
 Proof.
   (* Proves_dec *)
@@ -818,18 +1111,29 @@ Proof.
   destruct (
     find_In_witness _ (fun a =>
       match a with
-      | FF => True
-      | P1 && P2 => Proves ((P1::P2::(rem (P1 && P2) Γ)), P)
-      | P1 || P2 => Proves ((P1::(rem (P1 || P2) Γ)), P) 
-                    /\ Proves ((P2::(rem (P1 || P2) Γ)), P)
-      | P1 --> P2 =>  (Proves ((rem (P1 --> P2) Γ), P1))
-                      /\ (Proves ((P1::P2::(rem (P1 --> P2) Γ)), P))
-      | Atom (istype o (tU t1 t2)) => 
-        (Proves (((o ::= t1)::(rem (o ::= (tU t1 t2)) Γ)), P))
-        /\ (Proves (((o ::= t2)::(rem (o ::= (tU t1 t2)) Γ)), P))
-      | Atom (istype o tBot) => True
-      | Atom (istype o t) => typing P = true /\ Proves ([a], P)
-      | _ => False
+        (* P_False *)
+        | FF => True
+        (* P_Simpl *)
+        | P1 && P2 => Proves ((P1::P2::(rem (P1 && P2) Γ)), P)
+        (* P_DisjElim *)
+        | P1 || P2 => Proves ((P1::(rem (P1 || P2) Γ)), P) 
+                      /\ Proves ((P2::(rem (P1 || P2) Γ)), P)
+        (* P_MP *)
+        | P1 --> P2 =>  (Proves ((rem (P1 --> P2) Γ), P1))
+                        /\ (Proves ((P1::P2::(rem (P1 --> P2) Γ)), P))
+        (* P_UnionElim *)
+        | Atom (istype o (tU t1 t2)) => 
+          (Proves (((o ::= t1)::(rem (o ::= (tU t1 t2)) Γ)), P))
+          /\ (Proves (((o ::= t2)::(rem (o ::= (tU t1 t2)) Γ)), P))
+        (* P_PairElim *)
+        | Atom (istype (obj π x) (tPair t1 t2)) => 
+          Proves ((((obj π x) ::= tCons)
+                     ::((obj (π ++ [car]) x) ::= t1)
+                     ::((obj (π ++ [cdr]) x) ::= t2)
+                     ::(rem ((obj π x) ::= (tPair t1 t2)) Γ)), P)
+        (* P_Bot *)
+        | Atom (istype o tBot) => True
+        | _ => False
       end
     ) Γ) as [(a,(HaA,HaB))|antecedent_nonexist].
 - intros a HIn.
@@ -863,21 +1167,65 @@ Proof.
   apply (P_MP _ P1 P2); crush.
   apply P_False; auto.
 - assert (succedent_dec:
-  {
-    match P with
-    | PA && PB  => Proves (Γ, PA) /\ Proves (Γ, PB)
-    | PA || PB  => Proves (Γ, PA) \/ Proves (Γ, PB)
-    | PA --> PB => Proves (PA::Γ, PB)
-    | _ => False
-    end
-  } + {~
-    match P with
-    | PA && PB => Proves (Γ, PA) /\ Proves (Γ, PB)
-    | PA || PB => Proves (Γ, PA) \/ Proves (Γ, PB)
-    | PA --> PB => Proves (PA::Γ, PB)
-    | _ => False
-    end
-  }).
+  {(match P with
+      (* P_Conj *)
+      | PA && PB  => Proves (Γ, PA) /\ Proves (Γ, PB)
+      (* P_Add_[lhs/rhs] *)
+      | PA || PB  => Proves (Γ, PA) \/ Proves (Γ, PB)
+      (* P_CP *)
+      | PA --> PB => Proves (PA::Γ, PB)
+      (* P_Top *)
+      | (Atom (istype o tTop)) => types_in o Γ <> nil
+      (* P_UnionElim *)
+      | (Atom (istype o (tU t1 t2))) =>
+        Proves (Γ, (o ::= t1)) \/ Proves (Γ, (o ::= t2))
+      (* P_PairElim *)
+      | (Atom (istype o (tPair t1 t2))) =>
+        Proves (Γ, ((obj (π ++ [car]) x) ::= t1))
+        /\ Proves (Γ, ((obj (π ++ [cdr]) x) ::= t2))
+        /\ Proves (Γ, ((obj π x) ::= tCons))
+      (* P_Abs *)
+      | Atom (istype ox (tλ y σ' τ' ψ' o')) =>
+        (exists x σ τ ψ o,
+           In (ox ::= (tλ x σ τ ψ o)) Γ
+           /\ Proves ([(ox ::= (subst_t τ (Some (var y)) x))], (ox ::= τ'))
+           /\ Proves ([(ox ::= σ')], (ox ::= (subst_t σ (Some (var y)) x)))
+           /\ Proves ([(subst_p ψ (Some (var y)) x)], ψ')
+           /\ SubObj (subst_o o (Some (var y)) x) o')
+      (* P_Axiom *)
+      | Atom f => In (Atom f) Γ
+      | _ => False
+    end)
+  } + {
+    ~(match P with
+      (* P_Conj *)
+      | PA && PB  => Proves (Γ, PA) /\ Proves (Γ, PB)
+      (* P_Add_[lhs/rhs] *)
+      | PA || PB  => Proves (Γ, PA) \/ Proves (Γ, PB)
+      (* P_CP *)
+      | PA --> PB => Proves (PA::Γ, PB)
+      (* P_Top *)
+      | (Atom (istype o tTop)) => types_in o Γ <> nil
+      (* P_Union_[lhs/rhs] *)
+      | (Atom (istype o (tU t1 t2))) =>
+        Proves (Γ, (o ::= t1)) \/ Proves (Γ, (o ::= t2))
+      (* P_Pair *)
+      | (Atom (istype o (tPair t1 t2))) =>
+        Proves (Γ, ((obj (π ++ [car]) x) ::= t1))
+        /\ Proves (Γ, ((obj (π ++ [cdr]) x) ::= t2))
+        /\ Proves (Γ, ((obj π x) ::= tCons))
+      (* P_Abs *)
+      | Atom (istype ox (tλ y σ' τ' ψ' o')) =>
+        (exists x σ τ ψ o,
+           In (ox ::= (tλ x σ τ ψ o)) Γ
+           /\ Proves ([(ox ::= (subst_t τ (Some (var y)) x))], (ox ::= τ'))
+           /\ Proves ([(ox ::= σ')], (ox ::= (subst_t σ (Some (var y)) x)))
+           /\ Proves ([(subst_p ψ (Some (var y)) x)], ψ')
+           /\ SubObj (subst_o o (Some (var y)) x) o')
+      (* P_Axiom *)
+      | Atom f => In (Atom f) Γ
+      | _ => False
+    end)}).
   destruct P as [f|P1 P2|P1 P2|P1 P2| |]; try (solve[auto]).
 + assert ({Proves (Γ, P1)} + {~ (Proves (Γ, P1))}) as Hlhs.
     apply IH. unfold ltof. auto. 

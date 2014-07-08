@@ -595,7 +595,7 @@ Fixpoint type_weight (t:type) : nat :=
   match t with
     | tU t1 t2 =>
       2 + (plus (type_weight t1) (type_weight t2))
-    | tλ x t1 t2 p _ => 1 + (type_weight t1) 
+    | tλ x t1 t2 p _ => 2 + (type_weight t1) 
                         + (type_weight t2)
                         + (prop_weight p)
                                                
@@ -666,16 +666,6 @@ destruct IHL as [(b,(HbA,HbB))|IHL].
     * rewrite <-Hb. crush.
     * apply IHL. crush.
 Qed.
-
-Lemma rem_hd : forall P L,
-rem P (P::L) = L.
-Proof.
-  intros.
-  induction L.
-  simpl. destruct (prop_eqdec P P); crush.
-  unfold remove in IHL. 
-  simpl. destruct (prop_eqdec P P). auto. tryfalse.
-Qed.  
 
 Lemma rem_And_weight : forall P P1 P2 L,
 In (P1 && P2) L
@@ -1159,33 +1149,32 @@ Proof.
   apply IHL in H. fold rem. unfold proof_weight in *. crush.
 Qed.
 
-(* BOOKMARK *)
 Lemma subst_t_weight : forall t y x, 
-type_weight (subst_t t (Some (var y)) x) = type_weight t.
-Proof.
-  intros t y x.
-  induction t; crush.
-  fold subst_t. rewrite IHt1. rewrite IHt2. crush.
-  unfold subst_t. unfold subst_t'.
-  destruct (id_eqdec x i). crush.
-  crush. 
-Qed.
-
-Lemma subst_p_weight : forall p y x, 
+type_weight (subst_t t (Some (var y)) x) <= type_weight t
+with subst_p_weight : forall p y x, 
 prop_weight (subst_p p (Some (var y)) x) <= prop_weight p.
 Proof.
-  intros p y x.
-  induction p; crush.
-  destruct f. crush.
-  destruct o as [π z].
-  unfold subst_p. unfold subst_p'.
-  destruct (id_eqdec x z). simpl.
-  fold subst_t'. fold subst_t.
-  rewrite subst_t_weight. omega.
+  clear subst_t_weight.
+  intros t y x.
+  induction t; crush.
+  fold subst_t. crush.
+  fold subst_t. crush.
+  specialize (subst_p_weight p y x).
+  unfold subst_t. unfold subst_t'.
+  fold subst_t'. fold subst_p'.
+  destruct (id_eqdec x i). crush.
+  fold subst_t. fold subst_p. crush.
+
+  clear subst_p_weight.
+  intros p y x; induction p as [[[π z] t]|P1 P2|P1 P2|P1 P2| | | ]; crush.
+  unfold subst_p. unfold subst_p'. fold subst_t'. 
+  destruct (id_eqdec x z). fold subst_t. unfold prop_weight.
+  fold type_weight. crush.
   destruct (set_mem id_eqdec z (fv_set_t t)).
-  destruct t; crush. simpl. omega.
-  fold subst_p. omega.
-  fold subst_p. omega.
+  destruct t; crush.
+  unfold prop_weight. fold type_weight. crush.
+  fold subst_p. crush.
+  fold subst_p. crush.
 Qed.
 
 Lemma rem_λ_weight1 : forall L x0 σ τ ψ o'' y τ' σ' o,

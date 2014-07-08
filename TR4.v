@@ -1182,16 +1182,20 @@ Proof.
 Qed.
 
 
-Lemma rem_λ_weight1 : forall L x0 σ τ ψ o'' y τ' σ' o,
-In (Atom (istype o (tλ x0 σ τ ψ o''))) L
--> type_weight (subst_t τ (Some (var y)) x0) + 0 + type_weight τ' <
-   env_weight L + S (type_weight σ' + type_weight τ').
+Lemma rem_λ_weight1 : forall L x1 t1a t1r p1 o1 x2 t2a t2r p2 o2 o o',
+In (Atom (istype o (tλ x1 t1a t1r p1 o1))) L
+->    proof_weight
+     ([Atom (istype o (subst_t t1r (Some (var x2)) x1))],
+     Atom (istype o t2r)) <
+   proof_weight (L, Atom (istype o' (tλ x2 t2a t2r p2 o2))).
 Proof.
   intros.
+  unfold proof_weight. simpl.
   induction L. crush.
-  destruct a; crush. 
-  (* BOOKMARK *)
-  rewrite subst_t_weight. crush.
+  destruct a; crush.
+  assert (type_weight (subst_t t1r (Some (var x2)) x1) <= type_weight t1r) as Hleq.
+    apply subst_t_weight.
+  crush.
 Qed.
 
 Lemma rem_λ_weight2 : forall L x1 t1a t1r p1 o1 x2 t2a t2r p2 o2 o o',
@@ -1204,12 +1208,13 @@ Proof.
   intros.
   induction L. crush.
   destruct H. subst.
-  unfold proof_weight in *. simpl. 
+  unfold proof_weight in *. simpl.
+  assert (type_weight (subst_t t1a (Some (var x2)) x1) <= type_weight t1a) as Hleq.
+  crush.
   rewrite subst_t_weight. crush.
   crush. 
   unfold proof_weight in *. simpl in *.
   destruct a as [[o'' t''] |P1 P2|P1 P2|P1 P2| | |]; crush.
-  destruct t''; crush.
 Qed.
 
 Lemma rem_λ_weight3 : forall L x1 t1a t1r p1 o1 x2 t2a t2r p2 o2 o o',
@@ -1221,17 +1226,15 @@ Proof.
   induction L. crush.
   unfold proof_weight in *. simpl in *.
   destruct H. subst.
-  unfold prop_weight at 3. unfold fact_weight. unfold type_weight.
-  fold type_weight.
+  unfold prop_weight at 3. 
+  unfold prop_weight at 3. unfold type_weight.
+  fold type_weight. fold prop_weight.
+  assert (prop_weight (subst_p p1 (Some (var x2)) x1) <= prop_weight p1) as Hleq.
+  apply subst_p_weight.
   crush.
-  assert (prop_weight (subst_p p1 (Some (var x2)) x1) <= prop_weight p1).
-    apply subst_p_weight. omega.
-  rewrite subst_p_weight.
-  rewrite subst_t_weight. crush.
-  crush. 
-  unfold proof_weight in *. simpl in *.
-  destruct a as [[o'' t''] |P1 P2|P1 P2|P1 P2| |]; crush.
-  destruct t''; crush.
+  assert (prop_weight (subst_p p1 (Some (var x2)) x1) <= prop_weight p1) as Hleq.
+  apply subst_p_weight.
+  crush.
 Qed.
 
 Lemma conj_dec : forall P Q,
@@ -1245,6 +1248,16 @@ Lemma disj_dec : forall P Q,
 -> {Q} + {~Q}
 -> {P \/ Q} + {~(P \/ Q)}.
 Proof. crush. Qed.
+
+Definition obj_car (o:object) : object :=
+  match o with
+    | obj π x => obj (π ++ [car]) x
+  end.
+
+Definition obj_cdr (o:object) : object :=
+  match o with
+    | obj π x => obj (π ++ [cdr]) x
+  end.
 
 
 Lemma Proves_dec : forall (goal:(list prop * prop)), {Proves goal} + {~Proves goal}.
@@ -1295,22 +1308,14 @@ Proof.
       end
     ) Γ) as [(a,(HaA,HaB))|antecedent_nonexist].
 - intros a HIn.
-  destruct a as [[[x π] t]|P1 P2|P1 P2|P1 P2| |]; try (solve[auto]).
+  destruct a as [[[x π] t]|P1 P2|P1 P2|P1 P2| | |]; try (solve[auto]).
   + destruct t as [ | | | | | |t1 t2|t1 t2| | ]; try (solve[auto]).
-    * apply conj_dec. apply IH. unfold ltof. unfold proof_weight. simpl. 
-      apply rem_Union_lhs_weight. auto.
-      apply IH. unfold ltof. unfold proof_weight. simpl. 
-      apply rem_Union_rhs_weight. auto.
-    * apply IH. unfold ltof. unfold proof_weight. simpl. 
-      apply rem_Pair_weight. auto.
-  + apply IH. apply (rem_And_weight P). auto. 
-  + apply conj_dec.
-    apply IH. apply rem_Or_lhs_weight. auto.
-    apply IH. apply rem_Or_rhs_weight. auto.
-  + apply conj_dec.
-    apply IH. apply rem_Imp_lhs_weight. auto.
-    apply IH. apply rem_Imp_rhs_weight. auto.
-- left. destruct a as [[[π x] t] |P1 P2|P1 P2|P1 P2| |]; crush.
+    * apply conj_dec; apply IH; unfold ltof; apply rem_add1_lt; crush.
+    * apply IH; unfold ltof; apply rem_add3_lt; crush.
+  + apply IH; unfold ltof; apply rem_add2_lt; crush.
+  + apply conj_dec; apply IH; unfold ltof; apply rem_add1_lt; crush.
+  + apply conj_dec; apply IH; first[apply rem_ltgoal_lt | apply rem_add2_lt]; crush.
+- left. destruct a as [[[π x] t] |P1 P2|P1 P2|P1 P2| | | ]; crush.
   + destruct t as [ | | | | | |t1 t2|t1 t2| | ]; try (solve[crush]).
     eapply P_Bot; eauto.
     eapply (P_UnionElim P t1 t2); crush. exact HaA. auto. auto.
@@ -1333,25 +1338,25 @@ Proof.
       | (Atom (istype o (tU t1 t2))) =>
         Proves (Γ, (o ::= t1)) \/ Proves (Γ, (o ::= t2))
       (* P_PairElim *)
-      | (Atom (istype (obj π x) (tPair t1 t2))) =>
-        Proves (Γ, ((obj (π ++ [car]) x) ::= t1))
-        /\ Proves (Γ, ((obj (π ++ [cdr]) x) ::= t2))
-        /\ Proves (Γ, ((obj π x) ::= tCons))
+      | (Atom (istype o (tPair t1 t2))) =>
+        Proves (Γ, ((obj_car o) ::= t1))
+        /\ Proves (Γ, ((obj_cdr o) ::= t2))
+        /\ Proves (Γ, (o ::= tCons))
       (* P_Fun *)
-      | Atom (istype ox (tλ x2 t2a t2r p2 o2)) =>
+      | Atom (istype o (tλ x2 t2a t2r p2 o2)) =>
         (exists t,
            match t with
              | tλ x1 t1a t1r p1 o1 =>
-               In (ox ::= (tλ x1 t1a t1r p1 o1)) Γ
-               /\ Proves ([(ox ::= (subst_t t1r (Some (var x2)) x1))], (ox ::= t2r))
-               /\ Proves ([(ox ::= t2a)], (ox ::= (subst_t t1a (Some (var x2)) x1)))
+               In (o ::= (tλ x1 t1a t1r p1 o1)) Γ
+               /\ Proves ([(o ::= (subst_t t1r (Some (var x2)) x1))], (o ::= t2r))
+               /\ Proves ([(o ::= t2a)], (o ::= (subst_t t1a (Some (var x2)) x1)))
                /\ Proves ([(subst_p p1 (Some (var x2)) x1)], p2)
                /\ SubObj (subst_o o1 (Some (var x2)) x1) o2
-               /\ Proves (Γ, (ox ::= (tλ x2 t2a t2r p2 o2)))
              | _ => False
            end)
       (* P_Axiom *)
       | Atom f => In (Atom f) Γ
+      | TT => True
       | _ => False
     end)
   } + {
@@ -1364,95 +1369,83 @@ Proof.
       | PA --> PB => Proves (PA::Γ, PB)
       (* P_Top *)
       | (Atom (istype o tTop)) => types_in o Γ <> nil
-      (* P_Union_[lhs/rhs] *)
+      (* P_UnionElim *)
       | (Atom (istype o (tU t1 t2))) =>
         Proves (Γ, (o ::= t1)) \/ Proves (Γ, (o ::= t2))
-      (* P_Pair *)
-      | (Atom (istype (obj π x) (tPair t1 t2))) =>
-        Proves (Γ, ((obj (π ++ [car]) x) ::= t1))
-        /\ Proves (Γ, ((obj (π ++ [cdr]) x) ::= t2))
-        /\ Proves (Γ, ((obj π x) ::= tCons))
+      (* P_PairElim *)
+      | (Atom (istype o (tPair t1 t2))) =>
+        Proves (Γ, ((obj_car o) ::= t1))
+        /\ Proves (Γ, ((obj_cdr o) ::= t2))
+        /\ Proves (Γ, (o ::= tCons))
       (* P_Fun *)
-      | Atom (istype ox (tλ x2 t2a t2r p2 o2)) =>
+      | Atom (istype o (tλ x2 t2a t2r p2 o2)) =>
         (exists t,
            match t with
              | tλ x1 t1a t1r p1 o1 =>
-               In (ox ::= (tλ x1 t1a t1r p1 o1)) Γ
-               /\ Proves ([(ox ::= (subst_t t1r (Some (var x2)) x1))], (ox ::= t2r))
-               /\ Proves ([(ox ::= t2a)], (ox ::= (subst_t t1a (Some (var x2)) x1)))
+               In (o ::= (tλ x1 t1a t1r p1 o1)) Γ
+               /\ Proves ([(o ::= (subst_t t1r (Some (var x2)) x1))], (o ::= t2r))
+               /\ Proves ([(o ::= t2a)], (o ::= (subst_t t1a (Some (var x2)) x1)))
                /\ Proves ([(subst_p p1 (Some (var x2)) x1)], p2)
                /\ SubObj (subst_o o1 (Some (var x2)) x1) o2
-               /\ Proves (Γ, (ox ::= (tλ x2 t2a t2r p2 o2)))
              | _ => False
            end)
       (* P_Axiom *)
       | Atom f => In (Atom f) Γ
+      | TT => True
       | _ => False
     end)}).
- destruct P as [[[π x] t] |P1 P2|P1 P2|P1 P2| |]; try (solve[auto]).
+ destruct P as [[o t] |P1 P2|P1 P2|P1 P2| | |]; try (solve[auto]).
  destruct t as [ | | | | | | | | | x2 t2a t2r p2 o2 ]; 
    try (solve[auto | 
-              apply (In_dec prop_eqdec (Atom (istype (obj π x) _)) Γ)]).
-  + destruct (types_in (obj π x) Γ); auto. left. crush.
-  + apply disj_dec. 
-    apply IH. unfold ltof. unfold proof_weight. crush.
-    apply IH. unfold ltof. unfold proof_weight. crush.
-  + apply conj_dec. 
-    apply IH. unfold ltof. unfold proof_weight. crush.
-    apply conj_dec. apply IH. unfold ltof. unfold proof_weight. crush.
-    apply IH. unfold ltof. unfold proof_weight. crush.
-    (* BOOKMARK *)
+              apply (In_dec prop_eqdec (Atom (istype o _)) Γ)]).
+  + destruct (types_in o Γ). right. destruct o. crush. left; destruct o; crush.
+  + apply disj_dec; apply IH; unfold ltof; unfold proof_weight; crush.
+  + apply conj_dec; first[apply IH | apply conj_dec; apply IH]; unfold ltof; unfold proof_weight; crush.
   + remember 
       (fun p => 
          match p with
-           | Atom (istype o (tλ x1 t1a t1r p1 o1)) =>
-             In (o ::= (tλ x1 t1a t1r p1 o1)) Γ
+           | Atom (istype o' (tλ x1 t1a t1r p1 o1)) =>
+             (o = o')
+             /\ In (o ::= (tλ x1 t1a t1r p1 o1)) Γ
              /\ Proves ([(o ::= (subst_t t1r (Some (var x2)) x1))], (o ::= t2r))
              /\ Proves ([(o ::= t2a)], (o ::= (subst_t t1a (Some (var x2)) x1)))
              /\ Proves ([(subst_p p1 (Some (var x2)) x1)], p2)
              /\ SubObj (subst_o o1 (Some (var x2)) x1) o2
-             /\ Proves (Γ, (o ::= (tλ x2 t2a t2r p2 o2)))
            | _ => False
          end) as pfun.
     assert (forall p, {pfun p} + {~(pfun p)}) as pfun_dec.
       subst.
-      destruct p as [[o t] |P1 P2|P1 P2|P1 P2| |]; try(solve[crush]).
+      destruct p as [[o' t] |P1 P2|P1 P2|P1 P2| | |]; try(solve[crush]).
       destruct t as [ | | | | | | | | | x1 t1a t1r p1 o1 ]; 
         try (solve[auto]).
+      apply conj_dec. apply obj_eqdec.
       remember (In_dec prop_eqdec (Atom (istype o (tλ x1 t1a t1r p1 o1))) Γ) as HIn.
       clear HeqHIn.
       destruct HIn as [HIn | HnotIn].
       apply conj_dec. auto.
-      apply conj_dec. apply IH. unfold ltof. unfold proof_weight. crush.
-        eapply rem_λ_weight1. exact HIn.
-      apply conj_dec. apply IH. unfold ltof. eapply rem_λ_weight2.
-        exact HIn.
-      apply conj_dec. apply IH. unfold ltof. 
-(*
-Lemma find_witness:
-  forall(A:Type) (P:A->Prop) (L:list A),
-    (forall a, {P a}+{~P a}) ->
-    { a | In a L /\ P a } + { forall a, In a L -> ~P a }.
-
-
-is_tλ
-*)
-+ assert ({Proves (Γ, P1)} + {~ (Proves (Γ, P1))}) as Hlhs.
-    apply IH. unfold ltof. auto. 
-  assert ({Proves (Γ, P2)} + {~ (Proves (Γ, P2))}) as Hrhs.
-    apply IH. unfold ltof. auto. 
-  crush.
-+ assert ({Proves (Γ, P1)} + {~ (Proves (Γ, P1))}) as Hlhs.
-    apply IH. unfold ltof. auto. 
-  assert ({Proves (Γ, P2)} + {~ (Proves (Γ, P2))}) as Hrhs.
-    apply IH. unfold ltof. auto. 
-  crush.
-+ assert ({Proves (P1::Γ, P2)} + {~ (Proves (P1::Γ, P2))}) as Himpl.
-    apply IH. unfold ltof. unfold proof_weight. crush. 
-  crush.
-+ destruct succedent_dec as [succedent_exist|succedent_nonexist].
-  left.
-  destruct P as [f|P1 P2|P1 P2|P1 P2| |]; try (solve[crush]).
+      apply conj_dec. apply IH. unfold ltof. eapply rem_λ_weight1. exact HIn. 
+      apply conj_dec. apply IH. unfold ltof. eapply rem_λ_weight2. exact HIn.
+      apply conj_dec. apply IH. unfold ltof. eapply rem_λ_weight3. exact HIn.
+      apply SO_dec.
+      right. intros contra; crush.
+      destruct (find_witness _ pfun Γ pfun_dec) as [[wit [witIn witP]] | Hnowit].
+      left. subst pfun.
+      destruct wit as [[o' t] | | | | | |]; crush.
+      destruct t as [ | | | | | | | | | x1 t1a t1r p1 o1 ]; 
+        try (solve[crush]).
+      exists (tλ x1 t1a t1r p1 o1). crush.
+      right. intros contra. inversion contra as [t Ht].
+      destruct t; tryfalse. 
+      apply (Hnowit (Atom (istype o (tλ i t1 t2 p o0)))). crush. crush.
+  + apply conj_dec; apply IH; unfold ltof; crush.
+  + apply disj_dec; apply IH; unfold ltof; crush.
+  + apply IH; unfold ltof; crush. unfold proof_weight. crush. 
++ destruct P as [[o t]|P1 P2|P1 P2|P1 P2| | | ]; try (solve[crush]).
+  destruct t; crush.
+  remember (types_in o Γ) as otypes. 
+  destruct otypes; tryfalse. left; apply (P_Top t); apply types_in_In.
+    rewrite <- Heqotypes. crush. 
+    (* BOOKMARK *)
   apply P_Conj; crush.
   destruct succedent_exist as [Hlhs | Hrhs].
   apply P_Add_lhs; auto.

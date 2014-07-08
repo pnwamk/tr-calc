@@ -1163,6 +1163,25 @@ Proof.
   crush.
 Qed.
 
+Lemma subst_t_weight : forall t x y,
+type_weight (subst_t t (Some (var y)) x) <= type_weight t.
+Proof.
+  intros.
+  assert (t = (fst (t,FF))) as Heq. crush.
+  rewrite Heq.
+  apply subst_weight.
+Qed.
+
+Lemma subst_p_weight : forall p x y,
+prop_weight (subst_p p (Some (var y)) x) <= prop_weight p.
+Proof.
+  intros.
+  assert (p = (snd (tBot,p))) as Heq. crush.
+  rewrite Heq.
+  apply subst_weight.
+Qed.
+
+
 Lemma rem_λ_weight1 : forall L x0 σ τ ψ o'' y τ' σ' o,
 In (Atom (istype o (tλ x0 σ τ ψ o''))) L
 -> type_weight (subst_t τ (Some (var y)) x0) + 0 + type_weight τ' <

@@ -494,102 +494,124 @@ Fixpoint rem (p:prop) (l:list prop) : list prop :=
   end.
 
 
-Inductive Proves : (list prop * prop) -> Prop :=
+Inductive Proves : list prop -> prop -> Prop :=
 | P_Axiom :
     forall f Γ,
       In (Atom f) Γ
-    -> Proves (Γ, (Atom f))
+    -> Proves Γ (Atom f)
+| P_Subtype :
+    forall o t1 t2 Γ,
+      In (o ::= t1) Γ
+      -> Subtype t1 t2
+      -> Proves Γ (o ::= t2)
 | P_Contradiction :
     forall o t1 t2 Γ P,
       In (o ::= t1) Γ
       -> In (o ::= t2) Γ
       -> (~CommonSubtype (t1, t2))
-      -> Proves (Γ, P)
+      -> Proves Γ P
 | P_UnionElim :
     forall P t1 t2 o Γ,
       In (o ::= (tU t1 t2)) Γ
-      -> Proves (((o ::= t1)::(rem (o ::= (tU t1 t2)) Γ)), P)
-      -> Proves (((o ::= t2)::(rem (o ::= (tU t1 t2)) Γ)), P)
-      -> Proves (Γ, P)
+      -> Proves ((o ::= t1)::(rem (o ::= (tU t1 t2)) Γ)) P
+      -> Proves ((o ::= t2)::(rem (o ::= (tU t1 t2)) Γ)) P
+      -> Proves Γ P
 | P_PairElim :
     forall t1 t2 x π Γ P,
       In ((obj π x) ::= (tPair t1 t2)) Γ
-      -> Proves ((((obj π x) ::= tCons)
+      -> Proves (((obj π x) ::= tCons)
                     ::((obj (π ++ [car]) x) ::= t1)
                     ::((obj (π ++ [cdr]) x) ::= t2)
-                    ::(rem ((obj π x) ::= (tPair t1 t2)) Γ)), P)
-      -> Proves (Γ, P)
-| P_Top :
-  forall t o Γ,
-    In (o ::= t) Γ
-    -> Proves (Γ, (o ::= tTop))
-| P_Union_lhs :
-    forall t1 t2 o Γ,
-      Proves (Γ, (o ::= t1))
-      -> Proves (Γ, (o ::= (tU t1 t2)))
-| P_Union_rhs :
-    forall t1 t2 o Γ,
-      Proves (Γ, (o ::= t2))
-      -> Proves (Γ, (o ::= (tU t1 t2)))
+                    ::(rem ((obj π x) ::= (tPair t1 t2)) Γ)) 
+                P
+      -> Proves Γ P
 | P_Pair :
     forall t1 t2 x π Γ,
-      Proves (Γ, ((obj (π ++ [car]) x) ::= t1))
-      -> Proves (Γ, ((obj (π ++ [cdr]) x) ::= t2))
-      -> Proves (Γ, ((obj π x) ::= tCons))
-      -> Proves (Γ, ((obj π x) ::= (tPair t1 t2)))
-| P_Fun :
-    forall x1 t1a t1r p1 o1 x2 t2a t2r p2 o2 Γ ox,
-      In (ox ::= (tλ x1 t1a t1r p1 o1)) Γ
-      -> Proves ([(ox ::= (subst_t t1r (Some (var x2)) x1))], (ox ::= t2r))
-      -> Proves ([(ox ::= t2a)], (ox ::= (subst_t t1a (Some (var x2)) x1)))
-      -> Proves ([(subst_p p1 (Some (var x2)) x1)], p2)
-      -> SubObj (subst_o o1 (Some (var x2)) x1) o2
-      -> Proves (Γ, (ox ::= (tλ x2 t2a t2r p2 o2)))
+      Proves Γ ((obj (π ++ [car]) x) ::= t1)
+      -> Proves Γ ((obj (π ++ [cdr]) x) ::= t2)
+      -> Proves Γ ((obj π x) ::= tCons)
+      -> Proves Γ ((obj π x) ::= (tPair t1 t2))
 | P_Bot :
     forall Γ P o,
       In (o ::= tBot) Γ
-      -> Proves (Γ, P)
+      -> Proves Γ P
 | P_True :
     forall Γ,
-      Proves (Γ,TT)
+      Proves Γ TT
 | P_False :
     forall Γ P,
       In FF Γ
-      -> Proves (Γ, P)
+      -> Proves Γ P
 | P_Simpl :
     forall Γ P Q R,
       In (P && Q) Γ
-      -> Proves ((P::Q::(rem (P && Q) Γ)), R)
-      -> Proves (Γ, R)
+      -> Proves (P::Q::(rem (P && Q) Γ)) R
+      -> Proves Γ R
 | P_DisjElim :
     forall Γ P Q R,
       In (P || Q) Γ
-      -> Proves ((P::(rem (P || Q) Γ)), R)
-      -> Proves ((Q::(rem (P || Q) Γ)), R)
-      -> Proves (Γ, R)
+      -> Proves (P::(rem (P || Q) Γ)) R
+      -> Proves (Q::(rem (P || Q) Γ)) R
+      -> Proves Γ R
 | P_MP :
      forall Γ P Q R,
        In (P --> Q) Γ
-       -> Proves ((rem (P --> Q) Γ), P)
-       -> Proves ((P::Q::(rem (P --> Q) Γ)), R)
-       -> Proves (Γ, R)
+       -> Proves (rem (P --> Q) Γ) P
+       -> Proves (P::Q::(rem (P --> Q) Γ)) R
+       -> Proves Γ R
 | P_Conj :
     forall P Q Γ,
-      Proves (Γ, P)
-      -> Proves (Γ, Q)
-      -> Proves (Γ, (P && Q))
+      Proves Γ P
+      -> Proves Γ Q
+      -> Proves Γ (P && Q)
 | P_Add_lhs :
     forall P Q Γ,
-      Proves (Γ, P)
-      -> Proves (Γ, (P || Q))
+      Proves Γ P
+      -> Proves Γ (P || Q)
 | P_Add_rhs :
     forall Γ P Q,
-      Proves (Γ, Q)
-      -> Proves (Γ, (P || Q))
+      Proves Γ Q
+      -> Proves Γ (P || Q)
  | P_CP :
      forall Γ P Q,
-       Proves ((P::Γ), Q)
-       -> Proves (Γ, (P --> Q)).
+       Proves (P::Γ) Q
+       -> Proves Γ (P --> Q)
+
+with Subtype : relation type :=
+| S_Refl :
+    forall t,
+      Subtype t t
+| S_Top :
+  forall t ,
+    Subtype t tTop
+| S_UnionSuper_lhs :
+    forall t t1 t2,
+      Subtype t t1
+      -> Subtype t (tU t1 t2)
+| S_UnionSuper_rhs :
+    forall t t1 t2,
+      Subtype t t2
+      -> Subtype t (tU t1 t2)
+| S_UnionSub :
+    forall t t1 t2,
+      Subtype t1 t
+      -> Subtype t2 t
+      -> Subtype (tU t1 t2) t
+| S_Fun :
+    forall x1 t1a t1r p1 o1 x2 t2a t2r p2 o2,
+      Subtype (subst_t t1r (Some (var x2)) x1) t2r
+      -> Subtype t2a (subst_t t1a (Some (var x2)) x1)
+      -> Proves [(subst_p p1 (Some (var x2)) x1)] p2
+      -> SubObj (subst_o o1 (Some (var x2)) x1) o2
+      -> Subtype (tλ x1 t1a t1r p1 o1) (tλ x2 t2a t2r p2 o2)
+| S_Pair :
+    forall t1 t2 t3 t4,
+      Subtype t1 t3
+      -> Subtype t2 t4 
+      -> Subtype (tPair t1 t2) (tPair t3 t4)
+| S_Cons : 
+    forall t1 t2,
+      Subtype (tPair t1 t2) tCons.
 
 Fixpoint type_weight (t:type) : nat :=
   match t with
@@ -1190,8 +1212,9 @@ Proof.
   intros.
   induction L. crush.
   destruct a; crush. 
-  (* BOOKMARK *)
-  rewrite subst_t_weight. crush.
+  assert (type_weight (subst_t τ (Some (var y)) x0) <= type_weight τ) as Hleq.
+    apply subst_t_weight.
+  crush.
 Qed.
 
 Lemma rem_λ_weight2 : forall L x1 t1a t1r p1 o1 x2 t2a t2r p2 o2 o o',
@@ -1204,12 +1227,13 @@ Proof.
   intros.
   induction L. crush.
   destruct H. subst.
-  unfold proof_weight in *. simpl. 
+  unfold proof_weight in *. simpl.
+  assert (type_weight (subst_t t1a (Some (var x2)) x1) <= type_weight t1a) as Hleq.
+  crush.
   rewrite subst_t_weight. crush.
   crush. 
   unfold proof_weight in *. simpl in *.
   destruct a as [[o'' t''] |P1 P2|P1 P2|P1 P2| | |]; crush.
-  destruct t''; crush.
 Qed.
 
 Lemma rem_λ_weight3 : forall L x1 t1a t1r p1 o1 x2 t2a t2r p2 o2 o o',
@@ -1221,17 +1245,14 @@ Proof.
   induction L. crush.
   unfold proof_weight in *. simpl in *.
   destruct H. subst.
-  unfold prop_weight at 3. unfold fact_weight. unfold type_weight.
-  fold type_weight.
+  unfold prop_weight at 3. unfold type_weight.
+  fold type_weight. fold prop_weight.
+  assert (prop_weight (subst_p p1 (Some (var x2)) x1) <= prop_weight p1) as Hleq.
+    apply subst_p_weight.
   crush.
-  assert (prop_weight (subst_p p1 (Some (var x2)) x1) <= prop_weight p1).
-    apply subst_p_weight. omega.
-  rewrite subst_p_weight.
-  rewrite subst_t_weight. crush.
-  crush. 
-  unfold proof_weight in *. simpl in *.
-  destruct a as [[o'' t''] |P1 P2|P1 P2|P1 P2| |]; crush.
-  destruct t''; crush.
+  assert (prop_weight (subst_p p1 (Some (var x2)) x1) <= prop_weight p1) as Hleq.
+    apply subst_p_weight.
+  crush.
 Qed.
 
 Lemma conj_dec : forall P Q,
@@ -1246,7 +1267,7 @@ Lemma disj_dec : forall P Q,
 -> {P \/ Q} + {~(P \/ Q)}.
 Proof. crush. Qed.
 
-
+(* BOOKMARK *)
 Lemma Proves_dec : forall (goal:(list prop * prop)), {Proves goal} + {~Proves goal}.
 Proof.
   (* Proves_dec *)

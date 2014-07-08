@@ -610,7 +610,7 @@ with prop_weight (p:prop) : nat :=
     | Or P Q => 1 + (prop_weight P) + (prop_weight Q)
     | Imp P Q => 1 + (prop_weight P) + (prop_weight Q)
     | TT => 1
-    | FF => 1
+    | FF => 0
     | Unk => 1
   end.
 Hint Unfold type_weight prop_weight.
@@ -665,81 +665,6 @@ destruct IHL as [(b,(HbA,HbB))|IHL].
     intros b [Hb|Hb].
     * rewrite <-Hb. crush.
     * apply IHL. crush.
-Qed.
-
-Lemma rem_And_weight : forall P P1 P2 L,
-In (P1 && P2) L
--> proof_weight ((P1::P2::(rem (P1 && P2) L)), P) < proof_weight (L, P).
-Proof.
-  intros.
-  induction L. crush.
-  destruct H. subst.
-  unfold proof_weight in *. unfold rem.
-  destruct (prop_eqdec (P1 && P2) (P1 && P2)).
-  crush. crush.
-  unfold proof_weight. unfold rem.
-  destruct (prop_eqdec (P1 && P2) a). crush.
-  apply IHL in H. fold rem. unfold proof_weight in *. crush.
-Qed.  
-
-Lemma rem_Or_lhs_weight : forall P P1 P2 L,
-In (P1 || P2) L
--> proof_weight ((P1::(rem (P1 || P2) L)), P) < proof_weight (L, P).
-Proof.
-  intros.
-  induction L. crush.
-  destruct H. subst.
-  unfold proof_weight in *. unfold rem.
-  destruct (prop_eqdec (P1 || P2) (P1 || P2)).
-  crush. crush.
-  unfold proof_weight. unfold rem.
-  destruct (prop_eqdec (P1 || P2) a). crush.
-  apply IHL in H. fold rem. unfold proof_weight in *. crush.
-Qed.  
-
-Lemma rem_Or_rhs_weight : forall P P1 P2 L,
-In (P1 || P2) L
--> proof_weight ((P2::(rem (P1 || P2) L)), P) < proof_weight (L, P).
-Proof.
-  intros.
-  induction L. crush.
-  destruct H. subst.
-  unfold proof_weight in *. unfold rem.
-  destruct (prop_eqdec (P1 || P2) (P1 || P2)).
-  crush. crush.
-  unfold proof_weight. unfold rem.
-  destruct (prop_eqdec (P1 || P2) a). crush.
-  apply IHL in H. fold rem. unfold proof_weight in *. crush.
-Qed.  
-
-Lemma rem_Imp_lhs_weight : forall P P1 P2 L,
-In (P1 --> P2) L 
--> proof_weight (rem (P1 --> P2) L, P1) < proof_weight (L,P).
-Proof.
-  intros.
-  induction L. crush.
-  destruct H. subst.
-  unfold proof_weight in *. unfold rem.
-  destruct (prop_eqdec (P1 --> P2) (P1 --> P2)).
-  crush. crush.
-  unfold proof_weight. unfold rem.
-  destruct (prop_eqdec (P1 --> P2) a). crush.
-  apply IHL in H. fold rem. unfold proof_weight in *. crush.
-Qed.
-
-Lemma rem_Imp_rhs_weight : forall P P1 P2 L,
-In (P1 --> P2) L 
--> proof_weight (P1 :: P2 :: rem (P1 --> P2) L, P) < proof_weight (L, P).
-Proof.
-  intros.
-  induction L. crush.
-  destruct H. subst.
-  unfold proof_weight in *. unfold rem.
-  destruct (prop_eqdec (P1 --> P2) (P1 --> P2)).
-  crush. crush.
-  unfold proof_weight. unfold rem.
-  destruct (prop_eqdec (P1 --> P2) a). crush.
-  apply IHL in H. fold rem. unfold proof_weight in *. crush.
 Qed.
 
 Lemma split_And_weight_lhs : forall L P1 P2,
@@ -1099,82 +1024,143 @@ Proof.
   apply IHL' in H0. crush.
 Qed.
 
-Lemma rem_Union_lhs_weight : forall P o t1 t2 L,
-In (o ::= (tU t1 t2)) L 
--> proof_weight (((o ::= t1)::(rem (o ::= (tU t1 t2)) L)), P) < proof_weight (L, P).
+Lemma rem_add1_lt : forall L P Pbig Psmall,
+In Pbig L
+-> prop_weight Psmall < prop_weight Pbig
+-> proof_weight ((Psmall::(rem Pbig L)), P) < proof_weight (L, P).
+Proof.
+  intro L.
+  induction L. crush. 
+  intros P Pbig Psmall HIn Hlt.
+  destruct HIn. subst.
+  unfold proof_weight in *. unfold rem.
+  destruct (prop_eqdec Pbig Pbig).
+  crush. crush.
+  unfold proof_weight. unfold rem.
+  destruct (prop_eqdec Pbig a). crush.
+  simpl. fold rem.
+  eapply (IHL P Pbig Psmall) in H. 
+  unfold proof_weight in *. crush. auto.
+Qed.  
+
+Lemma rem_add2_lt : forall L P Pbig Psmall1 Psmall2,
+In Pbig L
+-> (prop_weight Psmall1) + (prop_weight Psmall2) < prop_weight Pbig
+-> proof_weight ((Psmall1::Psmall2::(rem Pbig L)), P) < proof_weight (L, P).
+Proof.
+  intro L.
+  induction L. crush. 
+  intros P Pbig Psmall1 Psmall2 HIn Hlt.
+  destruct HIn. subst.
+  unfold proof_weight in *. unfold rem.
+  destruct (prop_eqdec Pbig Pbig).
+  crush. crush.
+  unfold proof_weight. unfold rem.
+  destruct (prop_eqdec Pbig a). crush.
+  simpl. fold rem.
+  eapply (IHL P Pbig Psmall1 Psmall2) in H. 
+  unfold proof_weight in *. crush. auto.
+Qed.  
+
+Lemma rem_add3_lt : forall L P Pbig Psmall1 Psmall2 Psmall3,
+In Pbig L
+-> (prop_weight Psmall1) + (prop_weight Psmall2) + (prop_weight Psmall3) < prop_weight Pbig
+-> proof_weight ((Psmall1::Psmall2::Psmall3::(rem Pbig L)), P) < proof_weight (L, P).
+Proof.
+  intro L.
+  induction L. crush. 
+  intros P Pbig Psmall1 Psmall2 Psmall3 HIn Hlt.
+  destruct HIn. subst.
+  unfold proof_weight in *. unfold rem.
+  destruct (prop_eqdec Pbig Pbig).
+  crush. crush.
+  unfold proof_weight. unfold rem.
+  destruct (prop_eqdec Pbig a). crush.
+  simpl. fold rem.
+  eapply (IHL P Pbig Psmall1 Psmall2 Psmall3) in H. 
+  unfold proof_weight in *. crush. auto.
+Qed.  
+
+
+Lemma rem_ltgoal_lt : forall L P Pbig Psmall,
+In Pbig L
+-> prop_weight Psmall < prop_weight Pbig
+-> proof_weight (((rem Pbig L)), Psmall) < proof_weight (L, P).
 Proof.
   intros.
   induction L. crush.
   destruct H. subst.
   unfold proof_weight in *. unfold rem.
-  destruct (prop_eqdec (o ::= (tU t1 t2)) (o ::= (tU t1 t2))).
+  destruct (prop_eqdec Pbig Pbig).
   crush. crush.
   unfold proof_weight. unfold rem.
-  destruct (prop_eqdec (o ::= (tU t1 t2)) a). crush.
+  destruct (prop_eqdec Pbig a). crush.
   apply IHL in H. fold rem. unfold proof_weight in *. crush.
 Qed.
 
-Lemma rem_Union_rhs_weight : forall P o t1 t2 L,
-In (o ::= (tU t1 t2)) L 
--> proof_weight (((o ::= t2)::(rem (o ::= (tU t1 t2)) L)), P) < proof_weight (L, P).
-Proof.
-  intros.
-  induction L. crush.
-  destruct H. subst.
-  unfold proof_weight in *. unfold rem.
-  destruct (prop_eqdec (o ::= (tU t1 t2)) (o ::= (tU t1 t2))).
-  crush. crush.
-  unfold proof_weight. unfold rem.
-  destruct (prop_eqdec (o ::= (tU t1 t2)) a). crush.
-  apply IHL in H. fold rem. unfold proof_weight in *. crush.
-Qed.
+Definition tp_weight tp := (type_weight (fst tp)) + (prop_weight (snd tp)).
 
-Lemma rem_Pair_weight : forall P π x t1 t2 L,
-In ((obj π x) ::= (tPair t1 t2)) L
--> proof_weight ((((obj π x) ::= tCons)
-                     ::((obj (π ++ [car]) x) ::= t1)
-                     ::((obj (π ++ [cdr]) x) ::= t2)
-                     ::(rem ((obj π x) ::= (tPair t1 t2)) L)), P)
-<
-proof_weight (L,P).
+Lemma subst_weight : forall (tp: type * prop) y x, 
+type_weight (subst_t (fst tp) (Some (var y)) x) <= type_weight (fst tp)
+/\ prop_weight (subst_p (snd tp) (Some (var y)) x) <= prop_weight (snd tp).
 Proof.
-  intros.
-  induction L. crush.
-  destruct H. subst.
-  unfold proof_weight in *. unfold rem.
-  destruct (prop_eqdec ((obj π x) ::= (tPair t1 t2)) ((obj π x) ::= (tPair t1 t2))).
-  crush. crush.
-  unfold proof_weight. unfold rem.
-  destruct (prop_eqdec ((obj π x) ::= (tPair t1 t2)) a). crush.
-  apply IHL in H. fold rem. unfold proof_weight in *. crush.
-Qed.
+  intros tp. 
+    induction tp as ((t, p),IH) using
+    (well_founded_induction
+      (well_founded_ltof _ tp_weight)).
+  intros y x.
+  split.
 
-Lemma subst_t_weight : forall t y x, 
-type_weight (subst_t t (Some (var y)) x) <= type_weight t
-with subst_p_weight : forall p y x, 
-prop_weight (subst_p p (Some (var y)) x) <= prop_weight p.
-Proof.
-  clear subst_t_weight.
-  intros t y x.
-  induction t; crush.
-  fold subst_t. crush.
-  fold subst_t. crush.
-  specialize (subst_p_weight p y x).
+  destruct t; crush.
+  fold subst_t.
+  assert (type_weight (subst_t t1 (Some (var y)) x) <= type_weight t1) as Hlhs.
+    apply (IH (t1,p)). unfold ltof. unfold tp_weight. crush.
+  assert (type_weight (subst_t t2 (Some (var y)) x) <= type_weight t2) as Hrhs.
+    apply (IH (t2,p)). unfold ltof. unfold tp_weight. crush.
+  crush.
+  fold subst_t.
+  assert (type_weight (subst_t t1 (Some (var y)) x) <= type_weight t1) as Hlhs.
+    apply (IH (t1,p)). unfold ltof. unfold tp_weight. crush.
+  assert (type_weight (subst_t t2 (Some (var y)) x) <= type_weight t2) as Hrhs.
+    apply (IH (t2,p)). unfold ltof. unfold tp_weight. crush.
+  crush.
   unfold subst_t. unfold subst_t'.
   fold subst_t'. fold subst_p'.
   destruct (id_eqdec x i). crush.
-  fold subst_t. fold subst_p. crush.
+  fold subst_t. fold subst_p. 
+  assert (type_weight (subst_t t1 (Some (var y)) x) <= type_weight t1) as H1.
+    apply (IH (t1,p)). unfold ltof. unfold tp_weight. crush.
+  assert (type_weight (subst_t t2 (Some (var y)) x) <= type_weight t2) as H2.
+    apply (IH (t2,p)). unfold ltof. unfold tp_weight. crush.
+  assert (prop_weight (subst_p p0 (Some (var y)) x) <= prop_weight p0) as H3.
+    apply (IH (t1,p0)). unfold ltof. unfold tp_weight. crush.
+  crush.
 
-  clear subst_p_weight.
-  intros p y x; induction p as [[[π z] t]|P1 P2|P1 P2|P1 P2| | | ]; crush.
+  destruct p as [[[π z] t']|P1 P2|P1 P2|P1 P2| | | ]; crush.
   unfold subst_p. unfold subst_p'. fold subst_t'. 
   destruct (id_eqdec x z). fold subst_t. unfold prop_weight.
-  fold type_weight. crush.
-  destruct (set_mem id_eqdec z (fv_set_t t)).
+  fold type_weight.
+  apply (IH (t', FF)). unfold ltof. unfold tp_weight. crush.
   destruct t; crush.
+  destruct (set_mem id_eqdec z (fv_set_t t')).
+  destruct t'; crush.
   unfold prop_weight. fold type_weight. crush.
-  fold subst_p. crush.
-  fold subst_p. crush.
+  fold subst_p. 
+  assert (prop_weight (subst_p P1 (Some (var y)) x) <= prop_weight P1) as Hlhs.
+    apply (IH (tBot,P1)). unfold ltof. unfold tp_weight. crush.
+    destruct t; crush.
+  assert (prop_weight (subst_p P2 (Some (var y)) x) <= prop_weight P2) as Hrhs.
+    apply (IH (tBot,P2)). unfold ltof. unfold tp_weight. crush.
+    destruct t; crush.
+  crush.
+  fold subst_p. 
+  assert (prop_weight (subst_p P1 (Some (var y)) x) <= prop_weight P1) as Hlhs.
+    apply (IH (tBot,P1)). unfold ltof. unfold tp_weight. crush.
+    destruct t; crush.
+  assert (prop_weight (subst_p P2 (Some (var y)) x) <= prop_weight P2) as Hrhs.
+    apply (IH (tBot,P2)). unfold ltof. unfold tp_weight. crush.
+    destruct t; crush.
+  crush.
 Qed.
 
 Lemma rem_λ_weight1 : forall L x0 σ τ ψ o'' y τ' σ' o,
@@ -1185,6 +1171,7 @@ Proof.
   intros.
   induction L. crush.
   destruct a; crush. 
+  (* BOOKMARK *)
   rewrite subst_t_weight. crush.
 Qed.
 

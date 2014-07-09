@@ -1302,6 +1302,31 @@ Definition get_fact (p:prop) : opt fact :=
     | _ => None
   end.
 
+Lemma types_nil_cut : forall L o a,
+types_in o (a :: L) = []
+-> types_in o L = [].
+Proof.
+  intros L o a Hnil.
+  destruct a; crush.
+  destruct f.
+  destruct (obj_eqdec o o0); crush.
+Qed. 
+
+Lemma types_nil_false : forall L o t,
+In (Atom (istype o t)) L
+-> types_in o L = []
+-> False.
+Proof.
+  intros L; induction L. crush.
+  intros o t HIn Htypes.
+  inversion HIn. subst.
+  unfold types_in in Htypes.
+  destruct (obj_eqdec o o).
+  fold types_in in Htypes. crush. crush.
+  apply types_nil_cut in Htypes.
+  apply (IHL _ _ H Htypes); auto.
+Qed.  
+
 Lemma Proves_dec : 
   forall (goal:(list prop * prop)), 
     {Proves (fst goal) (snd goal)} + {~Proves (fst goal) (snd goal)}.
@@ -1392,24 +1417,25 @@ Proof.
         | _ => False
       end
     ) Γ) as [(a,(HaA,HaB))|antecedent_nonexist].
-- intros a HIn.
+  intros a HIn.
   destruct a as [[[π x] t]|P1 P2 |P1 P2|P1 P2| | |]; try (solve[auto]).
-  + destruct t as [ | | | | | |t1 t2|t1 t2| |x1 t1a t1r p1 o1]; try (solve[auto]).
-    * apply conj_dec; apply IH; unfold ltof; apply rem_add1_lt; crush.
-    * apply IH; unfold ltof; apply rem_add3_lt; crush.
-    * destruct P as [[o' t]| | | | | |]; try(solve[right; auto]).
+  - destruct t as [ | | | | | |t1 t2|t1 t2| |x1 t1a t1r p1 o1]; try (solve[auto]).
+    + apply conj_dec; apply IH; unfold ltof; apply rem_add1_lt; crush.
+    + apply IH; unfold ltof; apply rem_add3_lt; crush.
+    + destruct P as [[o' t]| | | | | |]; try(solve[right; auto]).
       destruct t; try(solve[right; auto]).
       apply conj_dec. apply obj_eqdec.
       apply conj_dec. apply IH. unfold ltof. eapply rem_λ_weight1. exact HIn. 
       apply conj_dec. apply IH. unfold ltof. eapply rem_λ_weight2. exact HIn.
       apply conj_dec. apply IH. unfold ltof. eapply rem_λ_weight3. exact HIn.
       apply SO_dec.
-  + apply IH; unfold ltof; apply rem_add2_lt; crush.
-  + apply conj_dec; apply IH; unfold ltof; apply rem_add1_lt; crush.
-  + apply conj_dec; apply IH; 
+  - apply IH; unfold ltof; apply rem_add2_lt; crush.
+  - apply conj_dec; apply IH; unfold ltof; apply rem_add1_lt; crush.
+  - apply conj_dec; apply IH; 
       first[apply rem_ltgoal_lt | apply rem_add2_lt]; crush.
-- left. destruct a as [[[π x] t] |P1 P2|P1 P2|P1 P2| | | ]; crush.
-  + destruct t as [ | | | | | | |t1 t2|t1 t2| ]; try (solve[crush]).
+- left. destruct a as [[[π x] t] |P1 P2|P1 P2|P1 P2| | | ].
+  clear HNoAxiom.
+  + destruct t as [ | | | | | | |t1 t2|t1 t2| ]; try(solve[crush]).
     eapply P_Bot; eauto.
     eapply (P_UnionElim P t1 t2); crush. exact HaA. auto. auto.
     eapply (P_PairElim t1 t2); crush. exact HaA. auto. 
@@ -1419,7 +1445,9 @@ Proof.
   + apply (P_Simpl _ P1 P2); crush.
   + apply (P_DisjElim _ P1 P2); crush.
   + apply (P_MP _ P1 P2); crush.
-  + apply P_False; auto.
+  + tryfalse. 
+  + tryfalse.
+  + tryfalse.
 - remember
       (match P with
       (* P_Conj *)
@@ -1438,19 +1466,17 @@ Proof.
         Proves Γ ((obj_car o) ::= t1)
         /\ Proves Γ ((obj_cdr o) ::= t2)
         /\ Proves Γ (o ::= tCons)
-      (* P_Axiom *)
-      | Atom f => In (Atom f) Γ
-      | TT => True
       | _ => False
     end) as succedent.
 assert (succedent_dec: {succedent} + {~succedent}). subst.
+ clear HNoAxiom.
  destruct P as [[o t] |P1 P2|P1 P2|P1 P2| | |]; try (solve[auto]).
  destruct t as [ | | | | | | | | | x2 t2a t2r p2 o2 ]; 
    try (solve[auto | 
               apply (In_dec prop_eqdec (Atom (istype o _)) Γ)]).
-  + destruct (types_in o Γ). right. destruct o. crush. left; destruct o; crush.
   + apply disj_dec; apply IH; unfold ltof; unfold proof_weight; crush.
-  + apply conj_dec; first[apply IH | apply conj_dec; apply IH]; unfold ltof; unfold proof_weight; crush.
+  + apply conj_dec; first[apply IH | apply conj_dec; apply IH]; 
+    unfold ltof; unfold proof_weight; crush.
   + apply conj_dec; apply IH; unfold ltof; crush.
   + apply disj_dec; apply IH; unfold ltof; crush.
   + apply IH; unfold ltof; crush. unfold proof_weight. crush. 
@@ -1459,9 +1485,6 @@ assert (succedent_dec: {succedent} + {~succedent}). subst.
   left.
   destruct P as [[o t]|P1 P2|P1 P2|P1 P2| | | ]; try (solve[crush]).
   destruct t; try (solve[apply P_Axiom; crush]).
-  * remember (types_in o Γ) as types. destruct types. crush.
-    apply (P_Top t). apply (types_in_In _ t).
-    simpl. rewrite <- Heqtypes. left. reflexivity.
   * destruct HSucc. apply P_Union_lhs. auto. 
                     apply P_Union_rhs. auto. 
   * destruct o. unfold obj_car in HSucc. unfold obj_cdr in HSucc. 
@@ -1470,194 +1493,52 @@ assert (succedent_dec: {succedent} + {~succedent}). subst.
   * destruct HSucc. apply P_Add_lhs; auto.
     apply P_Add_rhs; auto.
   * apply P_CP; auto.
-  * apply P_True.
-* right. 
+* right.
+  clear IH.
   intros Hprf.
-  inversion Hprf as 
-      [f L HIn |
-             |
-             |
-             |
-             |
-             |
-             |
-             |
-             |
-             |
-             |
-             |
-             |
-             |
-             |
-             |
-             |
-             |
+  simpl in Hprf.
+  induction Hprf. 
 
-   ]; subst; simpl in *.
-  apply antecedent_nonexist in Hprf.
-  inversion contra; subst.
-  apply (antecedent_nonexist _ H1).
-  destruct f. destruct o. destruct t; auto.
-  apply n. apply (types_in_nonnil _ _ tTop). auto.
-  split.
-  apply (antecedent_nonexist _ H1).
+  destruct HNoAxiom; crush.
+
+  apply H1. apply (HNoContra o); auto.
   
-  destruct n.
-  auto. auto.
-  destruct f. destruct t.
-  apply n. intros contra2.
-  destruct (types_in o Γ). crush.
-  destruct IHL as [o [HIn] | HNo].
-  destruct o.
-   (* BOOKMARK
+  apply (antecedent_nonexist _ H). destruct o; auto.
 
-      - tBot?
-      - f In
+  apply (antecedent_nonexist _ H). auto.
 
+  eapply types_nil_false. exact H. 
+  apply noTopWitness. auto.
 
-*)
-   destruct
-right.
-   destruct P.
-   intros contra; inversion contra; crush.
-   destruct f as [o t]; crush.
-   destruct t.
-  right.
-  intros contra; inversion contra.
-  apply antecedent_nonexist in H0. destruct o.
-  crush.
-  remember (types_in o Γ) as otypes. 
-  destruct otypes; tryfalse. left; apply (P_Top t); apply types_in_In.
-    rewrite <- Heqotypes. crush. 
-    (* BOOKMARK *)
-  apply P_Conj; crush.
-  destruct succedent_exist as [Hlhs | Hrhs].
-  apply P_Add_lhs; auto.
-  apply P_Add_rhs; auto.
-  apply P_CP; auto.
-  destruct (In_dec prop_eqdec FF Γ).
-  left; apply P_False; auto.
-  right; intros contra; inversion contra; subst; try (solve[crush]).
-  apply (antecedent_nonexist (Atom (istype o t'))). auto.
-  apply V_subtype; auto.
-  apply (antecedent_nonexist (P0 && Q) H1). auto.
-  apply (antecedent_nonexist (P0 || Q) H1). auto.
-  apply (antecedent_nonexist (P0 --> Q) H1). auto.
+  apply HNoSucc. left; apply Hprf.
 
+  apply HNoSucc. right; apply Hprf.
 
+  apply HNoSucc. auto.
 
+  apply (antecedent_nonexist _ H). destruct ox. auto.
 
-Hint Resolve S_Refl S_Bot S_Top S_UnionSub.
+  apply (antecedent_nonexist _ H). destruct o. auto.
 
+  tryfalse.
 
-Lemma U_super : forall t t1 t2,
-is_tU t = None
--> (forall y : type * type,
-          type_weight (fst y) + type_weight (snd y) <
-          type_weight (fst (t, tU t1 t2)) +
-          type_weight (snd (t, tU t1 t2)) ->
-          {SubType y} + {~ SubType y})
--> {SubType (t, tU t1 t2)} + {~ SubType (t, tU t1 t2)}.
-Proof.
-  intros t t1 t2 HnoU IHSub.
-  assert ({SubType (t, t1)} + {~ SubType (t, t1)}) as Hlhs.
-    apply IHSub. crush. 
-  assert ({SubType (t, t2)} + {~ SubType (t, t2)}) as Hrhs.
-    apply IHSub. crush.
-  destruct Hlhs. left. apply S_UnionSuper_lhs; auto.
-  destruct Hrhs. left. apply S_UnionSuper_rhs; auto.
-  right; intros contra; inversion contra; crush.
-Qed.
+  tryfalse.
 
-Lemma U_sub : forall t t1 t2,
-is_tU t = None
--> (forall y : type * type,
-          type_weight (fst y) + type_weight (snd y) <
-          type_weight (fst (tU t1 t2, t)) +
-          type_weight (snd (tU t1 t2, t)) ->
-          {SubType y} + {~ SubType y})
--> {SubType (tU t1 t2, t)} + {~ SubType (tU t1 t2, t)}.
-Proof.
-  intros t t1 t2 HnoU IHSub.
-  assert ({SubType (t1, t)} + {~ SubType (t1, t)}) as Hlhs.
-    apply IHSub. crush. 
-  assert ({SubType (t2, t)} + {~ SubType (t2, t)}) as Hrhs.
-    apply IHSub. crush.
-  destruct Hlhs. destruct Hrhs. left. apply S_UnionSub; auto.
-  right; intros contra; inversion contra; crush.
-  right; intros contra; inversion contra; crush.
-Qed.
+  apply (antecedent_nonexist _ H). auto. 
 
+  apply (antecedent_nonexist _ H). auto. 
 
-  (* SubType *)
-- clear SubType_dec. 
-  intros tp. 
-  induction tp as ((t1, t2),IHSub) using
-    (well_founded_induction
-      (well_founded_ltof _ (fun tp => ((type_weight (fst tp)) 
-                                       + (type_weight (snd tp)))))).
-  unfold ltof in IHSub.
-  destruct t1; destruct t2; 
-    try (solve[right; intros contra; inversion contra; crush |
-               left; crush |
-               apply U_super; crush |
-               apply U_sub; crush]).
-  assert ({SubType (tU t1_1 t1_2, t2_1)} 
-          + {~ SubType (tU t1_1 t1_2, t2_1)}) as Hrlhs.
-    apply IHSub. crush. 
-  assert ({SubType (tU t1_1 t1_2, t2_2)} 
-          + {~ SubType (tU t1_1 t1_2, t2_2)}) as Hrrhs.
-    apply IHSub. crush.
-  assert ({SubType (t1_1, tU t2_1 t2_2)} 
-          + {~ SubType (t1_1, tU t2_1 t2_2)}) as Hllhs.
-    apply IHSub. crush. 
-  assert ({SubType (t1_2, tU t2_1 t2_2)} 
-          + {~ SubType (t1_2, tU t2_1 t2_2)}) as Hlrhs.
-    apply IHSub. crush.
-  destruct (type_eqdec (tU t1_1 t1_2) (tU t2_1 t2_2)) as [Heq | Hneq].
-  rewrite Heq. left; apply S_Refl.
-  destruct Hrlhs. left. apply S_UnionSuper_lhs; auto. 
-  destruct Hrrhs. left. apply S_UnionSuper_rhs; auto.
-  destruct Hllhs. destruct Hlrhs. left. apply S_UnionSub; auto.
-  right; intros contra; inversion contra; try (solve[crush]).
-  right; intros contra; inversion contra; try (solve[crush]).
-  assert ({SubType (t1_1, t2_1)} 
-          + {~ SubType (t1_1, t2_1)}) as Hlhs.
-    apply IHSub. crush. 
-  assert ({SubType (t1_2, t2_2)} 
-          + {~ SubType (t1_2, t2_2)}) as Hrhs.
-    apply IHSub. crush.
-  destruct Hlhs; destruct Hrhs; 
-    try(solve [left; apply S_Cons; auto |
-               right; intros contra; inversion contra; crush]).
+  apply (antecedent_nonexist _ H). auto. 
 
-Lemma subst_t_weight : forall t x y,
-type_weight (subst_t t (Some (var y)) x) = type_weight t.
-Proof.
-  induction t; crush.
-  unfold subst_t. simpl.
-  destruct (id_eqdec x i). subst.
-  simpl. crush.
-  crush.
+  apply HNoSucc. auto. 
+
+  apply HNoSucc. auto. 
+
+  apply HNoSucc. auto. 
+
+  tryfalse.
 Qed.  
-    assert ({SubType ((subst_t t1_2 (Some (var i0)) i), t2_2)} 
-          + {~ SubType ((subst_t t1_2 (Some (var i0)) i), t2_2)}) as Hrhs.
-    apply IHSub. simpl. rewrite (subst_t_weight t1_2 i i0). crush.
-    assert ({SubType (t2_1, (subst_t t1_1 (Some (var i0)) i))} 
-          + {~ SubType (t2_1, (subst_t t1_1 (Some (var i0)) i))}) as Hlhs.
-      apply IHSub. simpl. rewrite (subst_t_weight t1_1 i i0). crush.
-    assert ({Proves ([(subst_p p (Some (var i0)) i)], p0)} 
-            + {~Proves ([(subst_p p (Some (var i0)) i)], p0)}) as HP.
-      apply Proves_dec.
-    assert ({(SubObj (subst_o o (Some (var i0)) i) o0)} 
-            + {~(SubObj (subst_o o (Some (var i0)) i) o0)})  as HO.
-      apply SO_dec.
-  destruct (type_eqdec (tλ i t1_1 t1_2 p o) (tλ i0 t2_1 t2_2 p0 o0)) as [Heq | Hneq].
-  rewrite Heq. left; apply S_Refl.
-  destruct Hlhs; destruct Hrhs; destruct HP; destruct HO;
-    try(solve[right; intros contra; inversion contra; crush |
-              left; apply S_Abs; crush]).
-Qed.
+
 
 
 (** ** TypeOf *)

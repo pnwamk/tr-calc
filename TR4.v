@@ -496,23 +496,23 @@ Fixpoint rem (p:prop) (l:list prop) : list prop :=
 
 Inductive Proves : list prop -> prop -> Prop :=
 | P_Axiom :
-    forall f Γ,
+    forall Γ f,
       In (Atom f) Γ
     -> Proves Γ (Atom f)
 | P_Contradiction :
-    forall o t1 t2 Γ P,
+    forall Γ P t1 t2 o,
       In (o ::= t1) Γ
       -> In (o ::= t2) Γ
       -> (~CommonSubtype (t1, t2))
       -> Proves Γ P
 | P_UnionElim :
-    forall P t1 t2 o Γ,
+    forall Γ P t1 t2 o ,
       In (o ::= (tU t1 t2)) Γ
       -> Proves ((o ::= t1)::(rem (o ::= (tU t1 t2)) Γ)) P
       -> Proves ((o ::= t2)::(rem (o ::= (tU t1 t2)) Γ)) P
       -> Proves Γ P
 | P_PairElim :
-    forall t1 t2 x π Γ P,
+    forall Γ P t1 t2 π x,
       In ((obj π x) ::= (tPair t1 t2)) Γ
       -> Proves (((obj π x) ::= tCons)
                     ::((obj (π ++ [car]) x) ::= t1)
@@ -521,25 +521,25 @@ Inductive Proves : list prop -> prop -> Prop :=
                    P
       -> Proves Γ P
 | P_Top :
-  forall t o Γ,
+  forall Γ t o,
     In (o ::= t) Γ
     -> Proves Γ (o ::= tTop)
 | P_Union_lhs :
-    forall t1 t2 o Γ,
+    forall Γ t1 t2 o,
       Proves Γ (o ::= t1)
       -> Proves Γ (o ::= (tU t1 t2))
 | P_Union_rhs :
-    forall t1 t2 o Γ,
+    forall Γ t1 t2 o,
       Proves Γ (o ::= t2)
       -> Proves Γ (o ::= (tU t1 t2))
 | P_Pair :
-    forall t1 t2 x π Γ,
+    forall Γ t1 t2 π x,
       Proves Γ ((obj (π ++ [car]) x) ::= t1)
       -> Proves Γ ((obj (π ++ [cdr]) x) ::= t2)
       -> Proves Γ ((obj π x) ::= tCons)
       -> Proves Γ ((obj π x) ::= (tPair t1 t2))
 | P_Fun :
-    forall x1 t1a t1r p1 o1 x2 t2a t2r p2 o2 Γ ox,
+    forall Γ x1 t1a t1r p1 o1 x2 t2a t2r p2 o2 ox,
       In (ox ::= (tλ x1 t1a t1r p1 o1)) Γ
       -> Proves [(ox ::= (subst_t t1r (Some (var x2)) x1))] (ox ::= t2r)
       -> Proves [(ox ::= t2a)] (ox ::= (subst_t t1a (Some (var x2)) x1))
@@ -558,29 +558,29 @@ Inductive Proves : list prop -> prop -> Prop :=
       In FF Γ
       -> Proves Γ P
 | P_Simpl :
-    forall Γ P Q R,
+    forall Γ R P Q,
       In (P && Q) Γ
       -> Proves (P::Q::(rem (P && Q) Γ)) R
       -> Proves Γ R
 | P_DisjElim :
-    forall Γ P Q R,
+    forall Γ R P Q,
       In (P || Q) Γ
       -> Proves (P::(rem (P || Q) Γ)) R
       -> Proves (Q::(rem (P || Q) Γ)) R
       -> Proves Γ R
 | P_MP :
-     forall Γ P Q R,
+     forall Γ R P Q,
        In (P --> Q) Γ
        -> Proves (rem (P --> Q) Γ) P
        -> Proves (P::Q::(rem (P --> Q) Γ)) R
        -> Proves Γ R
 | P_Conj :
-    forall P Q Γ,
+    forall Γ P Q,
       Proves Γ P
       -> Proves Γ Q
       -> Proves Γ (P && Q)
 | P_Add_lhs :
-    forall P Q Γ,
+    forall Γ P Q,
       Proves Γ P
       -> Proves Γ (P || Q)
 | P_Add_rhs :
@@ -1327,7 +1327,7 @@ Proof.
   apply (IHL _ _ H Htypes); auto.
 Qed.  
 
-Lemma Proves_dec : 
+Lemma Proves_dec_pair : 
   forall (goal:(list prop * prop)), 
     {Proves (fst goal) (snd goal)} + {~Proves (fst goal) (snd goal)}.
 Proof.
@@ -1342,20 +1342,28 @@ Proof.
   remember (IH' (L, P')). crush.
   clear IH'.
   (* P_Axiom *)
-  assert ({f | P = Atom f /\ In P Γ} + {get_fact P = None \/ ~In P Γ}) as Axiom_dec.
+  assert ({f | P = Atom f /\ In P Γ} 
+          + {get_fact P = None \/ ~In P Γ}) as Axiom_dec.
+  {
     destruct P; crush. destruct (In_dec prop_eqdec (Atom f) Γ); crush.
     left. exists f; auto.
+  }
   destruct Axiom_dec as [HAxiomIn | HNoAxiom].
+  {
     simpl. destruct HAxiomIn as [f [Peq PIn]]. subst. 
     left; apply P_Axiom; auto.
+  }
   (* P_True *)
-  destruct (prop_eqdec TT P). subst; left; apply P_True.
+  destruct (prop_eqdec TT P). { subst; left; apply P_True. }
   (* P_False *)
   destruct (In_dec prop_eqdec FF Γ).
-  left; apply P_False; auto.
+   { left; apply P_False; auto. }
   (* P_Top *)
-  assert ({otp | P = ((fst otp) ::= tTop) /\ In ((fst otp) ::= (snd otp)) Γ} 
-          + {forall o, P = (o ::= tTop) -> types_in o Γ = nil}) as trivTop_dec.
+  assert ({otp | P = ((fst otp) ::= tTop) 
+          /\ In ((fst otp) ::= (snd otp)) Γ} 
+          + {forall o, P = (o ::= tTop) -> 
+                       types_in o Γ = nil}) as trivTop_dec.
+  {
     destruct P; try(solve[right; intros o contra; inversion contra]). 
     destruct f as [o t].
     remember (types_in o Γ) as otypes. destruct otypes as [| t' otypes']. 
@@ -1365,21 +1373,25 @@ Proof.
     destruct (type_eqdec t tTop). subst.
     left; exists (o, t'). simpl. auto.
     right. crush.
+  }
   destruct trivTop_dec as [[[o t] [Peq HIn]] | noTopWitness].
-    rewrite Peq. simpl. left; apply (P_Top t); auto.
+    { rewrite Peq. simpl. left; apply (P_Top _ t); auto. }
   (* P_Contra *)
   remember (contains_contradiction Γ) as contra.
   symmetry in Heqcontra.
   destruct contra as [[[o t1] t2]|].
-  apply contains_contradiction_Some in Heqcontra.
-  left; apply (P_Contradiction o t1 t2); crush.
+  {
+    apply contains_contradiction_Some in Heqcontra.
+    left; apply (P_Contradiction _ _ t1 t2 o); crush.
+  }
   (* No contradictions *)
   assert (forall o t1 t2, 
             In (o ::= t1) Γ 
             -> In (o ::= t2) Γ
             -> CommonSubtype (t1, t2)) as HNoContra.
-  apply contains_contradiction_None; crush. clear Heqcontra. 
-  (* iterative solving function *)
+    { apply contains_contradiction_None; crush. }
+  clear Heqcontra.
+  (* iterative solving from Γ *)
   destruct (
     find_In_witness _ (fun a =>
       match a with
@@ -1417,38 +1429,44 @@ Proof.
         | _ => False
       end
     ) Γ) as [(a,(HaA,HaB))|antecedent_nonexist].
-  intros a HIn.
-  destruct a as [[[π x] t]|P1 P2 |P1 P2|P1 P2| | |]; try (solve[auto]).
-  - destruct t as [ | | | | | |t1 t2|t1 t2| |x1 t1a t1r p1 o1]; try (solve[auto]).
-    + apply conj_dec; apply IH; unfold ltof; apply rem_add1_lt; crush.
-    + apply IH; unfold ltof; apply rem_add3_lt; crush.
-    + destruct P as [[o' t]| | | | | |]; try(solve[right; auto]).
-      destruct t; try(solve[right; auto]).
-      apply conj_dec. apply obj_eqdec.
-      apply conj_dec. apply IH. unfold ltof. eapply rem_λ_weight1. exact HIn. 
-      apply conj_dec. apply IH. unfold ltof. eapply rem_λ_weight2. exact HIn.
-      apply conj_dec. apply IH. unfold ltof. eapply rem_λ_weight3. exact HIn.
-      apply SO_dec.
-  - apply IH; unfold ltof; apply rem_add2_lt; crush.
-  - apply conj_dec; apply IH; unfold ltof; apply rem_add1_lt; crush.
-  - apply conj_dec; apply IH; 
+  { (* Prove decidability of decision procedure *)
+    intros a HIn.
+    destruct a as [[[π x] t]|P1 P2 |P1 P2|P1 P2| | |]; try (solve[auto]).
+    - destruct t as [ | | | | | |t1 t2|t1 t2| |x1 t1a t1r p1 o1]; 
+      try (solve[auto]).
+      + apply conj_dec; apply IH; unfold ltof; apply rem_add1_lt; crush.
+      + apply IH; unfold ltof; apply rem_add3_lt; crush.
+      + destruct P as [[o' t]| | | | | |]; try(solve[right; auto]).
+        destruct t; try(solve[right; auto]).
+        apply conj_dec. apply obj_eqdec.
+        apply conj_dec. apply IH. unfold ltof. eapply rem_λ_weight1. exact HIn. 
+        apply conj_dec. apply IH. unfold ltof. eapply rem_λ_weight2. exact HIn.
+        apply conj_dec. apply IH. unfold ltof. eapply rem_λ_weight3. exact HIn.
+        apply SO_dec.
+    - apply IH; unfold ltof; apply rem_add2_lt; crush.
+    - apply conj_dec; apply IH; unfold ltof; apply rem_add1_lt; crush.
+    - apply conj_dec; apply IH; 
       first[apply rem_ltgoal_lt | apply rem_add2_lt]; crush.
-- left. destruct a as [[[π x] t] |P1 P2|P1 P2|P1 P2| | | ].
+  }
+{ (* antecedent proves *)
+  left. destruct a as [[[π x] t] |P1 P2|P1 P2|P1 P2| | | ].
   clear HNoAxiom.
   + destruct t as [ | | | | | | |t1 t2|t1 t2| ]; try(solve[crush]).
     eapply P_Bot; eauto.
-    eapply (P_UnionElim P t1 t2); crush. exact HaA. auto. auto.
-    eapply (P_PairElim t1 t2); crush. exact HaA. auto. 
+    eapply (P_UnionElim _ P t1 t2); crush. exact HaA. auto. auto.
+    eapply (P_PairElim _ _ t1 t2); crush. exact HaA. auto. 
     destruct P as [[o' t] | | | | | | ]; crush.
     destruct t; crush.
     eapply P_Fun. eassumption. auto. auto. auto. auto.
-  + apply (P_Simpl _ P1 P2); crush.
-  + apply (P_DisjElim _ P1 P2); crush.
-  + apply (P_MP _ P1 P2); crush.
+  + apply (P_Simpl _ _ P1 P2); crush.
+  + apply (P_DisjElim _ _ P1 P2); crush.
+  + apply (P_MP _ _ P1 P2); crush.
   + tryfalse. 
   + tryfalse.
   + tryfalse.
-- remember
+}
+{ (* antecedent cannot prove *)
+  remember
       (match P with
       (* P_Conj *)
       | PA && PB  => Proves Γ PA /\ Proves Γ PB
@@ -1468,82 +1486,91 @@ Proof.
         /\ Proves Γ (o ::= tCons)
       | _ => False
     end) as succedent.
-assert (succedent_dec: {succedent} + {~succedent}). subst.
+assert (succedent_dec: {succedent} + {~succedent}).
+{
+ subst.
  clear HNoAxiom.
  destruct P as [[o t] |P1 P2|P1 P2|P1 P2| | |]; try (solve[auto]).
  destruct t as [ | | | | | | | | | x2 t2a t2r p2 o2 ]; 
    try (solve[auto | 
               apply (In_dec prop_eqdec (Atom (istype o _)) Γ)]).
-  + apply disj_dec; apply IH; unfold ltof; unfold proof_weight; crush.
-  + apply conj_dec; first[apply IH | apply conj_dec; apply IH]; 
+  apply disj_dec; apply IH; unfold ltof; unfold proof_weight; crush.
+  apply conj_dec; first[apply IH | apply conj_dec; apply IH]; 
     unfold ltof; unfold proof_weight; crush.
-  + apply conj_dec; apply IH; unfold ltof; crush.
-  + apply disj_dec; apply IH; unfold ltof; crush.
-  + apply IH; unfold ltof; crush. unfold proof_weight. crush. 
-+ subst.
+  apply conj_dec; apply IH; unfold ltof; crush.
+  apply disj_dec; apply IH; unfold ltof; crush.
+  apply IH; unfold ltof; crush. unfold proof_weight. crush. 
+}
+  subst.
   destruct succedent_dec as [HSucc | HNoSucc].
+{ (* succedent provable *)
   left.
   destruct P as [[o t]|P1 P2|P1 P2|P1 P2| | | ]; try (solve[crush]).
   destruct t; try (solve[apply P_Axiom; crush]).
-  * destruct HSucc. apply P_Union_lhs. auto. 
-                    apply P_Union_rhs. auto. 
-  * destruct o. unfold obj_car in HSucc. unfold obj_cdr in HSucc. 
+  destruct HSucc. apply P_Union_lhs. auto. apply P_Union_rhs. auto. 
+  destruct o. unfold obj_car in HSucc. unfold obj_cdr in HSucc. 
     apply P_Pair; crush.
-  * apply P_Conj; crush.
-  * destruct HSucc. apply P_Add_lhs; auto.
+  apply P_Conj; crush.
+  destruct HSucc. apply P_Add_lhs; auto.
     apply P_Add_rhs; auto.
-  * apply P_CP; auto.
-* right.
+  apply P_CP; auto.
+}
+{ (* succedent not provable *)
+  right.
   clear IH.
   intros Hprf.
   simpl in Hprf.
-  induction Hprf. 
+  induction Hprf as 
+      [ Γ f HAtomIn | (* P_Axiom *)
+        Γ P t1 t2 o Ht1In Ht2In HNoCST | (* P_Contradiction *)
+        Γ P t1 t2 [π x] HIn HlhsPrf HrhsPrf | (* P_UnionElim *)
+        Γ P t1 t2 π x HIn HPrf | (* P_PairElim *)
+        Γ t o HIn | (* P_Top *)
+        Γ t1 t2 o Ht1Prf | (* P_Union_lhs *)
+        Γ t1 t2 o Ht2Prf | (* P_Union_rhs *)
+        Γ t1 t2 π x HcarPrf HcdrPrf HconsPrf | (* P_Pair *)
+        Γ x1 t1a t1r p1 o1 x2 t2a t2r p2 o2 [π x] 
+          HIn HretPrf HargPrf HpropPrf HSO| (* P_Fun *)
+        Γ P [π x] HIn | (* P_Bot *)
+        Γ | (* P_True *)
+        Γ P | (* P_False *)
+        Γ R P Q HIn Hprf | (* P_Simpl *)
+        Γ R P Q HIn Hprf1 Hprf2 | (* P_DisjElim *)
+        Γ R P Q HIn Hprf1 Hprf2 | (* P_MP *)
+        Γ P Q HIn Hprf1 Hprf2 | (* P_Conj *)
+        Γ P Q Hprf | (* P_Add_lhs *)
+        Γ P Q Hprf | (* P_Add_rhs *)
+        Γ P Q Hprf] (* P_CP *);
+    try(solve[apply (antecedent_nonexist _ HIn); auto |
+              apply HNoSucc; auto |
+              tryfalse]). 
+  + destruct HNoAxiom; crush.
+  + apply HNoCST. apply (HNoContra o); auto.  
+  + eapply types_nil_false. exact HIn. apply noTopWitness. auto.
+} }
+Defined.
 
-  destruct HNoAxiom; crush.
+Definition Proves_dec : forall Γ P,
+{Proves Γ P} + {~Proves Γ P}.
+Proof.
+  intros Γ P.
+  remember (Proves_dec_pair (Γ, P)) as H.
+  crush.
+Defined.
 
-  apply H1. apply (HNoContra o); auto.
-  
-  apply (antecedent_nonexist _ H). destruct o; auto.
+Definition Subtype (t1 t2:type) := 
+  Proves [((var (Id 0)) ::= t1)] ((var (Id 0)) ::= t2).
 
-  apply (antecedent_nonexist _ H). auto.
-
-  eapply types_nil_false. exact H. 
-  apply noTopWitness. auto.
-
-  apply HNoSucc. left; apply Hprf.
-
-  apply HNoSucc. right; apply Hprf.
-
-  apply HNoSucc. auto.
-
-  apply (antecedent_nonexist _ H). destruct ox. auto.
-
-  apply (antecedent_nonexist _ H). destruct o. auto.
-
-  tryfalse.
-
-  tryfalse.
-
-  apply (antecedent_nonexist _ H). auto. 
-
-  apply (antecedent_nonexist _ H). auto. 
-
-  apply (antecedent_nonexist _ H). auto. 
-
-  apply HNoSucc. auto. 
-
-  apply HNoSucc. auto. 
-
-  apply HNoSucc. auto. 
-
-  tryfalse.
-Qed.  
-
-
+Definition Subtype_dec : forall t1 t2,
+{Subtype t1 t2} + {~Subtype t1 t2}.
+Proof.
+  intros t1 t2.
+  unfold Subtype. apply Proves_dec.
+Defined.
 
 (** ** TypeOf *)
 
-Inductive TypeOf : prop -> exp -> type -> prop -> opt object -> Prop :=
+Inductive TypeOf : list prop -> exp -> type -> prop -> opt object -> Prop :=
 | T_Nat :
     forall Γ n,
       TypeOf Γ (#n) tNat TT None
@@ -1566,7 +1593,7 @@ Inductive TypeOf : prop -> exp -> type -> prop -> opt object -> Prop :=
       -> TypeOf Γ ($ x) τ ((var x) ::~ tF) (Some (var x))
 | T_Abs :
     forall σ τ o Γ x ψ e,
-      TypeOf (Γ && ((var x) ::= σ)) e τ ψ o
+      TypeOf (((var x) ::= σ)::Γ) e τ ψ o
       -> TypeOf Γ 
                 (eλ x σ e) 
                 (tλ x σ τ ψ o) 
@@ -1583,8 +1610,8 @@ Inductive TypeOf : prop -> exp -> type -> prop -> opt object -> Prop :=
 | T_If :
     forall τ τ' o o1 Γ e1 ψ1 e2 ψ2 e3 ψ3,
       TypeOf Γ e1 τ' ψ1 o1
-      -> TypeOf (Γ && ψ1) e2 τ ψ2 o
-      -> TypeOf (Γ && (Not ψ1)) e3 τ ψ3 o
+      -> TypeOf (ψ1::Γ) e2 τ ψ2 o
+      -> TypeOf ((Not ψ1)::Γ) e3 τ ψ3 o
       -> TypeOf Γ (If e1 e2 e3) τ ((ψ1 && ψ2) || ((Not ψ1) && ψ3)) o
 | T_Cons :
     forall τ1 τ2 o1 o2 Γ e1 ψ1 e2 ψ2,
@@ -1609,9 +1636,10 @@ Inductive TypeOf : prop -> exp -> type -> prop -> opt object -> Prop :=
       -> (subst_p ψ1 o0 x) = ψ1'
       -> (subst_o o1 o0 x) = o1'
       -> TypeOf Γ e0 τ ψ0 o0
-      -> TypeOf (Γ && ((var x) ::= τ)
-                   && (((var x) ::~ tF) --> ψ0)
-                   && (((var x) ::= tF) --> (Not ψ0))) 
+      -> TypeOf (((var x) ::= τ)
+                   ::(((var x) ::~ tF) --> ψ0)
+                   ::(((var x) ::= tF) --> (Not ψ0))
+                   ::Γ) 
                 e1
                 σ
                 ψ1
@@ -1620,815 +1648,10 @@ Inductive TypeOf : prop -> exp -> type -> prop -> opt object -> Prop :=
 | T_Subsume :
     forall τ' τ o' o Γ e ψ ψ',
       TypeOf Γ e τ ψ o
-      -> Proves (Γ && ψ) ψ'
-      -> SubType τ τ'
+      -> Proves (ψ::Γ) ψ'
+      -> Subtype τ τ'
       -> SubObj o o'
       -> TypeOf Γ e τ' ψ' o'.
-
-
-(** * Proof Helpers *)
-
-(** * Proof Helpers/Lemmas and Automation *)
-Hint Resolve P_DisjElim P_Conjr.
-
-(** Universally valid tactics (if these go wrong, we're already in a bad
-    proof state is the idea) *)
-Hint Extern 6 (Proves FF ?P) => apply P_False.
-Hint Extern 6 (Proves ?P TT) => apply P_True.
-Hint Extern 6 (Proves (?P (Not ?P)) ?Q) => apply P_Contra.
-Hint Extern 6 (Proves ((Not ?P) && (?P || ?Q)) ?Q) => apply P_DisjSyl.
-Hint Extern 6 (SubType ?P ?P) => apply S_Refl.
-Hint Extern 6 (SubType ?P tTop) => apply S_Top.
-Hint Extern 6 (SubType ?P tBot) => apply S_Bot.
-Hint Extern 6 (SubType ?P (tU ?P ?Q)) => apply S_UnionSuper_lhs; apply S_Refl.
-Hint Extern 6 (SubType ?P (tU ?Q ?R)) => apply S_UnionSuper_rhs; apply S_Refl.
-Hint Extern 6 (SubType ?P (tU (tU ?P ?Q) ?R)) => 
-  apply S_UnionSuper_lhs; apply S_UnionSuper_lhs; apply S_Refl.
-Hint Extern 6 (SubType ?P (tU (tU ?Q ?P) ?R)) => 
-  apply S_UnionSuper_lhs; apply S_UnionSuper_rhs; apply S_Refl.
-Hint Extern 6 (SubType ?P (tU ?R (tU ?P ?Q))) => 
-  apply S_UnionSuper_rhs; apply S_UnionSuper_lhs; apply S_Refl.
-Hint Extern 6 (SubType ?P (tU ?R (tU ?Q ?P))) => 
-  apply S_UnionSuper_rhs; apply S_UnionSuper_rhs; apply S_Refl.
-Hint Extern 6 (SubType ?P (tU ?Q ?R)) => apply S_UnionSuper_rhs; apply S_Refl.
-Hint Extern 6 (SubType ?P tBot) => apply S_Bot.
-Hint Extern 6 (SubObj ?o ?o) => apply SO_Refl.
-Hint Extern 6 (SubObj ?o None) => apply SO_Top.
-Hint Extern 6 (SubObj None ?o) => eapply SO_Refl.
-
-
-Axiom prop_equality : forall P Q,
-Proves P Q
--> Proves Q P
--> P = Q.
-
-Lemma P_Refl : forall P,
-Proves P P.
-Proof.
-  intros P.
-  apply P_Atom; crush.
-Qed.
-Hint Resolve P_Refl.
-
-Hint Extern 6 (Proves (?P && ?Q) (?P || ?R)) => 
-apply P_Conjl_lhs; apply P_Add_lhs; apply P_Refl.
-Hint Extern 6 (Proves (?P && ?Q) (?R || ?P)) => 
-apply P_Conjl_lhs; apply P_Add_rhs; apply P_Refl.
-Hint Extern 6 (Proves (?Q && ?P) (?P || ?R)) => 
-apply P_Conjl_rhs; apply P_Add_lhs; apply P_Refl.
-Hint Extern 6 (Proves (?Q && ?P) (?R || ?P)) => 
-apply P_Conjl_rhs; apply P_Add_rhs; apply P_Refl.
-
-
-Lemma P_Conjl_lhs_Refl : forall P Q,
-Proves (P && Q) P.
-Proof with crush.
-  intros. apply P_Conjl_lhs...
-Qed.
-Hint Resolve P_Conjl_lhs_Refl.
-
-Lemma P_Conjl_rhs_Refl : forall P Q,
-Proves (P && Q) Q.
-Proof with crush.
-  intros. apply P_Conjl_rhs...
-Qed.
-Hint Resolve P_Conjl_rhs_Refl.
-
-Lemma P_Simpl_lhs : forall P Q R,
-Proves P (Q && R)
--> Proves P Q.
-Proof with crush.
-  intros. apply (P_HypSyl P (Q && R) Q)...
-Qed.
-
-Lemma P_Simpl_rhs : forall P Q R,
-Proves P (Q && R)
--> Proves P R.
-Proof with crush.
-  intros. apply (P_HypSyl P (Q && R) R)...
-Qed.
-
-Lemma P_Add_lhs_Refl : forall P Q,
-Proves P (P || Q).
-Proof with crush.
-  intros; apply P_Add_lhs...
-Qed.
-Hint Resolve P_Add_lhs_Refl.
-
-Lemma P_Add_rhs_Refl : forall P Q,
-Proves P (Q || P).
-Proof with crush.
-  intros; apply P_Add_rhs...
-Qed.
-Hint Resolve P_Add_rhs_Refl.
-
-Hint Extern 11 (Proves ?P (?Q || ?R)) =>
-match goal with
-| [ H : Proves P Q |- Proves P (Q || R)] =>
-  apply P_Add_lhs; exact H
-| [ H : Proves P R |- Proves P (Q || R)] =>
-  apply P_Add_rhs; exact H
-end.
-
-Lemma then_else_eq : forall (T:Type) (P1 P2:Prop) (test: sumbool P1 P2) (Q:T),
-(if test then Q else Q) = Q.
-Proof.
-  crush.
-Qed.
-Hint Rewrite then_else_eq.
-
-Lemma if_eq_id : forall (T:Type) x (t1 t2: T),
-(if id_eqdec x x then t1 else t2) = t1.
-Proof.
-  intros T x t1 t2.
-  destruct (id_eqdec x x); auto. tryfalse.
-Qed.
-Hint Rewrite if_eq_id.
-
-Lemma if_eq_obj : forall (T:Type) x (t1 t2: T),
-(if obj_eqdec x x then t1 else t2) = t1.
-Proof.
-  intros T x t1 t2.
-  destruct (obj_eqdec x x); auto. tryfalse.
-Qed.
-Hint Rewrite if_eq_obj.
-
-Lemma neq_id_neq : forall (T:Type) x y (P Q:T),
-x <> y ->
-((if (id_eqdec x y) then P else Q) = Q).
-Proof.
-  intros.
-  destruct (id_eqdec x y); crush.
-Qed.
-
-Lemma neq_obj_neq : forall (T:Type) x y (P Q:T) pth1 pth2,
-x <> y ->
-((if (obj_eqdec (obj pth1 x) (obj pth2 y)) then P else Q) = Q).
-Proof.
-  intros.
-  destruct (obj_eqdec (obj pth1 x) (obj pth2 y)); crush.
-Qed.
-
-Lemma if_eq_type : forall (T:Type) x (t1 t2: T),
-(if type_eqdec x x then t1 else t2) = t1.
-Proof.
-  intros T x t1 t2.
-  destruct (type_eqdec x x); auto. tryfalse.
-Qed.
-Hint Rewrite if_eq_type.
-
-Lemma if_eq_prop : forall (T:Type) x (t1 t2: T),
-(if prop_eqdec x x then t1 else t2) = t1.
-Proof.
-  intros T x t1 t2.
-  destruct (prop_eqdec x x); auto. tryfalse.
-Qed.
-Hint Rewrite if_eq_prop.
-
-Fixpoint in_disj (P Q: prop) : bool :=
-  match Q with
-    | p || q => if (prop_eqdec P p) then true
-                else if (prop_eqdec P q) then true
-                     else if (in_disj P p) then true
-                          else if (in_disj P q) then true
-                               else false
-    | _ => false
-  end.
-
-
-(** Proves goals "Proves P Q" where Q is a tree of disjunctions of
-arbitrary depth such that P is somewhere in the tree. *)
-Lemma P_in_disj : forall Q P,
-in_disj P Q = true
--> Proves P Q.
-Proof with crush.
-  intros Q; induction Q...
-  specialize (IHQ1 P). specialize (IHQ2 P).
-  destruct (prop_eqdec P Q1)...
-  destruct (prop_eqdec P Q2)...
-  destruct (in_disj P Q2)...
-  destruct (in_disj P Q1)...
-Qed.
-
-Ltac indisj := 
-  progress (match goal with
-              | [ |- Proves ?P (?Q || ?R)] =>
-                solve[apply P_in_disj; crush]
-              | _ => idtac
-            end).
-Hint Extern 5 (Proves ?P (?P || _)) => indisj.
-Hint Extern 5 (Proves ?P (_ || ?P)) => indisj.
-Hint Extern 5 (Proves ?P (?P || _ || _)) => indisj.
-Hint Extern 5 (Proves ?P (_ || ?P || _)) => indisj.
-Hint Extern 5 (Proves ?P (_ || (?P || _))) => indisj.
-Hint Extern 5 (Proves ?P (_ || _ || ?P)) => indisj.
-Hint Extern 5 (Proves ?P (_ || (_ || ?P))) => indisj.
-Hint Extern 5 (Proves ?P (?P || (_ || _))) => indisj.
-Hint Extern 5 (Proves ?P (_ || (?P || _))) => indisj.
-Hint Extern 5 (Proves ?P (_ || (_ || ?P))) => indisj.
-Hint Extern 5 (Proves ?P (?P || _ || _ || _)) => indisj.
-Hint Extern 5 (Proves ?P (_ || ?P || _ || _)) => indisj.
-Hint Extern 5 (Proves ?P (_ || _ || ?P || _)) => indisj.
-Hint Extern 5 (Proves ?P (_ || _ || _ || ?P)) => indisj.
-
-Lemma Or_comm_imp : forall P Q R,
-Proves P (Q || R)
--> Proves P (R || Q).
-Proof with crush.
-  intros P Q R H. apply (P_HypSyl _ _ _ H)...
-Qed.
-
-Lemma Or_comm : forall P Q,
-(P || Q) = (Q || P).
-Proof with crush.
-  intros.
-  apply prop_equality; (apply Or_comm_imp; crush).
-Qed.
-
-Lemma Or_assoc : forall P Q R,
-(P || (Q || R)) = ((P || Q) || R).
-Proof with crush.
-  intros.
-  apply prop_equality. 
-  eapply P_DisjElim... 
-  apply P_DisjElim. apply P_DisjElim. apply P_Add_lhs...
-  apply P_Add_rhs...
-  apply P_Add_rhs...
-Qed.
-  
-
-Hint Extern 3 (Proves ?P (?R || ?Q)) =>
-match goal with
-  | [ H : Proves P (Q || R) |- Proves P (R || Q)] =>
-    apply Or_comm; auto
-end.
-
-Lemma And_comm_imp : forall P Q R,
-Proves P (Q && R)
--> Proves P (R && Q).
-Proof with crush.
-  intros P Q R H.
-  apply P_Conjr.
-  apply P_Simpl_rhs in H...
-  apply P_Simpl_lhs in H...
-Qed.
-
-Lemma And_comm : forall P Q,
-P && Q = Q && P.
-Proof with crush.
-  intros; apply prop_equality...
-Qed.  
-
-Lemma And_assoc : forall P Q R,
-(P && (Q && R)) = ((P && Q) && R).
-Proof with crush.
-  intros P Q R.
-  apply prop_equality.
-  repeat apply P_Conjr... apply P_Conjl_rhs...
-  apply P_Conjl_rhs... 
-  repeat apply P_Conjr... apply P_Conjl_lhs...
-  apply P_Conjl_lhs...
-Qed.
-
-Lemma And_FF : forall P,
-P && FF = FF.
-Proof with crush.
-  intros. apply prop_equality...
-Qed.
-Hint Rewrite And_FF.
-
-Lemma FF_And : forall P,
-FF && P = FF.
-Proof with crush.
-  intros. apply prop_equality...
-Qed.
-Hint Rewrite FF_And.
-
-Lemma And_TT : forall P,
-P && TT = P.
-Proof with crush.
-  intros. apply prop_equality...
-Qed.
-Hint Rewrite And_TT.
-
-Lemma TT_And : forall P,
-TT && P = P.
-Proof with crush.
-  intros. apply prop_equality...
-Qed.
-Hint Rewrite TT_And.
-
-Lemma Or_FF : forall P,
-P || FF = P.
-Proof with crush.
-  intros. apply prop_equality...
-Qed.
-Hint Rewrite Or_FF.
-
-Lemma FF_Or : forall P,
-FF || P = P.
-Proof with crush.
-  intros. apply prop_equality...
-Qed.
-Hint Rewrite FF_Or.
-
-
-Lemma Or_TT : forall P,
-P || TT = TT.
-Proof with crush.
-  intros. apply prop_equality...
-Qed.
-Hint Rewrite Or_TT.
-
-Lemma TT_Or : forall P,
-TT || P = TT.
-Proof with crush.
-  intros. apply prop_equality...
-Qed.
-Hint Rewrite TT_Or.
-
-Lemma P_DisjSyl_rhs : forall P R Q,
-Proves P (Not Q)
--> Proves P (Q || R)
--> Proves P R.
-Proof with crush.
-  intros P R Q HnotQ HQorR.
-  apply (P_HypSyl P ((Not Q) && (Q || R)))...
-Qed.
-
-Lemma P_DisjSyl_lhs : forall P Q R,
-Proves P (Not R)
--> Proves P (Q || R)
--> Proves P Q.
-Proof with crush.
-  intros P Q R HnotR HQorR.
-  rewrite Or_comm in HQorR.
-  apply P_DisjSyl_rhs in HQorR...
-Qed.
-
-Lemma And_over_Or : forall P Q R,
-P && (Q || R) = (P && Q) || (P && R).
-Proof with crush.
-  intros.
-  apply prop_equality.
-  eapply P_ConstrDilemma...
-  eapply P_DisjElim... 
-Qed.
-
-Lemma Or_over_And : forall P Q R,
-P || (Q && R) = (P || Q) && (P || R).
-Proof with crush.
-  intros.
-  apply prop_equality.
-  eapply P_DisjElim...
-  rewrite And_over_Or.
-  apply P_DisjElim...
-  rewrite And_comm.
-  rewrite And_over_Or.
-  eapply P_DisjElim...
-  rewrite And_comm...
-Qed.
-
-Fixpoint in_type (t U : type) : bool :=
-if type_eqdec t U then true else
-match U with
-  | tU t1 t2 => orb (in_type t t1) (in_type t t2)
-  | _ => false
-end.
-
-Lemma in_type_SubType : forall t2 t1,
-in_type t1 t2 = true
--> SubType t1 t2.
-Proof.
-  Hint Rewrite orb_true_iff.
-  Hint Rewrite andb_true_iff.
-  intros t2.
-  induction t2; intros; crush.
-  destruct (type_eqdec t1 tBot); crush.
-  destruct (type_eqdec t1 tNat); crush.
-  destruct (type_eqdec t1 tStr); crush.
-  destruct (type_eqdec t1 tT); crush.
-  destruct (type_eqdec t1 tF); crush.
-  destruct (type_eqdec t1 (tU t2_1 t2_2)); crush.
-  eapply S_UnionSuper_lhs; crush.
-  eapply S_UnionSuper_rhs; crush.
-  destruct (type_eqdec t1 (tPair t2_1 t2_2)); crush.
-  destruct (type_eqdec t1 (tλ i t2_1 t2_2 p o)); crush.
-Qed.
-
-  
-Fixpoint bound_in (o:object) (p:prop) : bool :=
-  match p with
-    | Is o' t =>
-      if obj_eqdec o o' then true else false
-    | IsNot _ _ => false
-    | And lhs rhs => orb (bound_in o lhs) (bound_in o rhs)
-    | Or lhs rhs => andb (bound_in o lhs) (bound_in o rhs)
-    | FF => true
-    | _ => false
-  end.
-
-Lemma bound_in_Proves_Top : forall P o',
-bound_in o' P = true
--> Proves P (o' ::= tTop).
-Proof with crush.
-  intros p; induction p...
-  destruct (obj_eqdec o' o). eapply P_Sub... crush.
-  eapply P_Conjl_lhs... 
-  eapply P_Conjl_rhs...
-Qed.
-
-Lemma In_disjsyl_lhs : forall o t t' P,
-In (o ::~ t') P
--> In (o ::= (tU t t')) P
--> Proves P (o ::= t).
-Proof with crush.
-  intros o t t' P H1 H2.
-  apply P_Atom in H1. apply P_Atom in H2.
-  eapply (P_UnionNeg_lhs P o t t'); auto.
-Qed.
-
-Lemma In_disjsyl_rhs : forall o t t' P,
-In (o ::~ t') P
--> In (o ::= (tU t' t)) P
--> Proves P (o ::= t).
-Proof with crush.
-  intros o t t' P H1 H2.
-  apply P_Atom in H1. apply P_Atom in H2.
-  eapply (P_UnionNeg_rhs P o t t'); auto.
-Qed. 
-
-Fixpoint find_types P o : list type := 
-  match P with
-    | (o' ::= t) => if obj_eqdec o o' then [t] else nil
-    | (P1 && P2) =>  
-      (find_types P1 o) ++ (find_types P2 o)
-      | _ => nil
-  end.
-Hint Unfold find_types.
-
-Fixpoint find_disj_neighbor (P p : prop) : list prop :=
-  match P with
-    | Q || R =>
-      if (prop_eqdec Q p) then [P]
-      else if (prop_eqdec R p) then [P]
-      else nil
-    | Q && R =>
-      (find_disj_neighbor Q p) ++ (find_disj_neighbor R p)
-    | _ => nil
-  end.
-
-Ltac unionnegtac o types :=
-  match types with
-    | (tU ?t1 ?t2) :: ?ts =>
-      (solve [first [(eapply (In_disjsyl_lhs o t1 t2); crush)    |
-                     ((eapply (In_disjsyl_rhs o t2 t1)); crush)] | 
-                    (unionnegtac o ts)
-      ])
-    | _ :: ?ts => (unionnegtac o ts)
-    | nil => fail
-  end.
-
-Ltac disjsyltac P Q disjs solver :=
-  match disjs with
-    | (Q || ?R) :: ?ds =>
-      first [(solve [apply (P_DisjSyl_lhs P Q R); solver]) |
-             (disjsyltac P Q ds)]
-    | (?R || Q) :: ?ds =>
-      first [(solve [apply (P_DisjSyl_rhs P Q R); solver]) |
-            (disjsyltac P Q ds)]
-    | _ => fail
-  end.
-
-Lemma nat_subst : forall t o1 o2,
-t = tNat
--> subst_t t o1 o2 = tNat.
-Proof. crush. Qed.
-
-Lemma top_subst : forall t o1 o2,
-t = tTop
--> subst_t t o1 o2 = tTop.
-Proof. crush. Qed.
-
-Lemma bot_subst : forall t o1 o2,
-t = tBot
--> subst_t t o1 o2 = tBot.
-Proof. crush. Qed.
-
-Lemma str_subst : forall t o1 o2,
-t = tStr
--> subst_t t o1 o2 = tStr.
-Proof. crush. Qed.
-
-Lemma true_subst : forall t o1 o2,
-t = tT
--> subst_t t o1 o2 = tT.
-Proof. crush. Qed.
-
-Lemma false_subst : forall t o1 o2,
-t = tF
--> subst_t t o1 o2 = tF.
-Proof. crush. Qed.
-
-Lemma bool_subst : forall t o1 o2,
-t = tBool
--> subst_t t o1 o2 = tBool.
-Proof. crush. Qed.
-
-Lemma TT_subst : forall P o1 o2,
-P = TT
--> subst_p P o1 o2 = TT.
-Proof. crush. Qed.
-
-Lemma FF_subst : forall P o1 o2,
-P = FF
--> subst_p P o1 o2 = FF.
-Proof. crush. Qed.
-
-Lemma Unk_subst : forall P o1 o2,
-P = Unk
--> subst_p P o1 o2 = Unk.
-Proof. crush. Qed.
-
-Lemma None_subst : forall o o1 o2,
-o = None
--> subst_o o o1 o2 = None.
-Proof. crush. Qed.
-
-Fixpoint simple_subtype (tsub tsuper: type)  : bool :=
-if (type_eqdec tsub tsuper) then true else
-match tsub, tsuper with
-| _ , tTop    => true
-| _, tU t1 t2 => 
-  orb (simple_subtype tsub t1)
-      (simple_subtype tsub t2)
-| tPair t1 t2, tPair t3 t4 =>
-  andb (simple_subtype t1 t3)
-       (simple_subtype t2 t4)
-| _, _ => false
-end.
-
-Lemma simple_subtype_valid : forall t2 t1,
-simple_subtype t1 t2 = true
--> SubType t1 t2.
-Proof with (crush; first[solve [apply S_UnionSuper_lhs; crush] | 
-                         solve [apply S_UnionSuper_rhs; crush] |
-                         auto]).
-  intros t2; induction t2; destruct t1...
-  specialize (IHt2_1 (tU t1_1 t1_2)). specialize (IHt2_2 (tU t1_1 t1_2)).
-  destruct (type_eqdec t1_1 t2_1); destruct (type_eqdec t1_2 t2_2)...
-  destruct (type_eqdec t1_1 t2_1); destruct (type_eqdec t1_2 t2_2)...
-  apply S_Cons... apply S_Cons... apply S_Cons...
-  destruct o. destruct o0.
-  destruct (id_eqdec i0 i); destruct (type_eqdec t1_1 t2_1);
-  destruct (type_eqdec t1_2 t2_2); destruct (obj_eqdec o o0);
-  destruct (prop_eqdec p0 p)... destruct (obj_eqdec o0 o).
-  crush. crush. crush. destruct (id_eqdec i0 i)...
-  destruct (type_eqdec t1_1 t2_1)... destruct (type_eqdec t1_2 t2_2)...
-  destruct (prop_eqdec p0 p)... destruct (id_eqdec i0 i)...
-  destruct (type_eqdec t1_1 t2_1)... destruct (type_eqdec t1_2 t2_2)...
-  destruct (prop_eqdec p0 p)... destruct o0. crush. crush.
-Qed.
-
-Definition join (t1 t2:type) : type :=
-if simple_subtype t1 t2 then t2
-else if simple_subtype t2 t1 then t1
-else tU t1 t2.
-
-Lemma join_super_lhs : forall t1 t2 tsuper,
-join t1 t2 = tsuper
--> SubType t1 tsuper.
-Proof with crush.
-  intros.
-  unfold join in H.
-  remember (simple_subtype t1 t2) as simpb.
-  destruct simpb. apply simple_subtype_valid...
-  remember (simple_subtype t2 t1) as simpb.
-  destruct simpb... 
-Qed.
- 
-Lemma join_super_rhs : forall t1 t2 tsuper,
-join t1 t2 = tsuper
--> SubType t2 tsuper.
-Proof with crush.
-  intros.
-  unfold join in H.
-  remember (simple_subtype t1 t2) as simpb.
-  destruct simpb...  
-  remember (simple_subtype t2 t1) as simpb.
-  destruct simpb... apply simple_subtype_valid...
-Qed.
-
-Lemma join_super_lhs_Refl : forall t1 t2,
-SubType t1 (join t1 t2).
-Proof with crush.
-  intros.
-  unfold join.
-  remember (simple_subtype t1 t2) as simpb.
-  destruct simpb...  apply simple_subtype_valid...
-  remember (simple_subtype t2 t1) as simpb.
-  destruct simpb...
-Qed.
-Hint Resolve join_super_lhs_Refl.
-
-Lemma join_super_rhs_Refl : forall t1 t2,
-SubType t2 (join t1 t2).
-Proof with crush.
-  intros.
-  unfold join.
-  remember (simple_subtype t1 t2) as simpb.
-  destruct simpb...  
-  remember (simple_subtype t2 t1) as simpb.
-  destruct simpb... apply simple_subtype_valid...
-Qed.
-Hint Resolve join_super_rhs_Refl.
-
-Lemma neg_And_comm : forall o t P,
-(o ::~ t) && P = P && (o ::~ t).
-Proof. intros. apply And_comm. Qed.
-
-Lemma contra : forall P,
-P && (Not P) = FF.
-Proof.
-  intros. apply prop_equality.
-  apply P_Contra. auto.
-Qed.
-Hint Rewrite contra.
-
-Lemma contra_rev : forall P,
-(Not P) && P = FF.
-Proof.
-  intros. apply prop_equality.
-  rewrite And_comm. apply P_Contra. auto.
-Qed.
-
-Lemma contra_type1 : forall o t,
-(o ::~ t) && (o ::= t) = FF.
-Proof.
-  intros. apply prop_equality.
-  apply P_Contra. auto.
-Qed.
-Hint Rewrite contra_type1.
-
-Lemma contra_type2 : forall o t,
-(o ::= t) && (o ::~ t) = FF.
-Proof.
-  intros. apply prop_equality.
-  apply P_Contra. auto.
-Qed.
-Hint Rewrite contra_type2.
-
-Fixpoint smash (rock p: prop) : prop :=
-  if (prop_eqdec rock (Not p)) then FF else
-    match p with
-      | q && r => (smash rock q) && (smash rock r)
-      | q || r => (smash rock q) || (smash rock r)
-      | _ => p
-    end.
-
-Lemma And_disjsyl : forall P Q,
-Not P && (P || Q) = Not P && Q.
-Proof with crush.
- intros. rewrite And_over_Or.
-  rewrite contra_rev...
-Qed.
-Hint Resolve And_disjsyl.
-
-Lemma And_disjsyl2 : forall P Q,
-Not P && (Q || P) = Not P && Q.
-Proof with crush.
- intros. rewrite And_over_Or.
-  rewrite contra_rev...
-Qed.
-Hint Resolve And_disjsyl2.
-
-
-Lemma smash_valid : forall Q P,
-P && Q = P && (smash P Q).
-Proof with crush.
-  intros Q; induction Q...
-  destruct (prop_eqdec P (o ::~ t))...
-  destruct (prop_eqdec P (o ::= t))...
-  destruct (prop_eqdec P (Q1 --> Not Q2))...
-  rewrite <- IHQ2. rewrite (And_comm ((Q1 --> Not Q2))).
-  rewrite contra...
-  destruct (prop_eqdec (smash P Q1) FF)...
-  rewrite And_assoc... 
-  destruct (prop_eqdec (smash P Q2) FF)...
-  rewrite And_comm. rewrite <- IHQ2.
-  rewrite <- And_assoc. rewrite (And_comm Q2 P).
-  rewrite IHQ2...
-  rewrite <- IHQ2. rewrite And_assoc.
-  rewrite IHQ1. rewrite And_comm.
-  rewrite And_assoc. rewrite (And_comm Q2 P).
-  rewrite IHQ2. rewrite <- And_assoc. 
-  rewrite (And_comm (smash P Q2)). reflexivity.
-  destruct (prop_eqdec P (Not Q1 && Not Q2))...
-  rewrite And_comm. apply contra.
-  rewrite And_over_Or. rewrite And_over_Or...
-  destruct (prop_eqdec P FF)...
-  destruct (prop_eqdec P Unk)...
-Qed.  
-
-Lemma T_If_join :
-    forall τ τ1 τ2 τ3 o o1 Γ e1 ψ1 e2 ψ2 e3 ψ3,
-      TypeOf Γ e1 τ1 ψ1 o1
-      -> TypeOf (Γ && ψ1) e2 τ2 ψ2 o
-      -> TypeOf (Γ && (Not ψ1)) e3 τ3 ψ3 o
-      -> (τ = join τ2 τ3 \/ τ = join τ3 τ2)
-      -> TypeOf Γ (If e1 e2 e3) τ ((ψ1 && ψ2) || ((Not ψ1) && ψ3)) o.
-Proof with crush.
-  intros.
-  eapply T_If... eassumption. crush.
-  eapply (T_Subsume _ τ2)... eassumption. crush.
-  eapply (T_Subsume _ τ2)... eassumption. crush.
-  eapply (T_Subsume _ τ3)... eassumption. crush.
-  eapply (T_Subsume _ τ3)... eassumption. crush.
-Qed.
-
-Ltac bamcis' subsuming :=
-  crush;
-     (match goal with
-        | [ |- ?lhs = ?rhs] => first[solve [reflexivity] |
-                                     solve [crush] |
-                                     solve [(eapply nat_subst); crush] |
-                                     solve [(eapply top_subst); crush] |
-                                     solve [(eapply bot_subst); crush] |
-                                     solve [(eapply str_subst); crush] |
-                                     solve [(eapply true_subst); crush] |
-                                     solve [(eapply false_subst); crush] |
-                                     solve [(eapply bool_subst); crush] |
-                                     solve [(eapply TT_subst); crush] |
-                                     solve [(eapply FF_subst); crush] |
-                                     solve [(eapply Unk_subst); crush] |
-                                     solve [(eapply None_subst); crush] ]
-        | [ |- Proves _ _] => 
-          (solve [(eapply P_Atom; crush)])
-        | [H : Proves ?P ?Q |- Proves (?Γ && ?P) ?Q] =>
-          (eapply P_Conjl_rhs; exact H)
-        | [H : Proves ?P ?Q |- Proves (?P && ?Γ) ?Q] =>
-          (eapply P_Conjl_lhs; exact H)
-        | [H : Proves ?P ?Q |- Proves ?P (?Q || ?R)] =>
-          (eapply P_Add_lhs; exact H)
-        | [H : Proves ?P ?R |- Proves ?P (?Q || ?R)] =>
-          (eapply P_Add_rhs; exact H)
-        | |- SubObj ?o ?o => eapply SO_Refl
-        | |- SubObj None ?o => eapply SO_Refl
-        | |- SubObj ?o None => eapply SO_Top
-        | |- Proves ?P ?P => eapply P_Atom
-        | |- Proves (TT && _) _ =>
-          eapply P_Conjl_rhs; bamcis' False
-        | |- Proves (_ && TT) _ =>
-          eapply P_Conjl_lhs; bamcis' False
-        | [ |- Proves _ (?o ::= tTop)] => 
-          (solve [(eapply bound_in_Proves_Top; crush)])
-        (* Union w/ not to specify*)
-        | [ |- Proves ?P (?o ::= ?t)] =>
-          let types_exp := constr:(find_types P o) in
-          let types := eval simpl in types_exp in
-          (unionnegtac o types)
-        (* Simple Disjunctive Syllogism *)
-        | [ |- Proves ?P ?Q] =>
-          let disjs_exp := constr:(find_disj_neighbor P Q) in
-          let disjs := eval simpl in disjs_exp in
-          (disjsyltac P Q disjs ltac:(bamcis' False))
-        | |- SubType ?P tTop => eapply S_Top
-        | |- SubType ?P ?P => eapply S_Refl
-        | |- TypeOf _ (# _) _ _ _ => 
-          solve [eapply T_Nat; bamcis' False]
-        | |- TypeOf _ (eOp _) _ _ _ => 
-          solve [eapply T_Const; bamcis' False]
-        | |- TypeOf _ #t _ _ _ =>
-          solve [eapply T_True; bamcis' False]
-        | |- TypeOf _ #f _ _ _ =>
-          solve [eapply T_False; bamcis' False]
-        | |- TypeOf _ ($ _) _ _ _ =>
-          solve [eapply T_Var; bamcis' False]
-        | |- TypeOf _ (λ _ _ _) _ _ _ =>
-          solve [eapply T_Abs; bamcis' False]
-        | |- TypeOf _ (Apply _ _) _ _ _ =>
-          solve [eapply T_App; bamcis' False]
-        | |- TypeOf _ (If _ _ _) _ _ _ =>
-          first [solve[eapply T_If_join with (o := None); bamcis' False] |
-                 solve[eapply T_If with (o := None); bamcis' False] |
-                 solve[eapply T_If; bamcis' False]]
-        | |- TypeOf _ (Let _ _ _) _ _ _ =>
-          solve [eapply T_Let; bamcis' False]
-        | |- TypeOf _ _ ?t _ _ =>
-          match subsuming with
-          | True => fail
-          | False => 
-            first [solve[(eapply (T_Subsume t t)); bamcis' True] |
-                   solve[(eapply T_Subsume); bamcis' True]]
-          end
-        (* EJECT!! EJECT!! *)
-        | |- SubObj None (Some _) => fail 1
-        | |- SubObj tTop tNat => fail 1
-        (* I give up *)
-        | _ => auto
-        end).
-
-Ltac bamcis := bamcis' False.
 
 (** Macros *)
 (** Unhygeinic Or macro *)
@@ -2448,162 +1671,20 @@ Notation AND := (fun p q =>
 Hint Extern 10 (id) => exact X.
 Hint Extern 10 (prop) => exact TT.
 
-(** ** Automation Tests *)
-
-(* Disjunctive Syllogism Test *)
-Example bamcis_disjsyl1 : 
-Proves ((((var X) ::= tNat) || ((var X) ::= tStr)) 
-          && TT 
-          && ((var X) ::~ tNat) 
-          && TT)
-       ((var X) ::= tStr).
-Proof. bamcis. Qed.
-
-(* Disjunctive Syllogism Test *)
-Example bamcis_disjsyl2 : 
-Proves ((((var X) ::= tNat) || ((var X) ::= tTop)) 
-          && (((var X) ::= tNat) || ((var X) ::= tStr))
-          && ((var X) ::~ tNat) 
-          && TT)
-       ((var X) ::= tStr).
-Proof. bamcis. Qed.
-
-(* Disjunctive Syllogism Test *)
-Example bamcis_disjsyl3 : 
-Proves ((((var X) ::= tNat) || ((var X) ::= tStr))  
-          && (((var X) ::= tNat) || ((var X) ::= tTop))
-          && ((var X) ::~ tNat) 
-          && TT)
-       ((var X) ::= tStr).
-Proof. bamcis. Qed.
-
-(* Union not-rhs Test *)
-Example bamcis_unionnot1 : 
-Proves (((var X) ::= (tU tStr tNat)) 
-          && TT 
-          && ((var X) ::~ tNat) 
-          && TT)
-       ((var X) ::= tStr).
-Proof. bamcis. Qed.
-
-(* Union not-lhs Test *)
-Example bamcis_unionnot2 : 
-Proves (((var X) ::= (tU tNat tStr)) 
-          && TT 
-          && ((var X) ::~ tNat) 
-          && TT)
-       ((var X) ::= tStr).
-Proof. bamcis. Qed.
-
-(* Union not-lhs Test w/ other type value present*)
-Example bamcis_unionnot3 : 
-Proves (((var X) ::= tTop) 
-          && ((var X) ::= (tU tNat tStr)) 
-          && TT 
-          && ((var X) ::~ tNat))
-       ((var X) ::= tStr).
-Proof. bamcis. Qed.  
-
-(* Checking propositions flow through If *)
-Example bamcis_ifwrapper1:
-  TypeOf ((var X) ::= tTop)
-         (If (Nat? ($ X))
-             #t
-             #f)
-         tBool
-         ((var X) ::= tNat)
-         None.
-Proof. 
-  bamcis. 
-Grab Existential Variables.
-auto.
-Qed.
-  
-(* Checking propositions flow through If flipped *)
-Example bamcis_ifwrapper2:
-  TypeOf ((var X) ::= tTop)
-         (If (Nat? ($ X))
-             #f
-             #t)
-         tBool
-         ((var X) ::~ tNat)
-         None.
-Proof.
-  bamcis. 
-Grab Existential Variables.
-auto.
-Qed.
-
-
-(* Checking propositions flow through If wrapped in a λ *)
-Example bamcis_ifwrapper3:
-    TypeOf TT
-           (λ X tTop
-              (If (Nat? ($ X))
-                  #f
-                  #t))
-           (tλ X
-               tTop tBool
-               ((var X) ::~ tNat)
-               None)
-           TT
-           None.
-Proof.
-  bamcis.
-Grab Existential Variables.
-auto.
-Qed.
-
-Example bamcis_OR1:
-  TypeOf ((var X) ::= tTop)
-         (OR (Nat? ($ X)) (Str? ($ X)))
-         tBool
-         ((var X) ::= (tU tNat tStr))
-         None.
-Proof with bamcis.
-  eapply T_Subsume.
-  eapply T_Let...
-  do 4 (rewrite And_over_Or).
-  do 10 (rewrite And_over_Or).
-  do 10 (rewrite And_over_Or).
-  do 10 (rewrite And_over_Or).
-  do 10 (rewrite And_over_Or).
-
-  bamcis.
-  rewrite <- (And_assoc (var X ::= tTop)).
-  rewrite <- (And_assoc (var X ::= tTop)).
-
-  rewrite (smash_valid (var X ::~ tF)).
-  
-
-P && Q = P && (smash P Q).
-
-  repeat rewrite And_over_Or.
-  do 2 (rewrite neg_And_comm).
-
-  repeat rewrite Or_over_And.
-crush.
-  bamcis. Admitted.
-
 (** *Typechecked Examples *)
 
 Example example1:
-    TypeOf ((var X) ::= tTop)
+    TypeOf [((var X) ::= tTop)]
            (If (Nat? ($ X))
                (Add1 ($ X))
                (#0))
            tNat
            TT
            None.
-Proof.
-  bamcis.
-Solve All Obligations using auto.
-Grab Existential Variables. 
-auto. auto.
-Qed.
+Proof. Admitted. 
 
 Example example2:
-    TypeOf TT
+    TypeOf []
            (λ X (tU tStr tNat)
               (If (Nat? ($ X))
                   (Add1 ($ X))
@@ -2614,15 +1695,11 @@ Example example2:
                None)
            TT
            None.
-Proof.
-  bamcis.
-Grab Existential Variables.
-auto. auto. auto.  
-Qed.
+Proof. Admitted. 
 
 Example example3:
     TypeOf
-      ((var Y) ::= tTop)
+      [((var Y) ::= tTop)]
       (Let X (Nat? ($ Y))
           (If ($ X)
               ($ Y)
@@ -2630,58 +1707,44 @@ Example example3:
       tNat
       TT
       None.
-Proof with bamcis.
-  bamcis.
-Grab Existential Variables.
-auto. auto.
-Qed.
+Proof. Admitted. 
 
 Example example4:
-    TypeOf (((var X) ::= tTop) 
-              && ((var F) ::= (tλ X (tU tStr tNat) tNat TT None)))
+    TypeOf [((var X) ::= tTop);
+            ((var F) ::= (tλ X (tU tStr tNat) tNat TT None))]
            (If (OR (Nat? ($ X)) (Str? ($ X)))
                (Apply ($ F) ($ X))
                (# 0))
            tNat
            TT
            None.
-Proof with bamcis.
-  eapply (T_Subsume tNat tNat).
-  eapply T_If... crush.
-  eapply T_App...
-  apply T_Var...
-  bamcis.
-
-  bamcis.
-Admitted.
+Proof. Admitted. 
 
 Example example5:
-    TypeOf (((var X) ::= tTop) && ((var Y) ::= tTop))
+    TypeOf [((var X) ::= tTop); 
+             ((var Y) ::= tTop)]
            (If (AND (Nat? ($ X)) (Str? ($ Y)))
                (Plus ($ X) (StrLen ($ Y)))
                (# 0))
            tNat
            TT
            None.
-Proof. 
-  bamcis.
-Admitted.
+Proof. Admitted. 
 
 Example example7:
   forall X y,
-    TypeOf (((var X) ::= tTop) && ((var y) ::= tTop))
+    TypeOf [((var X) ::= tTop); 
+            ((var y) ::= tTop)]
            (If (If (Nat? ($ X)) (Str? ($ y)) #f)
                (Plus ($ X) (StrLen ($ y)))
                (# 0))
            tNat
            TT
            None.
-Proof. 
-  bamcis.
-Admitted.
+Proof. Admitted. 
 
 Example example8:
-    TypeOf TT
+    TypeOf []
            (λ X tTop
               (OR (Str? ($ X)) (Nat? ($ X))))
            (tλ X
@@ -2690,13 +1753,11 @@ Example example8:
                None)
            TT
            None.
-Proof. 
-  bamcis.
-Admitted.
+Proof. Admitted. 
 
 Example example9:
-    TypeOf (((var X) ::= tTop)
-              && ((var F) ::= (tλ X (tU tStr tNat) tNat TT None)))
+    TypeOf [((var X) ::= tTop);
+            ((var F) ::= (tλ X (tU tStr tNat) tNat TT None))]
            (If (Let TMP (Nat? ($ X))
                     (If ($ TMP) ($ TMP) (Str? ($ X))))
                (Apply ($ F) ($ X))
@@ -2704,38 +1765,33 @@ Example example9:
            tNat
            TT
            None.
-Proof. 
-  bamcis.
-Admitted.
+Proof. Admitted. 
 
 Example example10:
 let p := (Id 23) in
-    TypeOf ((var p) ::= (tPair tTop tTop))
+    TypeOf [((var p) ::= (tPair tTop tTop))]
            (If (Nat? (Car ($ p)))
                (Add1 (Car ($ p)))
                (# 7))
            tNat
            TT
            None.
-Proof. 
-  bamcis.
+Proof. Admitted. 
 
 Example example11:
 let p := (Id 23) in
-    TypeOf ((var p) ::= (tPair tTop tTop)
-            && ((var G) ::= (tλ X (tU tNat tNat) tNat TT None)))
+    TypeOf [(var p) ::= (tPair tTop tTop);
+            ((var G) ::= (tλ X (tU tNat tNat) tNat TT None))]
            (If (AND (Nat? (Car ($ p))) (Nat? (Cdr ($ p))))
                (Apply ($ G) ($ p))
                (# 42))
            tNat
            TT
            None.
-Proof.
-  bamcis.
-Admitted.
+Proof. Admitted. 
 
 Example example12:
-    TypeOf TT
+    TypeOf []
            (λ X (tPair tTop tTop)
               (Nat? (Car ($ X))))
            (tλ Y
@@ -2744,12 +1800,10 @@ Example example12:
                None)
            TT
            None.
-Proof. 
-  bamcis.
-Admitted.
+Proof. Admitted. 
 
 Example example13:
-    TypeOf (((var X) ::= tTop) && ((var Y) ::= (tU tNat tStr)))
+    TypeOf [((var X) ::= tTop) && ((var Y) ::= (tU tNat tStr))]
            (If (AND (Nat? ($ X)) (Str? ($ Y)))
                (Plus ($ X) (StrLen ($ Y)))
                (If (Nat? ($ X))
@@ -2758,13 +1812,12 @@ Example example13:
            tNat
            TT
            None.
-Proof. 
-  bamcis.
-Admitted.
+Proof. Admitted. 
 
 Example example14:
   forall X y,
-    TypeOf (((var X) ::= tTop) && ((var y) ::= (tPair tTop (tU tNat tStr))))
+    TypeOf [((var X) ::= tTop);
+            ((var y) ::= (tPair tTop (tU tNat tStr)))]
            (If (AND (Nat? ($ X)) (Str? (Cdr ($ y))))
                (Plus ($ X) (StrLen ($ y)))
                (If (Nat? ($ X))
@@ -2773,9 +1826,6 @@ Example example14:
            tNat
            TT
            None.
-Proof. 
-  bamcis.
-Admitted.
+Proof. Admitted. 
 
-Abort All.
 End LTR.

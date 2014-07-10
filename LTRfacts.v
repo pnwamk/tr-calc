@@ -980,12 +980,32 @@ Proof.
   solve_it.
 Qed.
 
-
-
-
-Definition Subtype_dec : forall t1 t2,
+Theorem Subtype_dec : forall t1 t2,
 {Subtype t1 t2} + {~Subtype t1 t2}.
 Proof.
   intros t1 t2.
   unfold Subtype. apply Proves_dec.
 Defined.
+
+Theorem TypeOf_dec : forall e E t p o,
+{TypeOf E e t p o} + {~TypeOf E e t p o}.
+Proof.
+  intros e.
+  induction e as
+      [x |
+       o |
+       |
+       |
+       n |
+       s |
+       econd etrue efalse |
+       x t ebody |
+       efun earg |
+       x exbody ebody |
+       elhs Hlhs erhs Hrhs].
+  {
+    intros. 
+    destruct (Proves_dec E ((var x) ::= t)) as [Htype | Hnottype].
+    left. apply T_Var.
+remember T_Var.
+  }

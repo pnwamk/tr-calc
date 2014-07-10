@@ -186,69 +186,79 @@ Definition Subtype (t1 t2:type) :=
 
 Inductive TypeOf : list prop -> exp -> type -> prop -> opt object -> Prop :=
 | T_Nat :
-    forall Γ n,
-      TypeOf Γ (#n) tNat TT None
+    forall Γ n ψ,
+      Proves (TT::Γ) ψ
+      -> TypeOf Γ (#n) tNat ψ None
 | T_Str :
-    forall Γ s,
-      TypeOf Γ (Str s) tStr TT None
+    forall Γ s ψ,
+      Proves (TT::Γ) ψ
+      -> TypeOf Γ (Str s) tStr ψ None
 | T_Const :
-    forall τ Γ c x,
-      τ = (const_type c x)
-      -> TypeOf Γ (eOp (c_op c)) τ TT None
+    forall Γ c τ ψ x,
+      Proves (TT::Γ) ψ
+      -> τ = (const_type c x)
+      -> TypeOf Γ (eOp (c_op c)) τ ψ None
 | T_True :
-    forall Γ,
-      TypeOf Γ #t tT TT None
+    forall Γ ψ,
+      Proves (TT::Γ) ψ
+      -> TypeOf Γ #t tT ψ None
 | T_False :
-    forall Γ,
-      TypeOf Γ #f tF FF None
+    forall Γ ψ,
+      Proves (FF::Γ) ψ
+      -> TypeOf Γ #f tF ψ None
 | T_Var :
-    forall τ Γ x,
+    forall Γ x τ ψ o,
       Proves Γ ((var x) ::= τ)
-      -> TypeOf Γ ($ x) τ ((var x) ::~ tF) (Some (var x))
+      -> Proves (((var x) ::~ tF) :: Γ) ψ
+      -> SubObj (Some (var x)) o
+      -> TypeOf Γ ($ x) τ ψ o
 | T_Abs :
-    forall σ τ o Γ x ψ e,
+    forall Γ x σ e τ ψ o ψ',
       TypeOf (((var x) ::= σ)::Γ) e τ ψ o
+      -> Proves (TT::Γ) ψ'
       -> TypeOf Γ 
                 (eλ x σ e) 
                 (tλ x σ τ ψ o) 
-                TT 
+                ψ' 
                 None
 | T_App :
-    forall τ'' σ τ o'' o o' Γ e x fψ fo ψ e' ψ' ψf'',
-      (subst_t τ o' x) = τ''
-      -> (subst_p fψ o' x) = ψf''
-      -> (subst_o fo o' x) = o''
+    forall Γ e e' τ'' ψf'' o'' τ o' x σ fψ fo o ψ ψ',
+      Subtype (subst_t τ o' x) τ''
+      -> Proves [(subst_p fψ o' x)] ψf''
+      -> SubObj (subst_o fo o' x) o''
       -> TypeOf Γ e (tλ x σ τ fψ fo) ψ o
       -> TypeOf Γ e' σ ψ' o'
       -> TypeOf Γ (Apply e e') τ'' ψf'' o''
 | T_If :
-    forall τ τ' o o1 Γ e1 ψ1 e2 ψ2 e3 ψ3,
+    forall Γ e1 e2 e3 τ ψ o τ' ψ1 o1 ψ2 ψ3,
       TypeOf Γ e1 τ' ψ1 o1
       -> TypeOf (ψ1::Γ) e2 τ ψ2 o
       -> TypeOf ((Not ψ1)::Γ) e3 τ ψ3 o
-      -> TypeOf Γ (If e1 e2 e3) τ ((ψ1 && ψ2) || ((Not ψ1) && ψ3)) o
+      -> Proves (((ψ1 && ψ2) || ((Not ψ1) && ψ3))::Γ) ψ
+      -> TypeOf Γ (If e1 e2 e3) τ ψ o
 | T_Cons :
-    forall τ1 τ2 o1 o2 Γ e1 ψ1 e2 ψ2,
+    forall Γ e1 e2 τ1 τ2 ψ ψ1 o1 ψ2 o2,
       TypeOf Γ e1 τ1 ψ1 o1
       -> TypeOf Γ e2 τ2 ψ2 o2
-      -> TypeOf Γ (Cons e1 e2) (tPair τ1 τ2) TT None
+      -> Proves (TT::Γ) ψ
+      -> TypeOf Γ (Cons e1 e2) (tPair τ1 τ2) ψ None
 | T_Car :
-    forall τ1 τ2 o' o Γ e ψ0 ψ x,
-      (subst_p ((obj [car] x) ::~ tF) o x) = ψ
-      -> (subst_o (Some (obj [car] x)) o x) = o'
+    forall Γ e τ1 ψ o' x o τ2 ψ0,
+      Proves [(subst_p ((obj [car] x) ::~ tF) o x)] ψ
+      -> SubObj (subst_o (Some (obj [car] x)) o x) o'
       -> TypeOf Γ e (tPair τ1 τ2) ψ0 o
       -> TypeOf Γ (Car e) τ1 ψ o'
 | T_Cdr :
-    forall τ1 τ2 o' o Γ e ψ0 ψ x,
-      (subst_p ((obj [cdr] x) ::~ tF) o x) = ψ
-      -> (subst_o (Some (obj [cdr] x)) o x) = o'
+    forall Γ e τ2 ψ o' x o τ1 ψ0,
+      Proves [(subst_p ((obj [cdr] x) ::~ tF) o x)] ψ
+      -> SubObj (subst_o (Some (obj [cdr] x)) o x) o'
       -> TypeOf Γ e (tPair τ1 τ2) ψ0 o
-      -> TypeOf Γ (Cdr e) τ2 ψ o'
+      -> TypeOf Γ (Car e) τ2 ψ o'
 | T_Let :
-    forall σ' τ σ o1' o0 o1 Γ e0 ψ0 e1 ψ1 x ψ1',
-      (subst_t σ o0 x) = σ'
-      -> (subst_p ψ1 o0 x) = ψ1'
-      -> (subst_o o1 o0 x) = o1'
+    forall Γ x e0 e1 σ' ψ1' o1' σ o0 o1 τ ψ0 ψ1,
+      Subtype (subst_t σ o0 x) σ'
+      -> Proves [(subst_p ψ1 o0 x)] ψ1'
+      -> SubObj (subst_o o1 o0 x) o1'
       -> TypeOf Γ e0 τ ψ0 o0
       -> TypeOf (((var x) ::= τ)
                    ::(((var x) ::~ tF) --> ψ0)
@@ -258,11 +268,4 @@ Inductive TypeOf : list prop -> exp -> type -> prop -> opt object -> Prop :=
                 σ
                 ψ1
                 o1
-      -> TypeOf Γ (Let x e0 e1) σ' ψ1' o1'
-| T_Subsume :
-    forall τ' τ o' o Γ e ψ ψ',
-      TypeOf Γ e τ ψ o
-      -> Proves (ψ::Γ) ψ'
-      -> Subtype τ τ'
-      -> SubObj o o'
-      -> TypeOf Γ e τ' ψ' o'.
+      -> TypeOf Γ (Let x e0 e1) σ' ψ1' o1'.

@@ -367,7 +367,7 @@ Lemma split_nonnil {X:Type} : forall l1 l2 (x:X),
 nil <> l1 ++ (x :: l2).
 Proof.
   intros. destruct l1; destruct l2; crush.
-Qed.
+Defined.
 
 
 (** All uses of subst_p' and subst_t' "in the wild" call the positive case, from
@@ -387,7 +387,7 @@ Some (t1,t2) = is_tU t
 Proof.
   intros.
   destruct t; crush.
-Qed.
+Defined.
   
 Fixpoint is_tλ (t:type) : opt (id * type * type * prop * (opt object)) :=
   match t with
@@ -401,7 +401,7 @@ Some (x,t1,t2,p,opto) = is_tλ t
 Proof.
   intros.
   destruct t; crush.
-Qed.
+Defined.
 
 Fixpoint is_tPair (t:type) : opt (type * type) :=
   match t with
@@ -415,7 +415,7 @@ Some (t1,t2) = is_tPair t
 Proof.
   intros.
   destruct t; crush.
-Qed.
+Defined.
 
 
 Inductive CommonSubtype : (type * type) -> Prop :=
@@ -644,7 +644,7 @@ destruct IHL as [(b,(HbA,HbB))|IHL].
     intros b [Hb|Hb].
     * rewrite <-Hb. crush.
     * crush. iauto. 
-Qed.
+Defined.
 
 
 Lemma find_In_witness:
@@ -666,7 +666,7 @@ destruct IHL as [(b,(HbA,HbB))|IHL].
     intros b [Hb|Hb].
     * rewrite <-Hb. crush.
     * apply IHL. crush.
-Qed.
+Defined.
 
 Lemma split_And_weight_lhs : forall L P1 P2,
 proof_weight (L, P1) < proof_weight (L, P1 && P2).
@@ -674,7 +674,7 @@ Proof.
   intros.
   unfold proof_weight.
   crush.
-Qed.
+Defined.
 
 Lemma split_And_weight_rhs : forall L P1 P2,
 proof_weight (L, P2) < proof_weight (L, P1 && P2).
@@ -682,7 +682,7 @@ Proof.
   intros.
   unfold proof_weight.
   crush.
-Qed.
+Defined.
 
 Lemma split_Or_weight_lhs : forall L P1 P2,
 proof_weight (L, P1) < proof_weight (L, P1 || P2).
@@ -690,7 +690,7 @@ Proof.
   intros.
   unfold proof_weight.
   crush.
-Qed.
+Defined.
 
 Lemma split_Or_weight_rhs : forall L P1 P2,
 proof_weight (L, P2) < proof_weight (L, P1 || P2).
@@ -698,7 +698,7 @@ Proof.
   intros.
   unfold proof_weight.
   crush.
-Qed.
+Defined.
 Hint Resolve split_And_weight_lhs split_And_weight_rhs 
              split_Or_weight_lhs split_Or_weight_rhs.
 
@@ -732,7 +732,7 @@ Proof.
   destruct (obj_eqdec o o'); subst.
   destruct HIn. subst. left; auto.
   right; auto. right; auto.
-Qed.
+Defined.
 
 Lemma types_in_nonnil : forall L o t,
 In (Atom (istype o t)) L
@@ -749,7 +749,7 @@ Proof.
   apply (IHL o t). auto. auto.
   apply (IHL o t). auto. auto.
   apply (IHL o t). auto. auto.
-Qed.      
+Defined.      
    
 Fixpoint type_pair_weight (tp : (type * type)) : nat :=
 (type_weight (fst tp)) + (type_weight (snd tp)).
@@ -812,7 +812,7 @@ Lemma flip_eq {X:Type} : forall t1 t2 : X ,
 (t1, t2) = flip_pair (t2,t1).
 Proof.
   crush.
-Qed.  
+Defined.  
 
 Lemma CST_symmetric : forall tp,
 CommonSubtype tp
@@ -851,7 +851,7 @@ Proof.
   apply CST_Pair. 
     rewrite flip_eq. apply IH. auto_tp_weight. auto.
     rewrite flip_eq. apply IH. auto_tp_weight. auto.
-Qed.
+Defined.
 
 Fixpoint contains_type_conflict (o:object) (t:type) (L:list prop) : opt type :=
   match L with
@@ -884,7 +884,7 @@ Proof.
   destruct f as [o' t'].
   destruct (obj_eqdec o o'); try (solve[crush]).
   destruct (CST_dec (t1, t')); crush.
-Qed.  
+Defined.  
 
 Lemma contains_conflict_None : forall L o t1 t2,
 In (o ::= t1) L
@@ -899,7 +899,7 @@ Proof.
   destruct (obj_eqdec o o); try (solve[crush]).
   destruct (CST_dec (t2, t1)).
   crush. crush.
-Qed.  
+Defined.  
 
 Lemma contains_conflict_Some : forall L o t1 t2,
 contains_type_conflict o t1 L = Some t2
@@ -929,7 +929,7 @@ Proof.
   apply IHL' in HSome. auto.
   fold contains_type_conflict in HSome.
   apply IHL' in HSome. auto.
-Qed.
+Defined.
 
 Lemma contains_conflict_Some_In : forall L o t1 t2,
 contains_type_conflict o t1 L = Some t2
@@ -959,7 +959,7 @@ Proof.
   apply IHL' in HSome. right; auto.
   fold contains_type_conflict in HSome.
   apply IHL' in HSome. right; auto.
-Qed.
+Defined.
 
 
 Fixpoint contains_contradiction (L:list prop) : opt (object * type * type) := 
@@ -1009,7 +1009,7 @@ Proof.
 Grab Existential Variables.
 inversion HNone.
 destruct (contains_type_conflict o' t' L'); crush.
-Qed.
+Defined.
 
 Lemma contains_contradiction_Some : forall L o t1 t2,
 contains_contradiction L = Some (o, t1, t2) 
@@ -1040,7 +1040,7 @@ Proof.
   apply IHL' in H0. crush.
   apply IHL' in H0. crush.
   apply IHL' in H0. crush.
-Qed.
+Defined.
 
 Lemma rem_add1_lt : forall L P Pbig Psmall,
 In Pbig L
@@ -1059,7 +1059,7 @@ Proof.
   simpl. fold rem.
   eapply (IHL P Pbig Psmall) in H. 
   unfold proof_weight in *. crush. auto.
-Qed.  
+Defined.  
 
 Lemma rem_add2_lt : forall L P Pbig Psmall1 Psmall2,
 In Pbig L
@@ -1078,7 +1078,7 @@ Proof.
   simpl. fold rem.
   eapply (IHL P Pbig Psmall1 Psmall2) in H. 
   unfold proof_weight in *. crush. auto.
-Qed.  
+Defined.  
 
 Lemma rem_add3_lt : forall L P Pbig Psmall1 Psmall2 Psmall3,
 In Pbig L
@@ -1097,7 +1097,7 @@ Proof.
   simpl. fold rem.
   eapply (IHL P Pbig Psmall1 Psmall2 Psmall3) in H. 
   unfold proof_weight in *. crush. auto.
-Qed.  
+Defined.  
 
 
 Lemma rem_ltgoal_lt : forall L P Pbig Psmall,
@@ -1114,7 +1114,7 @@ Proof.
   unfold proof_weight. unfold rem.
   destruct (prop_eqdec Pbig a). crush.
   apply IHL in H. fold rem. unfold proof_weight in *. crush.
-Qed.
+Defined.
 
 Definition tp_weight tp := (type_weight (fst tp)) + (prop_weight (snd tp)).
 
@@ -1179,7 +1179,7 @@ Proof.
     apply (IH (tBot,P2)). unfold ltof. unfold tp_weight. crush.
     destruct t; crush.
   crush.
-Qed.
+Defined.
 
 Lemma subst_t_weight : forall t x y,
 type_weight (subst_t t (Some (var y)) x) <= type_weight t.
@@ -1188,7 +1188,7 @@ Proof.
   assert (t = (fst (t,FF))) as Heq. crush.
   rewrite Heq.
   apply subst_weight.
-Qed.
+Defined.
 
 Lemma subst_p_weight : forall p x y,
 prop_weight (subst_p p (Some (var y)) x) <= prop_weight p.
@@ -1197,7 +1197,7 @@ Proof.
   assert (p = (snd (tBot,p))) as Heq. crush.
   rewrite Heq.
   apply subst_weight.
-Qed.
+Defined.
 
 
 Lemma rem_λ_weight1 : forall L x1 t1a t1r p1 o1 x2 t2a t2r p2 o2 o o',
@@ -1214,7 +1214,7 @@ Proof.
   assert (type_weight (subst_t t1r (Some (var x2)) x1) <= type_weight t1r) as Hleq.
     apply subst_t_weight.
   crush.
-Qed.
+Defined.
 
 Lemma rem_λ_weight2 : forall L x1 t1a t1r p1 o1 x2 t2a t2r p2 o2 o o',
 In (Atom (istype o (tλ x1 t1a t1r p1 o1))) L
@@ -1233,7 +1233,7 @@ Proof.
   crush. 
   unfold proof_weight in *. simpl in *.
   destruct a as [[o'' t''] |P1 P2|P1 P2|P1 P2| | |]; crush.
-Qed.
+Defined.
 
 Lemma rem_λ_weight3 : forall L x1 t1a t1r p1 o1 x2 t2a t2r p2 o2 o o',
 In (Atom (istype o (tλ x1 t1a t1r p1 o1))) L
@@ -1253,19 +1253,19 @@ Proof.
   assert (prop_weight (subst_p p1 (Some (var x2)) x1) <= prop_weight p1) as Hleq.
   apply subst_p_weight.
   crush.
-Qed.
+Defined.
 
 Lemma conj_dec : forall P Q,
 {P} + {~P}
 -> {Q} + {~Q}
 -> {P /\ Q} + {~(P /\ Q)}.
-Proof. crush. Qed.
+Proof. crush. Defined.
 
 Lemma disj_dec : forall P Q,
 {P} + {~P}
 -> {Q} + {~Q}
 -> {P \/ Q} + {~(P \/ Q)}.
-Proof. crush. Qed.
+Proof. crush. Defined.
 
 Definition obj_car (o:object) : object :=
   match o with
@@ -1294,7 +1294,7 @@ Proof.
   right. intros P o HIn contra.
   apply n in HIn. subst P. apply HIn.
   crush.
-Qed.  
+Defined.  
 
 Definition get_fact (p:prop) : opt fact :=
   match p with
@@ -1310,7 +1310,7 @@ Proof.
   destruct a; crush.
   destruct f.
   destruct (obj_eqdec o o0); crush.
-Qed. 
+Defined. 
 
 Lemma types_nil_false : forall L o t,
 In (Atom (istype o t)) L
@@ -1325,7 +1325,7 @@ Proof.
   fold types_in in Htypes. crush. crush.
   apply types_nil_cut in Htypes.
   apply (IHL _ _ H Htypes); auto.
-Qed.  
+Defined.  
 
 Lemma Proves_dec_pair : 
   forall (goal:(list prop * prop)), 
@@ -1557,6 +1557,55 @@ Proof.
   remember (Proves_dec_pair (Γ, P)) as H.
   crush.
 Defined.
+
+
+Lemma proves_TT :
+Proves [] TT.
+Proof.
+  remember (Proves_dec [] TT).
+  compute in Heqs. exact (P_True []).
+Defined.
+
+Ltac solve_it :=
+  match goal with 
+    | |- Proves ?L ?P =>
+      let provability := constr:(Proves_dec L P) in
+      let proof := eval vm_compute in provability in
+      match proof with
+        | left ?prf => exact prf
+        | right _ => idtac
+      end
+  end.
+
+Lemma proves_TT2 :
+Proves [] TT.
+Proof.
+  solve_it.
+Defined.
+
+
+Lemma proves_simple1 : 
+Proves [((var (Id 0)) ::= tNat)] (((var (Id 0)) ::= tTop) || ((var (Id 0)) ::= tBot)).
+Proof.
+  solve_it.
+Qed.
+
+Lemma proves_simple2 : 
+Proves [((var (Id 0)) ::= tNat);
+       (((var (Id 0)) ::= tNat) 
+          --> (((var (Id 1)) ::= tNat) 
+                 || ((var (Id 1)) ::= tBool)));
+       ((((var (Id 1)) ::= tT) 
+          || ((var (Id 1)) ::= tF))
+          --> ((var (Id 2)) ::= tStr))] 
+       (((var (Id 0)) ::= tNat) 
+          && (((var (Id 1)) ::= tNat) || (((var (Id 2)) ::= tStr)
+                                            && ((var (Id 1)) ::= tBool)))).
+Proof.
+  solve_it.
+Qed.
+
+
 
 Definition Subtype (t1 t2:type) := 
   Proves [((var (Id 0)) ::= t1)] ((var (Id 0)) ::= t2).

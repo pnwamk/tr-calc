@@ -1550,193 +1550,54 @@ Proof.
       } 
     }      
     { (* Non Car or Cdr app *)
-      
-    }
-    }
-
-    destruct (IHfun E) as [[[[ft fp] fo] [funH funHU]] | funHNo].
-    {
-      destruct efun.
-      right; intros t' p' o' HNope.
-      inversion HNope; subst. inversion H1.
-      right; intros t' p' o' HNope.
-      inversion HNope; subst. inversion H1.
-      right; intros t' p' o' HNope.
-      inversion HNope; subst. inversion H1.
-      right; intros t' p' o' HNope.
-      inversion HNope; subst. inversion H1.
-      { (* eApp - var *)
+      destruct (IHfun E) as [[[[ft fp] fo] [funH funHU]] | funHNo].
+      {
         destruct ft as [ | | | | | | | | | ];
         try(solve[right; intros t' p' o' HNope; 
                   inversion HNope; subst;
                   match goal with 
                     | [ H : TypeOf E ?efun ?t' ?p' ?o' |- False ] =>
                       specialize (funHU _ _ _ H); destruct funHU; crush
-                    | _ => inversion funH
-                  end;
-                  inversion funH; inversion funH]).
+                    | [ H : TypeOf E (eOp (p_op _)) _ _ _  |- _] => 
+                      solve[crush]
+                  end]).
         destruct (IHarg E) as [[[[argt argp] argo] [argH argHU]] | argHNo].    
         {
           destruct (ST_dec argt ft1) as [HargST | HargNoST].
-          left. exists ((subst_t ft2 argo i0),(subst_p p argo i0),(subst_o o argo i0)).
+          left. exists ((subst_t ft2 argo i),(subst_p p argo i),(subst_o o argo i)).
           split. eapply T_App. eassumption. eassumption. auto.
           intros t' p' o' Happ.
           inversion Happ; subst.
-          apply funHU in H1.
-          destruct H1 as [tfun_eq [p_eq o_eq]].
+          match goal with
+            | [ H: TypeOf E efun ?t ?p ?o |- _] =>
+              specialize (funHU _ _ _ H)
+          end.
+          destruct funHU as [tfun_eq [p_eq o_eq]].
           inversion tfun_eq. subst.
-          apply argHU in H3.
-          destruct H3 as [targ_eq [parg_eq oarg_eq]]. subst.
-          auto.
+          match goal with
+            | [ H: TypeOf E earg ?t ?p ?o |- _] =>
+              specialize (argHU _ _ _ H)
+          end.
+          destruct argHU as [targ_eq [parg_eq oarg_eq]]. subst.
+          auto. crush. crush.
           right. intros t' o' i' Hno.
           inversion Hno; subst.
           apply HargNoST.
-          assert (argt = σ /\ tλ i0 ft1 ft2 p o = (tλ x σ' τ fψ fo0)) as [argteq funeq].
+          assert (argt = σ /\ tλ i ft1 ft2 p o = (tλ x σ' τ fψ fo0)) as [argteq funeq].
           split. eapply argHU. eassumption. eapply funHU. eassumption.
-          inversion funeq. subst. auto.
+          inversion funeq. subst. auto. crush. crush.
         }
         {
           right. intros t' o' i' Hno.
-          inversion Hno; subst.
-          eapply argHNo. eassumption.
-        }
-      }
-      { (* eApp - eOp *)
-        destruct o.
-        { (* c_op *)
-          destruct ft; 
-          try(solve[right; intros t p o Htype; inversion Htype; subst;
-                    match goal with 
-                      | [ H: TypeOf E (eOp (c_op c)) ?t ?p ?o |- False] =>
-                        specialize (funHU t p o H); crush
-                    end]).
-          destruct (IHarg E) as [[[[argt argp] argo] [argH argHU]] | argHNo].   
-          { 
-            clear IHfun; clear IHarg.
-            destruct (ST_dec argt ft1) as [HST | HNoST].
-            { (* Subtype argt ft1 *)
-              left. exists ((subst_t ft2 argo i), (subst_p p  argo i), (subst_o o  argo i)).
-              split. apply (T_App _ _ _ _ _ _ _ _ _ _ _ _ _ funH argH); auto.
-              intros t' p' o' Htype.
-              inversion Htype; subst.
-              match goal with
-                |  [H : TypeOf E (eOp (c_op c)) (tλ ?x ?σ' ?τ ?fψ ?fo0) ?ψ ?o0 |- _] => 
-                   specialize (funHU (tλ x σ' τ fψ fo0) ψ o0 H)
-              end.
-              destruct funHU as [teq [peq oeq]].
-              inversion teq; subst.
-              assert (argo = o'0). eapply argHU. eassumption. subst. auto. 
-            }
-            { (* ~Subtype argt ft1 *)
-              right. intros t' o' i' Htype. inversion Htype; subst.
-              assert (argt = σ). eapply argHU. eassumption.
-              assert (ft1 = σ').
-              assert ((tλ i ft1 ft2 p o)= (tλ x σ' τ fψ fo0)). eapply funHU.
-              eassumption. inversion H0. reflexivity.
-              subst. apply HNoST. auto.
-            }
-          }
-          { 
-            right. intros t' o' i' Hno.
-            inversion Hno; subst.
-            eapply argHNo. eassumption.
-          }
-        }
-        { (* p_op *)
-          right. inversion funH.
+          inversion Hno; subst; eapply argHNo; eassumption.
         }
       }
       {
-        right; inversion funH.
+        right. intros t' o' i' Hno.
+        inversion Hno; subst; eapply funHNo; try(eassumption || solve[crush]).
       }
-{}
-          destruct p.
-          { (* Car *)
-            destruct (IHarg E) as [[[[argt argp] argo] [argH argHU]] | argHNo].   
-            {
-              destruct argt.
-              try(solve[right; intros t p o Htype; inversion Htype; subst;
-                        match goal with 
-                          | [ H: TypeOf E (eOp (p_op opCar)) ?t ?p ?o |- False] =>
-                            try(solve[inversion H])
-                        end]).
-              try(solve[right; intros t p o Htype; inversion Htype; subst;
-                        match goal with 
-                          | [ H: TypeOf E (eOp (p_op opCar)) ?t ?p ?o |- False] =>
-                            try(solve[inversion H])
-                        end]).
-              try(solve[right; intros t p o Htype; inversion Htype; subst;
-                        match goal with 
-                          | [ H: TypeOf E (eOp (p_op opCar)) ?t ?p ?o |- False] =>
-                            try(solve[inversion H])
-                        end]).
-              try(solve[right; intros t p o Htype; inversion Htype; subst;
-                        match goal with 
-                          | [ H: TypeOf E (eOp (p_op opCar)) ?t ?p ?o |- False] =>
-                            try(solve[inversion H])
-                        end]).
-              try(solve[right; intros t p o Htype; inversion Htype; subst;
-                        match goal with 
-                          | [ H: TypeOf E (eOp (p_op opCar)) ?t ?p ?o |- False] =>
-                            try(solve[inversion H])
-                        end]).
-              try(solve[right; intros t p o Htype; inversion Htype; subst;
-                        match goal with 
-                          | [ H: TypeOf E (eOp (p_op opCar)) ?t ?p ?o |- False] =>
-                            try(solve[inversion H])
-                        end]).
-              try(solve[right; intros t p o Htype; inversion Htype; subst;
-                        match goal with 
-                          | [ H: TypeOf E (eOp (p_op opCar)) ?t ?p ?o |- False] =>
-                            try(solve[inversion H])
-                        end]).
-              try(solve[right; intros t p o Htype; inversion Htype; subst;
-                        match goal with 
-                          | [ H: TypeOf E (eOp (p_op opCar)) ?t ?p ?o |- False] =>
-                            try(solve[inversion H])
-                        end]).
-              right.
-              inversion funH.
-              try(solve[right; intros t p o Htype; inversion Htype; subst;
-                        match goal with 
-                          | [ H: TypeOf E (eOp (p_op opCar)) ?t ?p ?o |- False] =>
-                            try(solve[inversion H])
-                        end]).
-              
-              
-            }
-          }
-          { (* Cdr *)
-          }
-        }
-          apply
-          inversion ft.
-          inversion funH.
-          destruct ft.
-          inversion funH; subst.
-
-          destruct c.
-          { (* opAdd1 *)
-            destruct (IHarg E) as [[[[argt argp] argo] [argH argHU]] | argHNo].    
-            destruct (type_eqdec tNat argt) as [HgoodArg | HbadArg].
-            { (* arg = tNat *)
-              subst argt.
-              left. exists (tNat, TT, None).
-              split. apply T_App. left. (* BOOKMARK *)
-            }
-            { (* arg <> tNat *)
-            }
-          }
-          left.
- 
-          exists (ft, fp, fo).
-          left.
-          split.
-        }
-        (*  *)
-      }
-      
-      (* BOOKMARK *)
     }
-
+  }
+  { (* Let *)
+    
   }

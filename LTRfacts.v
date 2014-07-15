@@ -1333,6 +1333,104 @@ Proof.
   destruct (id_eqdec x x); crush.
 Qed.
 
+Fixpoint exp_weight (e:exp) : nat :=
+match e with
+  | eIf e1 e2 e3 => 1 + (exp_weight e1)
+                      + (exp_weight e2)
+                      + (exp_weight e3)
+  | eλ _ _ e => 1 + exp_weight e
+  | eApp e1 e2 =>  1 + (exp_weight e1)
+                     + (exp_weight e2)
+  | eLet _ e1 e2 => 1 + (exp_weight e1)
+                      + (exp_weight e2)
+  | eCons e1 e2 =>  1 + (exp_weight e1)
+                      + (exp_weight e2)
+  | _ => 0
+end.
+
+Lemma tpo_eqdec : 
+  forall (t : type)  (p :prop)  (o:opt object)
+         (t' : type) (p' :prop) (o':opt object),
+{(t,p,o) = (t',p',o')} + {(t,p,o) <> (t',p',o')}.
+Proof.
+  repeat decide equality.
+Qed.
+
+Ltac howboutno :=
+try(solve[right; intros contra; inversion contra; crush]).
+
+Definition TypeOf_dec : forall e E t p o,
+{TypeOf E e t p o} + {~TypeOf E e t p o}.
+Proof.
+  intros e.
+  induction e as 
+      [[n |
+       |
+       |
+       s |
+       x |
+       abs |
+       econd etrue efalse |
+       x t body |
+       efun earg |
+       x xexp body |
+       elhs erhs]
+         IH] using
+            (well_founded_induction
+               (well_founded_ltof _ exp_weight)).
+  { (* # n *)
+    intros E t p o.
+    destruct (tpo_eqdec t p o tNat TT None) as [Heq | Hneq].
+    inversion Heq; subst.
+    left; apply T_Nat; auto.
+    howboutno.
+  }
+  { (* #t *)
+    intros E t p o.
+    destruct (tpo_eqdec t p o tT TT None) as [Heq | Hneq].
+    inversion Heq; subst.
+    left; apply T_True; auto.
+    howboutno.
+  }
+  { (* #f *)
+    intros E t p o.
+    destruct (tpo_eqdec t p o tF FF None) as [Heq | Hneq].
+    inversion Heq; subst.
+    left; apply T_False; auto.
+    howboutno.
+  }
+  { (* #t *)
+    intros E t p o.
+    destruct (tpo_eqdec t p o tStr TT None) as [Heq | Hneq].
+    inversion Heq; subst.
+    left; apply T_Str; auto.
+    howboutno.
+  }
+  { (* $ x *)
+    intros E t p o.
+    destruct (P_dec E (var x ::= t)) as [HProves | HNoProves]; howboutno.
+    destruct (tpo_eqdec t p o t ((var x) ::~ tF) (Some (var x))) as [Heq | Hneq];
+      howboutno.
+    inversion Heq; subst.
+    left; apply T_Var; auto.
+  }
+  {
+    destruct o; howboutno.
+    (* BOOKMARK *)
+    intros E t p o.
+    destruct (tpo_eqdec t p o (const_type c) TT None) as [Heq | Hneq]; howboutno.
+    inversion Heq; subst.
+    left; apply T_Const; auto.    
+  }
+  {
+    intros E t p o.
+    destruct t; howboutno.
+    destruct p as [ | |p2 p3| | | | ]; howboutno.
+    destruct p2 as [ |p1 p2| | | | | ]; howboutno.
+    destruct p3 as [ |p1' p3| | | | | ]; howboutno.
+    destruct (prop_eqdec p1 p1'); howboutno. subst p1'.
+    destruct 
+  }
 
 
 Definition TypeOf_dec : forall e E,
@@ -1403,13 +1501,13 @@ Proof.
     assert (In (τ', ψ1, o1) []) as condIn.
     { apply condH. auto. }
     inversion condIn.
-    destruct (IHtrue E) as [trueL trueH];
+    destruct (IHtrue (cp::E)) as [trueL trueH];
     clear IHtrue. 
     destruct trueL as [| [[tt tp] to] trueL'].
     exists []. intros ((t,p),o) Htype.
     inversion Htype; subst.
     assert (In (τ2, ψ2, o2) []) as condIn.
-    { apply condH. auto. }
+    { apply trueH. auto. }
     inversion condIn.
 
 

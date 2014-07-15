@@ -1235,13 +1235,9 @@ let x := (Id 0) in
 Hint Constructors TypeOf.
 
 Lemma temp_axiom : forall x E,
-{l : list (type * prop * opt object) |
+ {l : list (type * prop * opt object) |
    forall tpo : type * prop * opt object,
-   (let (p0, o) := tpo in
-    let (t, p) := p0 in
-    TypeOf E ($ x) t p o /\
-    (forall (t' : type) (p' : prop) (o' : opt object),
-     TypeOf E ($ x) t' p' o' -> t = t' /\ p = p' /\ o = o')) -> 
+   (let (p0, o) := tpo in let (t, p) := p0 in TypeOf E ($ x) t p o) ->
    In tpo l}.
 Proof. Admitted.
 
@@ -1343,13 +1339,7 @@ Definition TypeOf_dec : forall e E,
 {l : list (type * prop * opt object) | 
 (forall tpo : (type * prop * opt object),
  (match tpo with 
-   | (t, p, o) => 
-     (TypeOf E e t p o 
-      /\ (forall t' p' o',
-            TypeOf E e t' p' o'
-            -> (t = t'
-                /\ p = p'
-                /\ o = o')))
+   | (t, p, o) => (TypeOf E e t p o)
   end)
  -> In tpo l)}.
 Proof.
@@ -1368,25 +1358,25 @@ Proof.
        elhs IHlhs erhs IHrhs]; intros.
   {  (* Nat *)
     exists [(tNat, TT, None)].
-    intros ((t,p),o) [Htype HUeq].
+    intros ((t,p),o) Htype.
     inversion Htype; subst.
     crush.
   }
   {  (* #t *)
     exists [(tT, TT, None)].
-    intros ((t,p),o) [Htype HUeq].
+    intros ((t,p),o) Htype.
     inversion Htype; subst.
     crush.
   }
   { (* #f *)
     exists [(tF, FF, None)].
-    intros ((t,p),o) [Htype HUeq].
+    intros ((t,p),o) Htype.
     inversion Htype; subst.
     crush.
   }
   { (* Str *)
     exists [(tStr, TT, None)].
-    intros ((t,p),o) [Htype HUeq].
+    intros ((t,p),o) Htype.
     inversion Htype; subst.
     crush.
   }
@@ -1397,17 +1387,36 @@ Proof.
     destruct abs.
     remember (const_type c) as t.
     exists [(t, TT, None)].
-    intros ((t',p),o) [Htype HUeq].
+    intros ((t',p'),o') Htype.
     inversion Htype; subst.
     crush.
     exists [].
-    intros ((t',p'),o') [Htype HUeq].
+    intros ((t',p'),o') Htype.
     inversion Htype.
   }
   { (* eIf *)
-    (* BOOKMARK *)
-    destruct (IHcond E) as [[[[t1 p1] o1] [condT condH]] | condHNo];
-    clear IHcond.
+    destruct (IHcond E) as [condL condH];
+    clear IHcond. 
+    destruct condL as [| [[ct cp] co] condL'].
+    exists []. intros ((t,p),o) Htype.
+    inversion Htype; subst.
+    assert (In (τ', ψ1, o1) []) as condIn.
+    { apply condH. auto. }
+    inversion condIn.
+    destruct (IHtrue E) as [trueL trueH];
+    clear IHtrue. 
+    destruct trueL as [| [[tt tp] to] trueL'].
+    exists []. intros ((t,p),o) Htype.
+    inversion Htype; subst.
+    assert (In (τ2, ψ2, o2) []) as condIn.
+    { apply condH. auto. }
+    inversion condIn.
+
+
+
+    apply condH. split. 
+
+    specialize (condH _ _ H2 Htype).
     destruct (IHtrue (p1::E)) as [[[[t2 p2] o2] [trueT trueH]] | trueHNo];
     clear IHtrue.
     destruct (IHfalse ((Not p1)::E)) as [[[[t3 p3] o3] [falseT falseH]] | falseHNo];

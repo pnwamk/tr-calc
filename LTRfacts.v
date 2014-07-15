@@ -1506,14 +1506,52 @@ Proof.
       }
       {
         right. intros t' o' i' Hno.
-        inversion Hno; subst.
-        eapply argHNo. eassumption.
-        eapply argHNo. eassumption.
+        inversion Hno; subst; eapply argHNo; eassumption.
       } 
     }
-    destruct (exp_eqdec efun (eOp (p_op opCar))) as [isCdr | noCdr].
+    destruct (exp_eqdec efun (eOp (p_op opCdr))) as [isCdr | noCdr].
     { (* Cdr *)
+      subst efun.
+      destruct (IHarg E) as [[[[argt argp] argo] [argH argHU]] | argHNo].    
+      {
+        destruct argt;
+        try(solve[right; intros t' p' o' Htype; inversion Htype; subst;
+        match goal with
+          | [ H: TypeOf E (eOp (p_op opCdr)) ?t ?p ?o |- False] =>
+            try(solve[inversion H])
+          | [H: TypeOf E earg ?t0 ?ψ0 ?o0 |- _] =>
+            try(solve[specialize (argHU t0 ψ0 o0 H); 
+                       destruct argHU;
+                       match goal with
+                         | [H : _ = _ |- _ ] => try(solve[inversion H])
+                       end])
+        end]).
+        left. 
+        exists (argt2, 
+                (subst_p (obj [cdr] (Id 0) ::~ tF) argo (Id 0)), 
+                (subst_o (Some (obj [cdr] (Id 0))) argo (Id 0))).
+        split. eapply T_Cdr. eassumption. 
+        intros t' p' o' Htype.
+        inversion Htype; subst.
+        match goal with
+          | [ H: TypeOf E (eOp (p_op opCdr)) ?t ?p ?o |- _] =>
+            solve[inversion H]
+        end. 
+        match goal with
+          | [ H: TypeOf E earg ?t ?p ?o |- _] =>
+            specialize (argHU _ _ _ H)
+        end.
+        destruct argHU as [tpaireq [peq oeq]].
+        inversion tpaireq; subst; auto.
+      }
+      {
+        right. intros t' o' i' Hno.
+        inversion Hno; subst; eapply argHNo; eassumption.
+      } 
+    }      
+    { (* Non Car or Cdr app *)
       
+    }
     }
 
     destruct (IHfun E) as [[[[ft fp] fo] [funH funHU]] | funHNo].

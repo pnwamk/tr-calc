@@ -47,6 +47,23 @@ Notation AND := (fun p q =>
 Hint Extern 10 (id) => exact X.
 Hint Extern 10 (prop) => exact TT.
 
+Lemma subst_tBool : forall t X Y,
+tBool = t
+-> subst_t t (Some (var X)) Y = tBool.
+Proof.
+  intros.
+  crush.
+Qed.
+
+Lemma subst_tNat : forall t X Y,
+tNat = t
+-> subst_t t (Some (var X)) Y = tNat.
+Proof.
+  intros.
+  crush.
+Qed.
+
+
 (** *Typechecked Examples *)
 
 Example example1:
@@ -58,6 +75,41 @@ Example example1:
            TT
            None.
 Proof. Admitted. 
+
+
+
+Example example1':
+exists p o,
+    TypeOf [((var X) ::= tTop)]
+           (If (Nat? ($ X))
+               (Add1 ($ X))
+               (#0))
+           (tU tNat tNat)
+           p
+           o.
+Proof.
+  exists (subst_p (Atom (istype (var TMP) tNat)) (Some (var X)) TMP &&
+   subst_p TT (Some (var X)) TMP || (Atom (istype (var X) tNat) --> FF) && TT). exists None.
+  eapply T_If.
+  eapply T_App.
+  eapply T_Const.
+  crush.
+  eapply T_Var with (τ:= tTop); solve_it.
+  solve_it. apply subst_tBool. crush.
+  crush. crush.
+  compute. 
+  eapply T_App.
+  eapply T_Const. crush.
+  eapply T_Var with (τ:= tNat); solve_it.
+  solve_it.
+  apply subst_tNat. crush.
+  crush.
+  crush.
+  simpl.
+  eapply T_Nat.
+  apply ojoin; crush.
+  crush.
+Qed.
 
 Example example2:
     TypeOf []
@@ -72,6 +124,24 @@ Example example2:
            TT
            None.
 Proof. Admitted. 
+
+Example example2':
+    TypeOf []
+           (λ X (tU tStr tNat)
+              (If (Nat? ($ X))
+                  (Add1 ($ X))
+                  (StrLen ($ X))))
+           (tλ X
+               (tU tStr tNat) tNat
+               TT
+               None)
+           TT
+           None.
+Proof. 
+  apply T_Abs.
+
+Admitted. 
+
 
 Example example3:
     TypeOf

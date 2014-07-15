@@ -39,6 +39,14 @@ Proof.
   left; apply SO_Top. left; apply SO_Top.
 Defined.
 
+Lemma SO_trans : forall o1 o2 o3,
+SubObj o1 o2
+-> SubObj o2 o3
+-> SubObj o1 o3.
+Proof.
+  intros.
+  inversion H; inversion H0; crush.
+Qed.
 
 Lemma split_And_weight_lhs : forall L P1 P2,
 proof_weight (L, P1) < proof_weight (L, P1 && P2).
@@ -707,7 +715,6 @@ Lemma Proves_dec_pair :
   forall (goal:(list prop * prop)), 
     {Proves (fst goal) (snd goal)} + {~Proves (fst goal) (snd goal)}.
 Proof.
-  (* Proves_dec *)
   induction goal as ((Γ, P),IH') using
     (well_founded_induction
       (well_founded_ltof _ proof_weight)).
@@ -925,7 +932,7 @@ assert (succedent_dec: {succedent} + {~succedent}).
 } }
 Defined.
 
-Definition Proves_dec : forall Γ P,
+Definition P_dec : forall Γ P,
 {Proves Γ P} + {~Proves Γ P}.
 Proof.
   intros Γ P.
@@ -933,24 +940,118 @@ Proof.
   crush.
 Defined.
 
-
-Lemma proves_TT :
-Proves [] TT.
+Theorem ST_dec : forall t1 t2,
+{Subtype t1 t2} + {~Subtype t1 t2}.
 Proof.
-  remember (Proves_dec [] TT).
-  compute in Heqs. exact (P_True []).
+  intros t1 t2.
+  unfold Subtype. apply P_dec.
 Defined.
 
 Ltac solve_it :=
   match goal with 
     | |- Proves ?L ?P =>
-      let provability := constr:(Proves_dec L P) in
+      let provability := constr:(P_dec L P) in
       let proof := eval vm_compute in provability in
       match proof with
         | left ?prf => exact prf
-        | right _ => idtac
+        | right _ => fail
+      end
+    | |- Subtype ?t1 ?t2 =>
+      let provability := constr:(ST_dec t1 t2) in
+      let proof := eval vm_compute in provability in
+      match proof with
+        | left ?prf => exact prf
+        | right _ => fail
+      end
+    | |- SubObj ?o1 ?o2 =>
+      let provability := constr:(SO_dec o1 o2) in
+      let proof := eval vm_compute in provability in
+      match proof with
+        | left ?prf => exact prf
+        | right _ => fail
       end
   end.
+
+Lemma subst_o_eq_id : forall o x,
+(subst_o o (Some (var x)) x) = o.
+Proof.
+  intros o x.
+  destruct o; crush.
+  destruct o. destruct (id_eqdec i x); crush.
+  rewrite app_nil_r. auto.
+Qed.
+
+(* Lemma subst_t_eq_id : forall t x, *)
+(* (subst_t t (Some (var x)) x) = t *)
+(* with subst_p_eq_id : forall p x, *)
+(* (subst_p p (Some (var x)) x) = p. *)
+(* Proof. *)
+(*   clear subst_t_eq_id. *)
+(*   intros. *)
+(*   induction t; crush. *)
+(*   unfold subst_t. unfold subst_t'. *)
+(*   fold subst_t'. fold subst_t. crush. *)
+(*   unfold subst_t. unfold subst_t'. *)
+(*   fold subst_t'. fold subst_t. crush. *)
+(*   unfold subst_t. unfold subst_t'. *)
+(*   destruct (id_eqdec x i). auto.  *)
+(*   fold subst_p'. *)
+(*   fold subst_t'. fold subst_t.  *)
+(*   rewrite subst_o_eq_id.  *)
+(*   rewrite (subst_p_eq_id p). *)
+(*   rewrite IHt1. rewrite IHt2. *)
+(*   auto. *)
+
+(*   clear subst_p_eq_id. *)
+(*   intros. *)
+(*   induction p; crush. *)
+(*   destruct f. *)
+(*   unfold subst_p. unfold subst_p'. *)
+(*   fold subst_t'. fold subst_t.  *)
+(*   destruct o as [π z]. *)
+(*   destruct (id_eqdec x z).  *)
+(*   rewrite app_nil_r.  *)
+(*   rewrite (subst_t_eq_id t x). crush. *)
+(*   destruct (in_dec id_eqdec z (fv_set_t t)). *)
+(*   unfold subst_t. unfold subst_t'. *)
+(*   fold subst_t'. fold subst_t. crush. *)
+(*   unfold subst_t. unfold subst_t'. *)
+(*   destruct (id_eqdec x i). auto.  *)
+(*   fold subst_p'. *)
+(*   fold subst_t'. fold subst_t.  *)
+(*   rewrite subst_o_eq_id.  *)
+(*   rewrite (subst_p_eq_id p). *)
+(*   rewrite IHt1. rewrite IHt2. *)
+(*   auto. *)
+
+(*   intros t x. *)
+
+(* Lemma S_Refl : forall t, *)
+(* Subtype t t. *)
+(* Proof. *)
+(*   intros. *)
+(*   induction t. *)
+(*   solve_it. solve_it. solve_it. solve_it. *)
+(*   solve_it. solve_it. solve_it. *)
+(*   unfold Subtype. *)
+(*   apply (P_UnionElim _ _ t1 t2 (var (Id 0))). *)
+(*   crush. apply P_Union_lhs. apply P_Axiom. crush. *)
+(*   apply P_Union_rhs. apply P_Axiom. crush. *)
+(*   unfold Subtype. *)
+(*   apply (P_PairElim _ _ t1 t2 [] (Id 0)). *)
+(*   crush. apply P_Pair. apply P_Axiom. crush. *)
+(*   apply P_Axiom. crush. apply P_Axiom. crush. *)
+(*   unfold Subtype. *)
+(*   apply (P_Fun _ i t1 t2 p o). crush. *)
+(*   crush. apply P_Pair. apply P_Axiom. crush. *)
+(*   apply P_Axiom. crush. apply P_Axiom. crush. *)
+
+(*   apply P_Union_rhs. apply P_Axiom. crush. *)
+
+(*   auto. *)
+(*   solve_it. *)
+(*   simpl. *)
+
 
 Lemma proves_TT2 :
 Proves [] TT.
@@ -980,32 +1081,575 @@ Proof.
   solve_it.
 Qed.
 
-Theorem Subtype_dec : forall t1 t2,
-{Subtype t1 t2} + {~Subtype t1 t2}.
+Theorem optobj_eqdec : forall o1 o2 : opt object,
+{o1 = o2} + {o1 <> o2}.
 Proof.
-  intros t1 t2.
-  unfold Subtype. apply Proves_dec.
-Defined.
+  decide equality.
+Qed.
 
-Theorem TypeOf_dec : forall e E t p o,
-{TypeOf E e t p o} + {~TypeOf E e t p o}.
+Ltac right_fail := solve[right; intros contra; inversion contra; crush].
+
+Inductive ObjJoin : (opt object * opt object) -> opt object -> Prop :=
+| ojoin : forall o1 o2 omin,
+            SubObj o1 omin
+            -> SubObj o2 omin
+            ->(forall o',
+              SubObj o1 o' /\ SubObj o2 o' ->
+              SubObj omin o')
+                -> ObjJoin (o1,o2) omin.
+
+Hint Constructors SubObj.
+
+Theorem min_supo : forall o1 o2,
+{omin | ObjJoin (o1,o2) omin}.
 Proof.
-  intros e.
+  intros o1 o2.
+  destruct (optobj_eqdec o1 None).
+  exists None. subst. apply ojoin; crush. 
+  destruct (optobj_eqdec o2 None).
+  exists None. subst. apply ojoin; crush. 
+  destruct (optobj_eqdec o1 o2). subst.
+  exists o2. apply ojoin; crush.
+  exists None; apply ojoin; crush.
+  inversion H0; crush.
+  inversion H1; crush.
+Qed.  
+
+Theorem ObjJoin_unique : forall o1 o2 oa ob,
+ObjJoin (o1,o2) oa
+-> ObjJoin (o1,o2) ob
+-> oa = ob.
+Proof.
+  intros o1 o2 oa ob Hoa Hob.
+  inversion Hoa as [a b c HSOa1 HSOa2 HUa]; subst.
+  inversion Hob as [a b c HSOb1 HSOb2 HUb]; subst.
+  inversion HSOa1; subst.
+  inversion HSOa2; subst.
+  inversion HSOb1; subst. auto.
+  specialize (HUb oa (conj HSOa1 HSOa2)).
+  inversion HUb; subst. auto. auto.
+  inversion HSOa2; subst.
+  inversion HSOb1; subst. auto. auto.
+  inversion HSOb2; subst; auto.
+  inversion HSOb1; subst. auto. auto.
+  specialize (HUa ob (conj HSOb1 HSOb2)).
+  inversion HUa; subst. auto. auto.
+Qed.
+
+Definition prim_poly (e:exp) : bool :=
+match e with
+| eOp (p_op _ ) => true
+| _ => false
+end.
+
+Definition car_obj (o:object) : object :=
+  match o with
+    | obj π x => obj (car::π) x
+  end.
+
+Definition cdr_obj (o:object) : object :=
+  match o with
+    | obj π x => obj (car::π) x
+  end.
+
+(** ** TypeOf *)
+
+Inductive TypeOf : list prop -> exp -> type -> prop -> opt object -> Prop :=
+| T_Nat :
+    forall Γ n,
+      TypeOf Γ (#n) tNat TT None
+| T_Str :
+    forall Γ s,
+      TypeOf Γ (Str s) tStr TT None
+| T_Const :
+    forall Γ c τ,
+      τ = (const_type c)
+      -> TypeOf Γ (eOp (c_op c)) τ TT None
+| T_True :
+    forall Γ,
+      TypeOf Γ #t tT TT None
+| T_False :
+    forall Γ,
+      TypeOf Γ #f tF FF None
+| T_Var :
+    forall Γ x τ,
+      Proves Γ ((var x) ::= τ)
+      -> TypeOf Γ ($ x) τ ((var x) ::~ tF) (Some (var x))
+| T_Abs :
+    forall Γ x σ e τ ψ o,
+      TypeOf (((var x) ::= σ)::Γ) e τ ψ o
+      -> TypeOf Γ 
+                (eλ x σ e)
+                (tλ x σ τ ψ o) 
+                TT
+                None
+| T_App :
+    forall Γ e e' τ o' x σ' σ fψ fo o ψ ψ',
+      TypeOf Γ e (tλ x σ' τ fψ fo) ψ o
+      -> TypeOf Γ e' σ ψ' o'
+      -> Subtype σ σ'
+      -> TypeOf Γ 
+                (Apply e e')
+                (subst_t τ o' x) 
+                (subst_p fψ o' x) 
+                (subst_o fo o' x)
+| T_If :
+    forall Γ e1 e2 e3 τ2 τ3 o τ' ψ1 o1 o2 o3 ψ2 ψ3,
+      TypeOf Γ e1 τ' ψ1 o1
+      -> TypeOf (ψ1::Γ) e2 τ2 ψ2 o2
+      -> TypeOf ((Not ψ1)::Γ) e3 τ3 ψ3 o3
+      -> ObjJoin (o2,o3) o
+      -> TypeOf Γ (If e1 e2 e3) (tU τ2 τ3) (((ψ1 && ψ2) || ((Not ψ1) && ψ3))) o
+| T_Cons :
+    forall Γ e1 e2 τ1 τ2 ψ1 o1 ψ2 o2,
+      TypeOf Γ e1 τ1 ψ1 o1
+      -> TypeOf Γ e2 τ2 ψ2 o2
+      -> TypeOf Γ (Cons e1 e2) (tPair τ1 τ2) TT None
+| T_Car :
+    forall Γ e τ1 x o τ2 ψ0,
+      TypeOf Γ e (tPair τ1 τ2) ψ0 o
+      -> TypeOf Γ (Car e) τ1 (subst_p ((obj [car] x) ::~ tF) o x) (subst_o (Some (obj [car] x)) o x)
+| T_Cdr :
+    forall Γ e τ2 x o τ1 ψ0,
+      TypeOf Γ e (tPair τ1 τ2) ψ0 o
+      -> TypeOf Γ (Cdr e) τ2 (subst_p ((obj [cdr] x) ::~ tF) o x) (subst_o (Some (obj [cdr] x)) o x)
+| T_Let :
+    forall Γ x e0 e1 σ o0 o1 τ ψ0 ψ1,
+      TypeOf Γ e0 τ ψ0 o0
+      -> TypeOf (((var x) ::= τ)
+                   ::(((var x) ::~ tF) --> ψ0)
+                   ::(((var x) ::= tF) --> (Not ψ0))
+                   ::Γ) 
+                e1
+                σ
+                ψ1
+                o1
+      -> TypeOf Γ 
+                (Let x e0 e1) 
+                (subst_t σ o0 x) 
+                (subst_p ψ1 o0 x)
+                (subst_o o1 o0 x).
+Hint Constructors TypeOf.
+
+Lemma temp_axiom : forall x E,
+   {tpo : type * prop * opt object |
+   let (p0, o) := tpo in
+   let (t, p) := p0 in
+   TypeOf E ($ x) t p o /\
+   (forall (t' : type) (p' : prop) (o' : opt object),
+    TypeOf E ($ x) t' p' o' -> t = t' /\ p = p' /\ o = o')} +
+   {(forall (t : type) (p : prop) (o : opt object), ~ TypeOf E ($ x) t p o)}.
+Proof. Admitted.
+
+Lemma S_Refl_Const : forall c,
+Subtype (const_type c) (const_type c).
+Proof.
+  intros.
+  destruct c; solve_it.
+Qed.
+Hint Resolve S_Refl_Const.
+
+Hint Constructors SubObj.
+Lemma ex_min_super_obj : forall o1 o2,
+{so : opt object | SubObj o1 so 
+                   /\ SubObj o2 so 
+                   /\ (forall o', 
+                         (SubObj o1 o' /\ SubObj o2 o') ->
+                                  SubObj so o')}.
+Proof.
+  intros o1 o2.
+  destruct o1 as [o1|]. destruct o2 as [o2|].
+  destruct (obj_eqdec o1 o2); subst.
+  exists (Some o2). crush. 
+  exists None. crush.
+  inversion H0; inversion H1; crush.
+  exists None; crush.
+  exists None; crush.
+Qed.  
+
+Lemma U_st_lhs : forall t1 t2,
+Subtype t1 (tU t1 t2).
+Proof.
+  intros.
+  unfold Subtype. apply P_Union_lhs. apply P_Axiom; auto. crush.
+Qed.
+
+Lemma U_st_rhs : forall t1 t2,
+Subtype t2 (tU t1 t2).
+Proof.
+  intros.
+  unfold Subtype. apply P_Union_rhs. apply P_Axiom; auto. crush.
+Qed.
+Hint Resolve U_st_lhs U_st_rhs.
+
+Lemma rem_t_eq : forall P L,
+rem P (P :: L) = L.
+Proof.
+  intros.
+  unfold rem.
+  destruct (prop_eqdec P P); crush.
+Qed.  
+
+Lemma st_U : forall t1 t2 t3,
+Subtype t1 t3
+-> Subtype t2 t3
+-> Subtype (tU t1 t2) t3.
+Proof.
+  intros.
+  unfold Subtype in *.
+  apply (P_UnionElim _ _ t1 t2 (var (Id 0))); auto.
+  crush. 
+  rewrite (rem_t_eq (Atom (istype (var (Id 0)) (tU t1 t2)))). auto.
+  rewrite (rem_t_eq (Atom (istype (var (Id 0)) (tU t1 t2)))). auto.
+Qed.
+Hint Resolve st_U.
+
+Hint Constructors ObjJoin.
+
+Definition is_pair (e:exp) : bool :=
+match e with
+| eCons _ _ => true
+| _ => false
+end.
+
+Definition is_tPair (t:type) : bool :=
+match t with
+| tPair _ _ => true
+| _ => false
+end.
+
+Lemma Cons_is_tPair : forall E elhs erhs t p o,
+TypeOf E (Cons elhs erhs) t p o
+-> is_tPair t = true.
+Proof.
+  intros E lhs rhs t p o H.
+  inversion H. subst. simpl. reflexivity.
+Qed.  
+
+
+Definition TypeOf_dec : forall e E,
+{tpo : (type * prop * opt object) | 
+ match tpo with 
+   | (t, p, o) => 
+     (TypeOf E e t p o 
+      /\ (forall t' p' o',
+            TypeOf E e t' p' o'
+            -> (t = t'
+                /\ p = p'
+                /\ o = o')))
+      end} 
++ {forall t p o, ~TypeOf E e t p o}.
+Proof.
+  intro e.
   induction e as
-      [x |
-       o |
+      [n |
        |
        |
-       n |
        s |
-       econd etrue efalse |
-       x t ebody |
-       efun earg |
-       x exbody ebody |
-       elhs Hlhs erhs Hrhs].
+       x |
+       abs |
+       econd IHcond etrue IHtrue efalse IHfalse |
+       x t body IHbody |
+       efun IHfun earg IHarg |
+       x xexp IHx body IHbody |
+       elhs Hlhs erhs Hrhs]; intros.
+  {  (* Nat *)
+    left; exists (tNat, TT, None). crush.
+    inversion H; crush. 
+    inversion H; crush. 
+    inversion H; crush. 
+  }
+  {  (* #t *)
+    left; exists (tT, TT, None). crush.
+    inversion H; crush. 
+    inversion H; crush.
+    inversion H; crush.
+  }
+  { (* #f *)
+    left; exists (tF, FF, None).
+    split. crush. 
+    intros t' p' o' H; inversion H; crush.
+  }
+  { (* Str *)
+    left; exists (tStr, TT, None).
+    split. crush. 
+    intros t' p' o' H; inversion H; crush.
+  }
+  { (* eVar *)
+    apply temp_axiom. (* yuck! *)
+  }
+  { (* eOp *)
+    destruct abs.
+    remember (const_type c) as t.
+    left; exists (t, TT, None). 
+    split. crush. 
+    intros t' p' o' H; inversion H; crush.
+    right. intros t p' o contra. inversion contra.
+  }
+  { (* eIf *)
+    destruct (IHcond E) as [[[[t1 p1] o1] [condT condH]] | condHNo];
+    clear IHcond.
+    destruct (IHtrue (p1::E)) as [[[[t2 p2] o2] [trueT trueH]] | trueHNo];
+    clear IHtrue.
+    destruct (IHfalse ((Not p1)::E)) as [[[[t3 p3] o3] [falseT falseH]] | falseHNo];
+    clear IHfalse.
+    {
+      destruct (ex_min_super_obj o2 o3) as [o [Ho2 [Ho3 Hofact]]].
+      left; exists ((tU t2 t3), (((p1 && p2) || ((Not p1) && p3))), o).
+      split.
+      apply (T_If _ _ _ _ _ _ _ _ _ _ _ _ _ _ condT trueT falseT); auto.
+      intros t' p' o' H. 
+      inversion H; subst.
+      assert (p1 = ψ1) as Hp1eq. eapply condH. eassumption. subst ψ1.
+      assert (t2 = τ2 /\ t3 = τ3) as [Ht2eqs Ht3eqs].
+      {
+        split. 
+        eapply trueH. eassumption.
+        eapply falseH. eassumption.
+      }
+      assert (p2 = ψ2 /\ p3 = ψ3) as [Hp2eqs Hp3eqs].
+      {
+        split.
+        eapply trueH. eassumption.
+        eapply falseH. eassumption.
+      }
+      assert (o2 = o5 /\ o3 = o6) as [Htoeqs Hfoeqs].
+      {
+        split.
+        eapply trueH. eassumption.
+        eapply falseH. eassumption.
+      }
+      subst. split; auto. split; auto.
+      apply (ObjJoin_unique o5 o6). auto. auto.
+    }
+    {
+      right. intros t p o Hno.
+      inversion Hno; subst.
+      assert (p1 = ψ1) as Hp1eq. eapply condH. eassumption. subst ψ1.
+      apply (falseHNo τ3 ψ3 o5). auto.      
+    }
+    {
+      right. intros t p o Hno.
+      inversion Hno; subst.
+      assert (p1 = ψ1) as Hp1eq. eapply condH. eassumption. subst ψ1.
+      apply (trueHNo τ2 ψ2 o3). auto.      
+    }
+    {
+      right. intros t p o Hno.
+      inversion Hno; subst.
+      apply (condHNo τ' ψ1 o1). auto.
+    }
+  }
   {
-    intros. 
-    destruct (Proves_dec E ((var x) ::= t)) as [Htype | Hnottype].
-    left. apply T_Var.
-remember T_Var.
+    destruct (IHbody ((var x ::= t)::E)) as [[[[t' p'] o'] [bodyH bodyHU]] | bodyHNo].
+    {
+      left. exists ((tλ x t t' p' o'), TT, None).
+      split. apply T_Abs. auto.
+      intros t'' p'' o'' Hbody''.
+      inversion Hbody''; subst.
+      assert (t' = τ /\ p' = ψ /\ o' = o) as [Hteq [Hpeq Hoeq]].
+        apply bodyHU. auto.
+      subst. auto.
+    }
+    {
+      right. intros t' p' o' Hno.
+      inversion Hno; subst.
+      eapply bodyHNo. eassumption.
+    }
+  }
+  { (* eApp *)
+    destruct (exp_eqdec efun (eOp (p_op opCar))) as [isCar | noCar].
+    {
+      
+    }
+    destruct (exp_eqdec efun (eOp (p_op opCar))) as [isCdr | noCdr]..
+    {
+
+    }
+
+    destruct (IHfun E) as [[[[ft fp] fo] [funH funHU]] | funHNo].
+    {
+      destruct efun.
+      right; intros t' p' o' HNope.
+      inversion HNope; subst. inversion H1.
+      right; intros t' p' o' HNope.
+      inversion HNope; subst. inversion H1.
+      right; intros t' p' o' HNope.
+      inversion HNope; subst. inversion H1.
+      right; intros t' p' o' HNope.
+      inversion HNope; subst. inversion H1.
+      { (* eApp - var *)
+        destruct ft as [ | | | | | | | | | ];
+        try(solve[right; intros t' p' o' HNope; 
+                  inversion HNope; subst;
+                  match goal with 
+                    | [ H : TypeOf E ?efun ?t' ?p' ?o' |- False ] =>
+                      specialize (funHU _ _ _ H); destruct funHU; crush
+                    | _ => inversion funH
+                  end;
+                  inversion funH; inversion funH]).
+        destruct (IHarg E) as [[[[argt argp] argo] [argH argHU]] | argHNo].    
+        {
+          destruct (ST_dec argt ft1) as [HargST | HargNoST].
+          left. exists ((subst_t ft2 argo i0),(subst_p p argo i0),(subst_o o argo i0)).
+          split. eapply T_App. eassumption. eassumption. auto.
+          intros t' p' o' Happ.
+          inversion Happ; subst.
+          apply funHU in H1.
+          destruct H1 as [tfun_eq [p_eq o_eq]].
+          inversion tfun_eq. subst.
+          apply argHU in H3.
+          destruct H3 as [targ_eq [parg_eq oarg_eq]]. subst.
+          auto.
+          right. intros t' o' i' Hno.
+          inversion Hno; subst.
+          apply HargNoST.
+          assert (argt = σ /\ tλ i0 ft1 ft2 p o = (tλ x σ' τ fψ fo0)) as [argteq funeq].
+          split. eapply argHU. eassumption. eapply funHU. eassumption.
+          inversion funeq. subst. auto.
+        }
+        {
+          right. intros t' o' i' Hno.
+          inversion Hno; subst.
+          eapply argHNo. eassumption.
+        }
+      }
+      { (* eApp - eOp *)
+        destruct o.
+        { (* c_op *)
+          destruct ft; 
+          try(solve[right; intros t p o Htype; inversion Htype; subst;
+                    match goal with 
+                      | [ H: TypeOf E (eOp (c_op c)) ?t ?p ?o |- False] =>
+                        specialize (funHU t p o H); crush
+                    end]).
+          destruct (IHarg E) as [[[[argt argp] argo] [argH argHU]] | argHNo].   
+          { 
+            clear IHfun; clear IHarg.
+            destruct (ST_dec argt ft1) as [HST | HNoST].
+            { (* Subtype argt ft1 *)
+              left. exists ((subst_t ft2 argo i), (subst_p p  argo i), (subst_o o  argo i)).
+              split. apply (T_App _ _ _ _ _ _ _ _ _ _ _ _ _ funH argH); auto.
+              intros t' p' o' Htype.
+              inversion Htype; subst.
+              match goal with
+                |  [H : TypeOf E (eOp (c_op c)) (tλ ?x ?σ' ?τ ?fψ ?fo0) ?ψ ?o0 |- _] => 
+                   specialize (funHU (tλ x σ' τ fψ fo0) ψ o0 H)
+              end.
+              destruct funHU as [teq [peq oeq]].
+              inversion teq; subst.
+              assert (argo = o'0). eapply argHU. eassumption. subst. auto. 
+            }
+            { (* ~Subtype argt ft1 *)
+              right. intros t' o' i' Htype. inversion Htype; subst.
+              assert (argt = σ). eapply argHU. eassumption.
+              assert (ft1 = σ').
+              assert ((tλ i ft1 ft2 p o)= (tλ x σ' τ fψ fo0)). eapply funHU.
+              eassumption. inversion H0. reflexivity.
+              subst. apply HNoST. auto.
+            }
+          }
+          { 
+            right. intros t' o' i' Hno.
+            inversion Hno; subst.
+            eapply argHNo. eassumption.
+          }
+        }
+        { (* p_op *)
+          right. inversion funH.
+        }
+      }
+      {
+        right; inversion funH.
+      }
+{}
+          destruct p.
+          { (* Car *)
+            destruct (IHarg E) as [[[[argt argp] argo] [argH argHU]] | argHNo].   
+            {
+              destruct argt.
+              try(solve[right; intros t p o Htype; inversion Htype; subst;
+                        match goal with 
+                          | [ H: TypeOf E (eOp (p_op opCar)) ?t ?p ?o |- False] =>
+                            try(solve[inversion H])
+                        end]).
+              try(solve[right; intros t p o Htype; inversion Htype; subst;
+                        match goal with 
+                          | [ H: TypeOf E (eOp (p_op opCar)) ?t ?p ?o |- False] =>
+                            try(solve[inversion H])
+                        end]).
+              try(solve[right; intros t p o Htype; inversion Htype; subst;
+                        match goal with 
+                          | [ H: TypeOf E (eOp (p_op opCar)) ?t ?p ?o |- False] =>
+                            try(solve[inversion H])
+                        end]).
+              try(solve[right; intros t p o Htype; inversion Htype; subst;
+                        match goal with 
+                          | [ H: TypeOf E (eOp (p_op opCar)) ?t ?p ?o |- False] =>
+                            try(solve[inversion H])
+                        end]).
+              try(solve[right; intros t p o Htype; inversion Htype; subst;
+                        match goal with 
+                          | [ H: TypeOf E (eOp (p_op opCar)) ?t ?p ?o |- False] =>
+                            try(solve[inversion H])
+                        end]).
+              try(solve[right; intros t p o Htype; inversion Htype; subst;
+                        match goal with 
+                          | [ H: TypeOf E (eOp (p_op opCar)) ?t ?p ?o |- False] =>
+                            try(solve[inversion H])
+                        end]).
+              try(solve[right; intros t p o Htype; inversion Htype; subst;
+                        match goal with 
+                          | [ H: TypeOf E (eOp (p_op opCar)) ?t ?p ?o |- False] =>
+                            try(solve[inversion H])
+                        end]).
+              try(solve[right; intros t p o Htype; inversion Htype; subst;
+                        match goal with 
+                          | [ H: TypeOf E (eOp (p_op opCar)) ?t ?p ?o |- False] =>
+                            try(solve[inversion H])
+                        end]).
+              right.
+              inversion funH.
+              try(solve[right; intros t p o Htype; inversion Htype; subst;
+                        match goal with 
+                          | [ H: TypeOf E (eOp (p_op opCar)) ?t ?p ?o |- False] =>
+                            try(solve[inversion H])
+                        end]).
+              
+              
+            }
+          }
+          { (* Cdr *)
+          }
+        }
+          apply
+          inversion ft.
+          inversion funH.
+          destruct ft.
+          inversion funH; subst.
+
+          destruct c.
+          { (* opAdd1 *)
+            destruct (IHarg E) as [[[[argt argp] argo] [argH argHU]] | argHNo].    
+            destruct (type_eqdec tNat argt) as [HgoodArg | HbadArg].
+            { (* arg = tNat *)
+              subst argt.
+              left. exists (tNat, TT, None).
+              split. apply T_App. left. (* BOOKMARK *)
+            }
+            { (* arg <> tNat *)
+            }
+          }
+          left.
+ 
+          exists (ft, fp, fo).
+          left.
+          split.
+        }
+        (*  *)
+      }
+      
+      (* BOOKMARK *)
+    }
+
   }

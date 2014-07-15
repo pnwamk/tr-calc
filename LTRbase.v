@@ -126,12 +126,12 @@ Inductive op : Type :=
 Hint Constructors op.
 
 Inductive exp : Type :=
-| eVar : id -> exp
-| eOp  : op -> exp
+| eNat : nat -> exp
 | eTrue  : exp
 | eFalse : exp
-| eNat : nat -> exp
 | eStr : string -> exp
+| eVar : id -> exp
+| eOp  : op -> exp
 | eIf  : exp -> exp -> exp -> exp
 | eλ : id -> type -> exp -> exp
 | eApp : exp -> exp -> exp
@@ -240,11 +240,16 @@ repeat decide equality.
 Defined.
 Hint Resolve type_eqdec prop_eqdec fact_eqdec.
 
-
+Theorem exp_eqdec : forall e1 e2 : exp,
+{e1 = e2} + {e1 <> e2}.
+Proof.
+  repeat decide equality.
+Defined.
 (** Environment Functions *)
 
 (** Constant types: *)
-Definition const_type (c : const_op) (x:id) : type :=
+Definition const_type (c : const_op) : type :=
+let x := (Id 0) in
   match c with
     | opIsNat =>
       (tλ x 

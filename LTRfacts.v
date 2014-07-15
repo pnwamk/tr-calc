@@ -1599,5 +1599,35 @@ Proof.
     }
   }
   { (* Let *)
-    
+    destruct (IHx E) as [[[[xt xp] xo] [xH xHU]] | xHNo];
+    clear IHx.
+    destruct (IHbody ((var x ::= xt
+                           :: (var x ::~ tF --> xp) 
+                           :: (var x ::= tF --> Not xp) :: E))) 
+      as [[[[bodyt bodyp] bodyo] [bodyH bodyHU]] | bodyHNo].
+    {
+      left. exists ((subst_t bodyt xo x),(subst_p bodyp xo x),(subst_o bodyo xo x)).
+      split. eapply (T_Let _ _ _ _ _ _ _ _ _ _ xH bodyH).
+      intros t' p' o' Htype.
+      inversion Htype; subst.
+      assert (xt = τ /\ xp = ψ0 /\ xo = o0) as [xteq [xpeq xoeq]].
+      { apply xHU. auto. }
+      assert (bodyt = σ /\ bodyp = ψ1 /\ bodyo = o1) as [teq [peq oeq]]. 
+      { apply bodyHU. subst. auto. }
+      subst. auto.
+    }
+    {
+      right. intros t' o' i' Hno.
+      inversion Hno; subst; eapply bodyHNo. 
+      assert (xt = τ /\ xp = ψ0 /\ xo = o0) as [xteq [xpeq xoeq]].
+      { apply xHU. auto. }
+      subst. eassumption.
+    }
+    {
+      right. intros t' o' i' Hno.
+      inversion Hno; subst; eapply xHNo. eassumption.
+    }
+  }
+  { (* Cons *)
+
   }

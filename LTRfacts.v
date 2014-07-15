@@ -1206,11 +1206,14 @@ Inductive TypeOf : list prop -> exp -> type -> prop -> opt object -> Prop :=
       -> TypeOf Γ e2 τ2 ψ2 o2
       -> TypeOf Γ (Cons e1 e2) (tPair τ1 τ2) TT None
 | T_Car :
-    forall Γ e τ1 x o τ2 ψ0,
+    forall Γ e τ1 o τ2 ψ0,
+let x := (Id 0) in
       TypeOf Γ e (tPair τ1 τ2) ψ0 o
       -> TypeOf Γ (Car e) τ1 (subst_p ((obj [car] x) ::~ tF) o x) (subst_o (Some (obj [car] x)) o x)
 | T_Cdr :
-    forall Γ e τ2 x o τ1 ψ0,
+    forall Γ e τ2 o τ1 ψ0,
+let x := (Id 0) in
+
       TypeOf Γ e (tPair τ1 τ2) ψ0 o
       -> TypeOf Γ (Cdr e) τ2 (subst_p ((obj [cdr] x) ::~ tF) o x) (subst_o (Some (obj [cdr] x)) o x)
 | T_Let :
@@ -1325,6 +1328,14 @@ Proof.
   intros E lhs rhs t p o H.
   inversion H. subst. simpl. reflexivity.
 Qed.  
+
+Lemma if_id_eqdec_refl {T:Type} : forall x (P Q:T),
+(if id_eqdec x x then P else Q) = P.
+Proof.
+  intros.
+  destruct (id_eqdec x x); crush.
+Qed.
+
 
 
 Definition TypeOf_dec : forall e E,
@@ -1459,12 +1470,50 @@ Proof.
   }
   { (* eApp *)
     destruct (exp_eqdec efun (eOp (p_op opCar))) as [isCar | noCar].
-    {
-      
+    { (* Car *)
+      subst efun.
+      destruct (IHarg E) as [[[[argt argp] argo] [argH argHU]] | argHNo].    
+      {
+        destruct argt;
+        try(solve[right; intros t' p' o' Htype; inversion Htype; subst;
+        match goal with
+          | [ H: TypeOf E (eOp (p_op opCar)) ?t ?p ?o |- False] =>
+            try(solve[inversion H])
+          | [H: TypeOf E earg ?t0 ?ψ0 ?o0 |- _] =>
+            try(solve[specialize (argHU t0 ψ0 o0 H); 
+                       destruct argHU;
+                       match goal with
+                         | [H : _ = _ |- _ ] => try(solve[inversion H])
+                       end])
+        end]).
+        left. 
+        exists (argt1, 
+                (subst_p (obj [car] (Id 0) ::~ tF) argo (Id 0)), 
+                (subst_o (Some (obj [car] (Id 0))) argo (Id 0))).
+        split. eapply T_Car. eassumption. 
+        intros t' p' o' Htype.
+        inversion Htype; subst.
+        match goal with
+          | [ H: TypeOf E (eOp (p_op opCar)) ?t ?p ?o |- _] =>
+            solve[inversion H]
+        end. 
+        match goal with
+          | [ H: TypeOf E earg ?t ?p ?o |- _] =>
+            specialize (argHU _ _ _ H)
+        end.
+        destruct argHU as [tpaireq [peq oeq]].
+        inversion tpaireq; subst; auto.
+      }
+      {
+        right. intros t' o' i' Hno.
+        inversion Hno; subst.
+        eapply argHNo. eassumption.
+        eapply argHNo. eassumption.
+      } 
     }
-    destruct (exp_eqdec efun (eOp (p_op opCar))) as [isCdr | noCdr]..
-    {
-
+    destruct (exp_eqdec efun (eOp (p_op opCar))) as [isCdr | noCdr].
+    { (* Cdr *)
+      
     }
 
     destruct (IHfun E) as [[[[ft fp] fo] [funH funHU]] | funHNo].

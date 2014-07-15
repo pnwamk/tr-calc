@@ -1363,7 +1363,7 @@ Proof.
        x t body IHbody |
        efun IHfun earg IHarg |
        x xexp IHx body IHbody |
-       elhs Hlhs erhs Hrhs]; intros.
+       elhs IHlhs erhs IHrhs]; intros.
   {  (* Nat *)
     left; exists (tNat, TT, None). crush.
     inversion H; crush. 
@@ -1629,5 +1629,28 @@ Proof.
     }
   }
   { (* Cons *)
-
+    destruct (IHlhs E) as [[[[lhst lhsp] lhso] [lhsH lhsHU]] | lhsHNo].
+    {
+      destruct (IHrhs E) as [[[[rhst rhsp] rhso] [rhsH rhsHU]] | rhsHNo].
+      {
+        left. exists ((tPair lhst rhst),TT,None).
+        split. eapply T_Cons; eauto.
+        intros t' p' o' Htype.
+        inversion Htype; subst.
+        assert (lhst = τ1 /\ rhst = τ2) as [lhseq rhseq].
+        {
+          split.
+          eapply lhsHU. eassumption.
+          eapply rhsHU. eassumption.
+        }
+        subst. auto.
+      }
+      right. intros t' p' o' Hno.
+      inversion Hno; subst. eapply rhsHNo; eassumption.
+    }
+      right. intros t' p' o' Hno.
+      inversion Hno; subst. eapply lhsHNo; eassumption.
   }
+Grab Existential Variables.
+auto. auto. auto. auto. auto. auto.
+Qed.  

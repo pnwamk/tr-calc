@@ -1235,13 +1235,14 @@ let x := (Id 0) in
 Hint Constructors TypeOf.
 
 Lemma temp_axiom : forall x E,
-   {tpo : type * prop * opt object |
-   let (p0, o) := tpo in
-   let (t, p) := p0 in
-   TypeOf E ($ x) t p o /\
-   (forall (t' : type) (p' : prop) (o' : opt object),
-    TypeOf E ($ x) t' p' o' -> t = t' /\ p = p' /\ o = o')} +
-   {(forall (t : type) (p : prop) (o : opt object), ~ TypeOf E ($ x) t p o)}.
+{l : list (type * prop * opt object) |
+   forall tpo : type * prop * opt object,
+   (let (p0, o) := tpo in
+    let (t, p) := p0 in
+    TypeOf E ($ x) t p o /\
+    (forall (t' : type) (p' : prop) (o' : opt object),
+     TypeOf E ($ x) t' p' o' -> t = t' /\ p = p' /\ o = o')) -> 
+   In tpo l}.
 Proof. Admitted.
 
 Lemma S_Refl_Const : forall c,
@@ -1339,8 +1340,9 @@ Qed.
 
 
 Definition TypeOf_dec : forall e E,
-{tpo : (type * prop * opt object) | 
- match tpo with 
+{l : list (type * prop * opt object) | 
+(forall tpo : (type * prop * opt object),
+ (match tpo with 
    | (t, p, o) => 
      (TypeOf E e t p o 
       /\ (forall t' p' o',
@@ -1348,8 +1350,8 @@ Definition TypeOf_dec : forall e E,
             -> (t = t'
                 /\ p = p'
                 /\ o = o')))
-      end} 
-+ {forall t p o, ~TypeOf E e t p o}.
+  end)
+ -> In tpo l)}.
 Proof.
   intro e.
   induction e as
@@ -1365,26 +1367,28 @@ Proof.
        x xexp IHx body IHbody |
        elhs IHlhs erhs IHrhs]; intros.
   {  (* Nat *)
-    left; exists (tNat, TT, None). crush.
-    inversion H; crush. 
-    inversion H; crush. 
-    inversion H; crush. 
+    exists [(tNat, TT, None)].
+    intros ((t,p),o) [Htype HUeq].
+    inversion Htype; subst.
+    crush.
   }
   {  (* #t *)
-    left; exists (tT, TT, None). crush.
-    inversion H; crush. 
-    inversion H; crush.
-    inversion H; crush.
+    exists [(tT, TT, None)].
+    intros ((t,p),o) [Htype HUeq].
+    inversion Htype; subst.
+    crush.
   }
   { (* #f *)
-    left; exists (tF, FF, None).
-    split. crush. 
-    intros t' p' o' H; inversion H; crush.
+    exists [(tF, FF, None)].
+    intros ((t,p),o) [Htype HUeq].
+    inversion Htype; subst.
+    crush.
   }
   { (* Str *)
-    left; exists (tStr, TT, None).
-    split. crush. 
-    intros t' p' o' H; inversion H; crush.
+    exists [(tStr, TT, None)].
+    intros ((t,p),o) [Htype HUeq].
+    inversion Htype; subst.
+    crush.
   }
   { (* eVar *)
     apply temp_axiom. (* yuck! *)
@@ -1392,12 +1396,16 @@ Proof.
   { (* eOp *)
     destruct abs.
     remember (const_type c) as t.
-    left; exists (t, TT, None). 
-    split. crush. 
-    intros t' p' o' H; inversion H; crush.
-    right. intros t p' o contra. inversion contra.
+    exists [(t, TT, None)].
+    intros ((t',p),o) [Htype HUeq].
+    inversion Htype; subst.
+    crush.
+    exists [].
+    intros ((t',p'),o') [Htype HUeq].
+    inversion Htype.
   }
   { (* eIf *)
+    (* BOOKMARK *)
     destruct (IHcond E) as [[[[t1 p1] o1] [condT condH]] | condHNo];
     clear IHcond.
     destruct (IHtrue (p1::E)) as [[[[t2 p2] o2] [trueT trueH]] | trueHNo];

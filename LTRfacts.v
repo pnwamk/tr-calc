@@ -1301,10 +1301,12 @@ Inductive TypeOf : list prop -> exp -> type -> Prop :=
       -> TypeOf Γ e' t1
       -> TypeOf Γ (Apply e e') t2
 | T_If : 
-    forall Γ e1 e2 e3 t,
-      TypeOf Γ e1 tTop
-      -> TypeOf ((exp_prop e1)::Γ) e2 t
-      -> TypeOf ((Not (exp_prop e1))::Γ) e3 t
+    forall Γ e1 e2 e3 t t1 t2 t3,
+      TypeOf Γ e1 t1
+      -> TypeOf ((exp_prop e1)::Γ) e2 t2
+      -> TypeOf ((Not (exp_prop e1))::Γ) e3 t3
+      -> Subtype t2 t
+      -> Subtype t3 t
       -> TypeOf Γ (If e1 e2 e3) t
 | T_Cons :
     forall Γ e1 e2 t1 t2 t,
@@ -1335,14 +1337,34 @@ Inductive TypeOf : list prop -> exp -> type -> Prop :=
       -> TypeOf Γ (Let x e0 e1) t.
 Hint Constructors TypeOf.
 
-Lemma S_Refl : forall t,
+Lemma ST_Refl : forall t,
 Subtype t t.
 Proof.
   unfold Subtype.
   intros t.
   apply P_Axiom. crush.
 Qed.
-Hint Resolve S_Refl.
+Hint Resolve ST_Refl.
+
+Lemma S_Trans : forall t1 t2 t3,
+Subtype t1 t2
+-> Subtype t2 t3
+-> Subtype t1 t3.
+Proof.
+  intros t1 t2 t3 H12. generalize dependent t3. 
+  unfold Subtype in *.
+  induction H12; intros.
+  inversion H0; subst.
+  inversion H3; subst.
+  rewrite <- H1. 
+  apply P_Axiom; auto.
+  crush.
+  inversion H1; crush.
+  inversion H4; crush.
+  inversion H1; crush.
+  inversion H0; crush.
+  inversion H
+  destruct H23.
 
 Theorem TypeOf_typed : forall e E,
 TypedExp e
@@ -1358,52 +1380,64 @@ Proof.
        x |
        x t |
        abs |
-       econd IHcond etrue IHtrue efalse IHfalse |
-       x t body IHbody |
+       e1 IH1 e2 IH2 e3 IH3 |
+       x t e IHe |
        efun IHfun earg IHarg |
-       x xexp IHx body IHbody |
-       elhs IHlhs erhs IHrhs]; intros.
+       x e0 IHe0 e1 IHe1 |
+       e1 IHe1 e2 IHe2]; intros.
   { (* Nat *)
     left; exists tNat. split; intros.
     crush.
     match goal with | [H : TypeOf ?E (# ?n) ?t' |- _] => solve[inversion H; crush] end.
-  }
-  { (* #t *)
+  }{ (* #t *)
     left; exists tT. split; intros.
     crush.
     match goal with | [H : TypeOf ?E #t ?t' |- _] => solve[inversion H; crush] end.
-  }
-  { (* #f *)
+  }{ (* #f *)
     left; exists tF. split; intros.
     crush.
     match goal with | [H : TypeOf ?E #f ?t' |- _] => solve[inversion H; crush] end.
-  }
-  { (* Str *)
+  }{ (* Str *)
     left; exists tStr. split; intros.
     crush.
     match goal with | [H : TypeOf ?E (Str ?s) ?t' |- _] => solve[inversion H; crush] end.
-  }
-  { (* Var *)
+  }{ (* Var *)
     assert False. inversion H. crush.
-  }
-  { (* TVar *)
+  }{ (* TVar *)
     destruct (P_dec E (Atom (istype (var x) t))) as [HP | HNoP].
     left. exists t. split.
     apply T_TVar; auto.
     intros t' Htype.
     match goal with | [H : TypeOf ?E (t$ ?x ?t) ?t' |- _] => solve[inversion H; crush] end.
     right. intros t' contra. inversion contra; crush.
-  }
-  { (* eOp *)
+  }{ (* eOp *)
     destruct abs; try(solve[right; intros t' contra; inversion contra; crush]).
     left; exists (const_type c).
     split.
     apply T_Const; auto.
     intros.
     match goal with | [H : TypeOf ?E (eOp (c_op ?c)) ?t' |- _] => solve[inversion H; crush] end.
-  }
-  { (* If *)
-    
+  }{ (* If *)
+    assert ((TypedExp e1) /\ (TypedExp e2) /\ (TypedExp e3)) 
+      as [HTE1 [HTE2 HTE3]]. inversion H; crush.
+    destruct (IH1 E HTE1) as [[t1 [TypeH1 HU1]] | NoT1]; clear IH1.
+    destruct (IH2 ((exp_prop e1)::E) HTE2) as [[t2 [TypeH2 HU2]] | NoT2]; clear IH2.
+    destruct (IH3 ((Not (exp_prop e1))::E) HTE3) as [[t3 [TypeH3 HU3]] | NoT3]; clear IH3.
+    {
+      destruct (ST_dec t2 t3) as [st23 | Nost23].
+      {
+        left; exists t3. 
+        split. 
+        apply T_If with (t1:=t1) (t2:=t2) (t3:=t3); auto.
+        intros.
+        inversion H0. subst.
+        apply HU3 in H7
+        match goal with | [H : TypeOf ?E (If e1 e2 e3) ?t' |- _] => solve[inversion H; crush] end.
+
+      }
+      
+
+    }
   }
 
 

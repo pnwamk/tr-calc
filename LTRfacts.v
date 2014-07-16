@@ -427,7 +427,15 @@ Proof.
   apply IHL' in H0. crush.
 Defined.
 
-
+Lemma rem_leq : forall L P,
+env_weight (rem P L) <= env_weight L.
+Proof.
+  intros L.
+  induction L.
+  crush.
+  intros P.
+  simpl. destruct (prop_eqdec P a); crush.
+Qed.
 
 Lemma rem_add1_lt : forall L P Pbig Psmall,
 In Pbig L
@@ -440,13 +448,15 @@ Proof.
   destruct HIn. subst.
   unfold proof_weight in *. unfold rem.
   destruct (prop_eqdec Pbig Pbig).
+  fold rem. remember (rem_leq L Pbig). simpl in *. 
   crush. crush.
-  unfold proof_weight. unfold rem.
-  destruct (prop_eqdec Pbig a). crush.
-  simpl. fold rem.
-  eapply (IHL P Pbig Psmall) in H. 
-  unfold proof_weight in *. crush. auto.
-Defined.  
+  simpl. destruct (prop_eqdec Pbig a).
+  crush. unfold proof_weight. simpl. crush.
+  unfold proof_weight. simpl.
+  specialize (IHL P Pbig Psmall H Hlt).
+  unfold proof_weight in IHL.
+  simpl in *. crush.
+Qed.
 
 Lemma rem_add2_lt : forall L P Pbig Psmall1 Psmall2,
 In Pbig L
@@ -459,13 +469,15 @@ Proof.
   destruct HIn. subst.
   unfold proof_weight in *. unfold rem.
   destruct (prop_eqdec Pbig Pbig).
+  fold rem. remember (rem_leq L Pbig). simpl in *. 
   crush. crush.
-  unfold proof_weight. unfold rem.
-  destruct (prop_eqdec Pbig a). crush.
-  simpl. fold rem.
-  eapply (IHL P Pbig Psmall1 Psmall2) in H. 
-  unfold proof_weight in *. crush. auto.
-Defined.  
+  simpl. destruct (prop_eqdec Pbig a).
+  crush. unfold proof_weight. simpl. crush.
+  unfold proof_weight. simpl.
+  specialize (IHL P Pbig Psmall1 Psmall2 H Hlt).
+  unfold proof_weight in IHL.
+  simpl in *. crush.
+Qed.
 
 Lemma rem_add3_lt : forall L P Pbig Psmall1 Psmall2 Psmall3,
 In Pbig L
@@ -478,12 +490,14 @@ Proof.
   destruct HIn. subst.
   unfold proof_weight in *. unfold rem.
   destruct (prop_eqdec Pbig Pbig).
+  fold rem. remember (rem_leq L Pbig). simpl in *. 
   crush. crush.
-  unfold proof_weight. unfold rem.
-  destruct (prop_eqdec Pbig a). crush.
-  simpl. fold rem.
-  eapply (IHL P Pbig Psmall1 Psmall2 Psmall3) in H. 
-  unfold proof_weight in *. crush. auto.
+  simpl. destruct (prop_eqdec Pbig a).
+  crush. unfold proof_weight. simpl. crush.
+  unfold proof_weight. simpl.
+  specialize (IHL P Pbig Psmall1 Psmall2 Psmall3 H Hlt).
+  unfold proof_weight in IHL.
+  simpl in *. crush.
 Defined.  
 
 
@@ -497,9 +511,11 @@ Proof.
   destruct H. subst.
   unfold proof_weight in *. unfold rem.
   destruct (prop_eqdec Pbig Pbig).
+  fold rem. remember (rem_leq L Pbig). simpl in *. 
   crush. crush.
   unfold proof_weight. unfold rem.
   destruct (prop_eqdec Pbig a). crush.
+  unfold proof_weight in *. crush.
   apply IHL in H. fold rem. unfold proof_weight in *. crush.
 Defined.
 
@@ -713,8 +729,6 @@ Proof.
   apply types_nil_cut in Htypes.
   apply (IHL _ _ H Htypes); auto.
 Defined.  
-
-
 
 Lemma Proves_dec_pair : 
   forall (goal:(list prop * prop)), 
@@ -934,8 +948,33 @@ assert (succedent_dec: {succedent} + {~succedent}).
               crush]). 
   + apply HNoCST. apply (HNoContra o); auto.  
   + eapply types_nil_false. exact HIn. apply noTopWitness. auto.
-} }
+} } }
 Defined.
+
+Theorem P_Cut : forall E P Q,
+Proves E Q
+-> Proves (P::E) Q.
+Proof.
+  intros E P Q HP. generalize dependent P.
+  induction HP.
+  intros P.
+  apply P_Axiom. crush.
+  intros P'.
+  apply P_Contradiction with (t1:=t1) (t2:=t2) (o:=o); crush.
+  intros P'.
+  apply P_UnionElim with (t1:=t1) (t2:=t2) (o:=o); auto.
+  right. auto. 
+  destruct (prop_eqdec P' (Atom (istype o (tU t1 t2)))).
+  subst. unfold rem. 
+  destruct  (prop_eqdec (Atom (istype o (tU t1 t2)))
+                        (Atom (istype o (tU t1 t2)))).
+  subst.
+
+
+feapply IHHP1.
+
+  (*  *)
+
 
 Definition P_dec : forall Γ P,
 {Proves Γ P} + {~Proves Γ P}.
@@ -1361,7 +1400,8 @@ Proof.
   crush.
   inversion H1; crush.
   inversion H4; crush.
-  inversion H1; crush.
+  inversion H1. rewrite H4 in H0.
+  re
   inversion H0; crush.
   inversion H
   destruct H23.

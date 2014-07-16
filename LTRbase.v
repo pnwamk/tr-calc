@@ -536,7 +536,7 @@ Fixpoint rem (p:prop) (l:list prop) : list prop :=
     | nil => nil
     | p' :: ps =>
       if prop_eqdec p p' 
-      then ps
+      then rem p ps
       else p' :: (rem p ps)
   end.
 

@@ -948,8 +948,25 @@ assert (succedent_dec: {succedent} + {~succedent}).
               crush]). 
   + apply HNoCST. apply (HNoContra o); auto.  
   + eapply types_nil_false. exact HIn. apply noTopWitness. auto.
-} } }
+} }
 Defined.
+
+Theorem P_ModusPonens : forall L P Q,
+Proves L P
+-> Proves L (P-->Q)
+-> Proves L Q.
+Proof. Admitted.
+
+Theorem P_HypSyl : forall L P Q R,
+Proves L (P --> Q)
+-> Proves L (Q --> R)
+-> Proves L (P --> R).
+Proof.
+  intros.
+  apply P_CP.
+  assert (Proves (P::L) P).
+  
+
 
 Theorem P_Cut : forall E P Q,
 Proves E Q

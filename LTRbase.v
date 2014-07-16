@@ -108,6 +108,42 @@ Notation "P '&&' Q" := (And P Q) (at level 40, left associativity).
 Notation "P '||' Q" := (Or P Q) (at level 50, left associativity).
 Notation "P '-->' Q" := (Imp P Q) (at level 90).
 
+Inductive formula : Set :=
+| Elem      : fact -> formula
+| Conj      : formula -> formula -> formula
+| Disj      : formula -> formula -> formula
+| Impl      : formula -> formula -> formula
+| Truth     : formula
+| Falsehood : formula.
+
+Fixpoint Negate (F:formula) : formula :=
+  match F with
+    | Elem f => (Impl (Elem f) Falsehood)
+    | Conj P Q => Disj (Negate P) (Negate Q)
+    | Disj P Q  => Conj (Negate P) (Negate Q)
+    | Impl P Q => Conj P (Negate Q)
+    | Falsehood => Truth
+    | Truth => Falsehood
+  end.
+
+Definition unk_form (b:bool) :=
+  match b with
+    | true => Truth
+    | false => Falsehood
+  end.
+
+Fixpoint formulate' (b:bool) (p:prop) : formula :=
+  match p with
+    | Atom f => (Elem f)
+    | And P Q => Conj (formulate' b P) (formulate' b Q)
+    | Or P Q  => Disj (formulate' b P) (formulate' b Q)
+    | Imp P Q => Disj (formulate' (negb b) P) (formulate' b Q)
+    | FF => Falsehood
+    | TT => Truth
+    | Unk => unk_form b
+  end.
+
+Definition formulate := formulate' true.
 
 (** Expressions and primitive operations: *)
 Inductive const_op :=
@@ -229,11 +265,58 @@ with prop_weight (p:prop) : nat :=
     | And P Q => 1 + (prop_weight P) + (prop_weight Q)
     | Or P Q => 1 + (prop_weight P) + (prop_weight Q)
     | Imp P Q => 1 + (prop_weight P) + (prop_weight Q)
-    | TT => 1
+    | TT => 0
     | FF => 0
-    | Unk => 1
+    | Unk => 0
   end.
 Hint Unfold type_weight prop_weight.
+
+Fixpoint formula_weight (f:formula) : nat :=
+  match f with
+    | Elem (istype o t) => type_weight t
+    | Conj P Q => 1 + (formula_weight P) + (formula_weight Q)
+    | Disj P Q => 1 + (formula_weight P) + (formula_weight Q)
+    | Impl P Q => 1 + (formula_weight P) + (formula_weight Q)
+    | Truth => 0
+    | Falsehood => 0
+  end.
+
+Hint Unfold formulate formulate'.
+
+Lemma form'_leq : forall p b1 b2,
+formula_weight (formulate' b1 p) <= formula_weight (formulate' b2 p).
+Proof.
+  intros p.
+  induction p; crush.
+  specialize (IHp1 b1 b2).
+  specialize (IHp2 b1 b2).
+  crush.
+  specialize (IHp1 b1 b2).
+  specialize (IHp2 b1 b2).
+  crush.
+  specialize (IHp1 (negb b1) (negb b2)).
+  specialize (IHp2 b1 b2).
+  crush.
+  destruct b1; simpl; omega.
+Qed.
+
+Lemma form_leq_prop : forall p,
+prop_weight p <= formula_weight (formulate p).
+Proof.
+  intros p.
+  induction p; crush.
+  unfold formulate'.
+  fold formulate'.
+  fold formulate.
+  crush.
+  fold formulate.
+  crush.
+  unfold formulate'.
+  fold formulate'.
+  unfold formulate in *.
+  remember (form'_leq p1 true false).
+  crush.
+Qed.
 
 Fixpoint env_weight (l:list prop) : nat :=
   match l with

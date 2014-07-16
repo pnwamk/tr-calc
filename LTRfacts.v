@@ -1060,6 +1060,16 @@ Proof.
 Defined.
 
 
+Lemma proves_ex :
+let x := (Id 0) in
+Proves [(var x ::= tNat)] (var x ::= (tU tNat tBool)).
+Proof.
+  simpl.
+  solve_it.
+Defined.
+Print proves_ex.
+
+
 Lemma proves_simple1 : 
 Proves [((var (Id 0)) ::= tNat)] (((var (Id 0)) ::= tTop) || ((var (Id 0)) ::= tBot)).
 Proof.
@@ -1080,6 +1090,7 @@ Proves [((var (Id 0)) ::= tNat);
 Proof.
   solve_it.
 Qed.
+Print proves_simple2.
 
 Theorem optobj_eqdec : forall o1 o2 : opt object,
 {o1 = o2} + {o1 <> o2}.
@@ -1165,14 +1176,14 @@ match e with
 | eTrue => None
 | eFalse => None
 | eStr _ => None
-| eVar x => Some (var x)
+| eVar X => Some (var (ID_id X))
 | eOp o => None
 | eIf e1 e2 e3 =>
   let o2 := exp_obj e2 in
   let o3 := exp_obj e3 in
   proj1_sig (min_supo o2 o3)
-| eλ _ _ _ _ => None
-| eLet x t1 xexp bexp =>
+| eλ _ _ _ => None
+| eLet x xexp bexp =>
   let o0 := exp_obj xexp in
   let o1 := exp_obj bexp in
   subst_o o1 o0 x
@@ -1190,7 +1201,7 @@ match e with
     | (eOp (p_op opCdr)) =>
       let x := (Id 0) in
       subst_o (Some (obj [car] x)) o' x
-    | λ x t1 t2 body =>
+    | λ x t2 body =>
       let fo := (exp_obj body) in
       subst_o fo o' x      
     | _ => None
@@ -1209,15 +1220,15 @@ match e with
 | eTrue => TT
 | eFalse => FF
 | eStr _ => TT
-| eVar x => (var x ::~ tF)
+| eVar x => (var (ID_id x) ::~ tF)
 | eOp o => TT
 | eIf e1 e2 e3 =>
   let p1 := exp_prop e1 in
   let p2 := exp_prop e2 in
   let p3 := exp_prop e3 in
   ((p1 && p2) || ((Not p1) && p3))
-| eλ _ _ _ _ => TT
-| eLet x t xexp bexp =>
+| eλ _ _ _ => TT
+| eLet x xexp bexp =>
   (subst_p (exp_prop bexp) (exp_obj xexp) x)
 | eCons lhs rhs => TT
 | eApp efun earg =>
@@ -1233,7 +1244,7 @@ match e with
     | (eOp (p_op opCdr)) =>
       let x := (Id 0) in
       subst_p ((obj [cdr] x) ::~ tF) o x
-    | λ x t1 t2 body =>
+    | λ x t1 body =>
       let fp := (exp_prop body) in
       subst_p fp o x      
     | _ => FF
@@ -1263,10 +1274,14 @@ Inductive TypeOf : list prop -> exp -> type -> Prop :=
     forall Γ t,
       Subtype tF t
       -> TypeOf Γ #f t
-| T_Var :
+| T_uVar :
     forall Γ x t,
       Proves Γ ((var x) ::= t)
-      -> TypeOf Γ ($ x) t
+      -> TypeOf Γ (u$ x) t
+| T_uVar :
+    forall Γ x xt t,
+      Proves Γ ((var x) ::= t)
+      -> TypeOf Γ (t$ x xt) t
 | T_Abs :
     forall Γ x t1 e t2 t,
       TypeOf (((var x) ::= t1)::Γ) e t2
@@ -1311,6 +1326,14 @@ Inductive TypeOf : list prop -> exp -> type -> Prop :=
       -> (subst_t t1 (exp_obj e0) x) = t
       -> TypeOf Γ (Let x t0 e0 e1) t.
 Hint Constructors TypeOf.
+
+Lemma S_Refl : forall t,
+Subtype t t.
+Proof.
+  unfold Subtype.
+  intros t.
+  apply P_Axiom. crush.
+Qed.
 
 Lemma S_Refl_Const : forall c,
 Subtype (const_type c) (const_type c).
@@ -1429,6 +1452,9 @@ Proof.
   destruct t; solve_it.
 Qed.
 
+
+
+
 (* Lemma T_Subsume : forall e E t, *)
 (* TypeOf E e t *)
 (* -> TypeOf E e tTop. *)
@@ -1468,43 +1494,45 @@ Proof.
   { (* # n *)
     destruct (ST_dec tNat t) as [HST | HNoST]; howboutno.
     left; apply T_Nat; auto.
-  }
-  { (* #t *)
+  }{ (* #t *)
     destruct (ST_dec tT t) as [HST | HNoST]; howboutno.
     left; apply T_True; auto.
-  }
-  { (* #f *)
+  }{ (* #f *)
     destruct (ST_dec tF t) as [HST | HNoST]; howboutno.
     left; apply T_False; auto.
-  }
-  { (* Str *)
+  }{ (* Str *)
     destruct (ST_dec tStr t) as [HST | HNoST]; howboutno.
     left; apply T_Str; auto.
-  }
-  { (* $ x *)
+  }{ (* $ x *)
     destruct (P_dec E (var x ::= t)) as [HT | HNoT]; howboutno.
     left; apply T_Var; auto.
-  }
-  { (* eOp *)
+  }{ (* eOp *)
     destruct abs; howboutno.
     destruct (ST_dec (const_type c) t) as [HST | HNoST]; howboutno.
     left; apply T_Const; auto.
-  }
-  { (* If *)
+  }{ (* If *)
     destruct (IHcond E tTop); howboutno.
     destruct (IHtrue ((exp_prop econd)::E) t); howboutno.
     destruct (IHfalse ((Not (exp_prop econd))::E) t); howboutno.
     left. apply T_If; auto.
-  }
-  { (* λ *)
+  }{ (* λ *)
     destruct (IHbody (Atom (istype (var x) t1) :: E) t2) 
       as [bodyTop | bodyNotTop]; howboutno.
     destruct (ST_dec (tλ x t1 t2 (exp_prop body) (exp_obj body)) t) 
       as [HST | HNotST]; howboutno.
     left. eapply T_Abs; eauto. 
-  }
-  { (* App *)
-    (* BOOKMARK *)
+  }{ (* App *)
+    (* destruct (exp_eqdec efun (eOp (p_op opCar))) as [isCar | noCar]. *)
+    (* { (* Car *) *)
+    (* } *)
+    (* destruct (exp_eqdec efun (eOp (p_op opCdr))) as [isCdr | noCdr]. *)
+    (* { (* Cdr *) *)
+
+    (* } *)
+    (* destruct  *)
+
+    (* destruct efun; howboutno. *)
+    (* (* BOOKMARK *) *)
   }
   { (* Let *)
 

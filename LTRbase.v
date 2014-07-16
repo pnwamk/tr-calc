@@ -87,7 +87,6 @@ with fact : Set :=
 | istype : object -> type -> fact.
 Hint Constructors type prop fact.
 
-
 Fixpoint Not (P:prop) : prop :=
   match P with
     | Atom f => (Imp (Atom f) FF)
@@ -131,15 +130,63 @@ Inductive exp : Type :=
 | eFalse : exp
 | eStr : string -> exp
 | eVar : id -> exp
+| eTVar : id -> type -> exp
 | eOp  : op -> exp
 | eIf  : exp -> exp -> exp -> exp
-| eλ : id -> type -> type -> exp -> exp
+| eλ : id -> type -> exp -> exp
 | eApp : exp -> exp -> exp
-| eLet : id -> type -> exp -> exp -> exp
+| eLet : id -> exp -> exp -> exp
 | eCons : exp -> exp -> exp.
 Hint Constructors exp.
 
+Inductive TypedExp : exp -> Prop :=
+| TNat n : TypedExp (eNat n)
+| TTrue : TypedExp eTrue
+| TFalse : TypedExp eFalse
+| TStr s : TypedExp (eStr s)
+| TVar x t : TypedExp (eTVar x t)
+| TIf e1 e2 e3 : TypedExp e1
+                 -> TypedExp e2
+                 -> TypedExp e3
+                 -> TypedExp (eIf e1 e2 e3)
+| Tλ x t e : TypedExp e -> TypedExp (eλ x t e)
+| TApp e1 e2 : TypedExp e1
+               -> TypedExp e2
+               -> TypedExp (eApp e1 e2)
+| TLet x e1 e2 : TypedExp e1
+                 -> TypedExp e2
+                 -> TypedExp (eLet x e1 e2)
+| TCons e1 e2 : TypedExp e1
+                -> TypedExp e2
+                -> TypedExp (eCons e1 e2).
+
+Inductive LTEq : exp -> exp -> Prop :=
+| LTEq_Refl e  : LTEq e e
+| LTEq_Var x t : LTEq (eTVar x t) (eVar x)
+| LTEq_If e1 e2 e3 e1' e2' e3' : 
+    LTEq e1 e1'
+    -> LTEq e2 e2'
+    -> LTEq e3 e3'
+    -> LTEq (eIf e1 e2 e3) (eIf e1' e2' e3')
+| LTEq_λ x t e e' : 
+    LTEq e e'
+    -> LTEq (eλ x t e) (eλ x t e')
+| LTEq_App e1 e2 e1' e2' : 
+    LTEq e1 e1'
+    -> LTEq e2 e2'
+    -> LTEq (eApp e1 e2) (eApp e1' e2')
+| LTEq_Let x e1 e2 e1' e2' : 
+    LTEq e1 e1'
+    -> LTEq e2 e2'
+    -> LTEq (eLet x e1 e2) (eLet x e1' e2')
+| LTEq_Cons e1 e2 e1' e2' : 
+    LTEq e1 e1'
+    -> LTEq e2 e2'
+    -> LTEq (eCons e1 e2) (eCons e1' e2').
+
+
 Notation "$" := eVar.
+Notation "t$" := eTVar.
 Notation "#t" := eTrue.
 Notation "#f" := eFalse.
 Notation "#" := eNat.

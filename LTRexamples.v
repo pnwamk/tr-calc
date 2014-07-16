@@ -139,6 +139,7 @@ Example example2':
            None.
 Proof. 
   apply T_Abs.
+  apply T_If.
 
 Admitted. 
 

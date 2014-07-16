@@ -1152,94 +1152,165 @@ Definition cdr_obj (o:object) : object :=
     | obj π x => obj (car::π) x
   end.
 
+Definition c_λobj (c:const_op) : opt object :=
+  match (const_type c) with
+    | tλ x t1 t2 p opto => opto
+    | _ => None
+  end. 
+
+
+Fixpoint exp_obj (e:exp) : opt object :=
+match e with
+| eNat n => None
+| eTrue => None
+| eFalse => None
+| eStr _ => None
+| eVar x => Some (var x)
+| eOp o => None
+| eIf e1 e2 e3 =>
+  let o2 := exp_obj e2 in
+  let o3 := exp_obj e3 in
+  proj1_sig (min_supo o2 o3)
+| eλ _ _ _ _ => None
+| eLet x t1 xexp bexp =>
+  let o0 := exp_obj xexp in
+  let o1 := exp_obj bexp in
+  subst_o o1 o0 x
+| eCons lhs rhs => None
+| eApp efun earg =>
+  let o' := exp_obj earg in
+  match efun with
+    | (eOp (c_op c)) => 
+      let fo := (c_λobj c) in
+      let x := (Id 0) in
+      subst_o fo o' x
+    | (eOp (p_op opCar)) =>
+      let x := (Id 0) in
+      subst_o (Some (obj [car] x)) o' x
+    | (eOp (p_op opCdr)) =>
+      let x := (Id 0) in
+      subst_o (Some (obj [car] x)) o' x
+    | λ x t1 t2 body =>
+      let fo := (exp_obj body) in
+      subst_o fo o' x      
+    | _ => None
+  end
+end.
+
+Definition c_λprop (c:const_op) : prop :=
+  match (const_type c) with
+    | tλ x t1 t2 p opto => p
+    | _ => FF
+  end. 
+
+Fixpoint exp_prop (e:exp) : prop :=
+match e with
+| eNat n => TT
+| eTrue => TT
+| eFalse => FF
+| eStr _ => TT
+| eVar x => (var x ::~ tF)
+| eOp o => TT
+| eIf e1 e2 e3 =>
+  let p1 := exp_prop e1 in
+  let p2 := exp_prop e2 in
+  let p3 := exp_prop e3 in
+  ((p1 && p2) || ((Not p1) && p3))
+| eλ _ _ _ _ => TT
+| eLet x t xexp bexp =>
+  (subst_p (exp_prop bexp) (exp_obj xexp) x)
+| eCons lhs rhs => TT
+| eApp efun earg =>
+  let o := exp_obj earg in
+  match efun with
+    | (eOp (c_op c)) => 
+      let fp := (c_λprop c) in
+      let x := (Id 0) in
+      subst_p fp o x
+    | (eOp (p_op opCar)) =>
+      let x := (Id 0) in
+      subst_p ((obj [car] x) ::~ tF) o x
+    | (eOp (p_op opCdr)) =>
+      let x := (Id 0) in
+      subst_p ((obj [cdr] x) ::~ tF) o x
+    | λ x t1 t2 body =>
+      let fp := (exp_prop body) in
+      subst_p fp o x      
+    | _ => FF
+  end
+end.
+
 (** ** TypeOf *)
 
-Inductive TypeOf : list prop -> exp -> type -> prop -> opt object -> Prop :=
+Inductive TypeOf : list prop -> exp -> type -> Prop :=
 | T_Nat :
-    forall Γ n,
-      TypeOf Γ (#n) tNat TT None
+    forall Γ n t,
+      Subtype tNat t
+      -> TypeOf Γ (#n) t
 | T_Str :
-    forall Γ s,
-      TypeOf Γ (Str s) tStr TT None
+    forall Γ s t,
+      Subtype tStr t
+      -> TypeOf Γ (Str s) t
 | T_Const :
-    forall Γ c τ,
-      τ = (const_type c)
-      -> TypeOf Γ (eOp (c_op c)) τ TT None
+    forall Γ c t,
+      Subtype (const_type c) t
+      -> TypeOf Γ (eOp (c_op c)) t
 | T_True :
-    forall Γ,
-      TypeOf Γ #t tT TT None
+    forall Γ t,
+      Subtype tT t
+      -> TypeOf Γ #t t
 | T_False :
-    forall Γ,
-      TypeOf Γ #f tF FF None
+    forall Γ t,
+      Subtype tF t
+      -> TypeOf Γ #f t
 | T_Var :
-    forall Γ x τ,
-      Proves Γ ((var x) ::= τ)
-      -> TypeOf Γ ($ x) τ ((var x) ::~ tF) (Some (var x))
+    forall Γ x t,
+      Proves Γ ((var x) ::= t)
+      -> TypeOf Γ ($ x) t
 | T_Abs :
-    forall Γ x σ e τ ψ o,
-      TypeOf (((var x) ::= σ)::Γ) e τ ψ o
-      -> TypeOf Γ 
-                (eλ x σ e)
-                (tλ x σ τ ψ o) 
-                TT
-                None
+    forall Γ x t1 e t2 t,
+      TypeOf (((var x) ::= t1)::Γ) e t2
+      -> Subtype (tλ x t1 t2 (exp_prop e) (exp_obj e)) t
+      -> TypeOf Γ (eλ x t1 t2 e) t
 | T_App :
-    forall Γ e e' τ o' x σ' σ fψ fo o ψ ψ',
-      TypeOf Γ e (tλ x σ' τ fψ fo) ψ o
-      -> TypeOf Γ e' σ ψ' o'
-      -> Subtype σ σ'
-      -> TypeOf Γ 
-                (Apply e e')
-                (subst_t τ o' x) 
-                (subst_p fψ o' x) 
-                (subst_o fo o' x)
-| T_If :
-    forall Γ e1 e2 e3 τ2 τ3 o τ' ψ1 o1 o2 o3 ψ2 ψ3,
-      TypeOf Γ e1 τ' ψ1 o1
-      -> TypeOf (ψ1::Γ) e2 τ2 ψ2 o2
-      -> TypeOf ((Not ψ1)::Γ) e3 τ3 ψ3 o3
-      -> ObjJoin (o2,o3) o
-      -> TypeOf Γ (If e1 e2 e3) (tU τ2 τ3) (((ψ1 && ψ2) || ((Not ψ1) && ψ3))) o
+    forall Γ e e' t1 t2 x,
+      TypeOf Γ e (tλ x t1 t2 (exp_prop e) (exp_obj e))
+      -> TypeOf Γ e' t1
+      -> TypeOf Γ (Apply e e') t2
+| T_If : 
+    forall Γ e1 e2 e3 t,
+      TypeOf Γ e1 tTop
+      -> TypeOf ((exp_prop e1)::Γ) e2 t
+      -> TypeOf ((Not (exp_prop e1))::Γ) e3 t
+      -> TypeOf Γ (If e1 e2 e3) t
 | T_Cons :
-    forall Γ e1 e2 τ1 τ2 ψ1 o1 ψ2 o2,
-      TypeOf Γ e1 τ1 ψ1 o1
-      -> TypeOf Γ e2 τ2 ψ2 o2
-      -> TypeOf Γ (Cons e1 e2) (tPair τ1 τ2) TT None
+    forall Γ e1 e2 t1 t2 t,
+      TypeOf Γ e1 t1
+      -> TypeOf Γ e2 t2
+      -> Subtype (tPair t1 t2) t
+      -> TypeOf Γ (Cons e1 e2) t
 | T_Car :
-    forall Γ e τ1 o τ2 ψ0,
-let x := (Id 0) in
-      TypeOf Γ e (tPair τ1 τ2) ψ0 o
-      -> TypeOf Γ (Car e) τ1 (subst_p ((obj [car] x) ::~ tF) o x) (subst_o (Some (obj [car] x)) o x)
+    forall Γ e t1 t2 t,
+      TypeOf Γ e (tPair t1 t2)
+      -> Subtype t1 t
+      -> TypeOf Γ (Car e) t
 | T_Cdr :
-    forall Γ e τ2 o τ1 ψ0,
-let x := (Id 0) in
-
-      TypeOf Γ e (tPair τ1 τ2) ψ0 o
-      -> TypeOf Γ (Cdr e) τ2 (subst_p ((obj [cdr] x) ::~ tF) o x) (subst_o (Some (obj [cdr] x)) o x)
+    forall Γ e t1 t2 t,
+      TypeOf Γ e (tPair t1 t2)
+      -> Subtype t2 t
+      -> TypeOf Γ (Cdr e) t
 | T_Let :
-    forall Γ x e0 e1 σ o0 o1 τ ψ0 ψ1,
-      TypeOf Γ e0 τ ψ0 o0
-      -> TypeOf (((var x) ::= τ)
-                   ::(((var x) ::~ tF) --> ψ0)
-                   ::(((var x) ::= tF) --> (Not ψ0))
+    forall Γ x e0 e1 t0 t1 t,
+      TypeOf Γ e0 t0
+      -> TypeOf (((var x) ::= t0)
+                   ::(((var x) ::~ tF) --> (exp_prop e0))
+                   ::(((var x) ::= tF) --> (Not (exp_prop e0)))
                    ::Γ) 
                 e1
-                σ
-                ψ1
-                o1
-      -> TypeOf Γ 
-                (Let x e0 e1) 
-                (subst_t σ o0 x) 
-                (subst_p ψ1 o0 x)
-                (subst_o o1 o0 x).
+                t1
+      -> (subst_t t1 (exp_obj e0) x) = t
+      -> TypeOf Γ (Let x t0 e0 e1) t.
 Hint Constructors TypeOf.
-
-Lemma temp_axiom : forall x E,
- {l : list (type * prop * opt object) |
-   forall tpo : type * prop * opt object,
-   (let (p0, o) := tpo in let (t, p) := p0 in TypeOf E ($ x) t p o) ->
-   In tpo l}.
-Proof. Admitted.
 
 Lemma S_Refl_Const : forall c,
 Subtype (const_type c) (const_type c).
@@ -1318,14 +1389,6 @@ match t with
 | _ => false
 end.
 
-Lemma Cons_is_tPair : forall E elhs erhs t p o,
-TypeOf E (Cons elhs erhs) t p o
--> is_tPair t = true.
-Proof.
-  intros E lhs rhs t p o H.
-  inversion H. subst. simpl. reflexivity.
-Qed.  
-
 Lemma if_id_eqdec_refl {T:Type} : forall x (P Q:T),
 (if id_eqdec x x then P else Q) = P.
 Proof.
@@ -1338,10 +1401,10 @@ match e with
   | eIf e1 e2 e3 => 1 + (exp_weight e1)
                       + (exp_weight e2)
                       + (exp_weight e3)
-  | eλ _ _ e => 1 + exp_weight e
+  | eλ _ _ _ e => 1 + exp_weight e
   | eApp e1 e2 =>  1 + (exp_weight e1)
                      + (exp_weight e2)
-  | eLet _ e1 e2 => 1 + (exp_weight e1)
+  | eLet _ _ e1 e2 => 1 + (exp_weight e1)
                       + (exp_weight e2)
   | eCons e1 e2 =>  1 + (exp_weight e1)
                       + (exp_weight e2)
@@ -1359,79 +1422,96 @@ Qed.
 Ltac howboutno :=
 try(solve[right; intros contra; inversion contra; crush]).
 
-Definition TypeOf_dec : forall e E t p o,
-{TypeOf E e t p o} + {~TypeOf E e t p o}.
+Lemma S_Top : forall t,
+Subtype t tTop.
+Proof.
+  intros.
+  destruct t; solve_it.
+Qed.
+
+(* Lemma T_Subsume : forall e E t, *)
+(* TypeOf E e t *)
+(* -> TypeOf E e tTop. *)
+(* Proof. *)
+(*   intros e E t HType. *)
+(*   induction HType. *)
+(*   eapply T_Nat; auto. solve_it. *)
+(*   eapply T_Str; auto. solve_it. *)
+(*   eapply T_Const; auto. destruct c; solve_it. *)
+(*   eapply T_True; auto. solve_it. *)
+(*   eapply T_False; auto. solve_it. *)
+(*   eapply T_Var.  *)
+(*   induction H. *)
+
+(*   inversion Htype; subst. *)
+  
+(*   intros e; induction e; intros. *)
+  
+(*   crush. *)
+
+Definition TypeOf_dec : forall e E t,
+{TypeOf E e t} + {~TypeOf E e t}.
 Proof.
   intros e.
   induction e as 
-      [[n |
+      [n |
        |
        |
        s |
        x |
        abs |
-       econd etrue efalse |
-       x t body |
-       efun earg |
-       x xexp body |
-       elhs erhs]
-         IH] using
-            (well_founded_induction
-               (well_founded_ltof _ exp_weight)).
+       econd IHcond etrue IHtrue efalse IHfalse |
+       x t1 t2 body IHbody |
+       efun IHfun earg IHarg |
+       x xexp IHx body IHbody |
+       elhs IHlhs erhs IHrhs]; intros.
   { (* # n *)
-    intros E t p o.
-    destruct (tpo_eqdec t p o tNat TT None) as [Heq | Hneq].
-    inversion Heq; subst.
+    destruct (ST_dec tNat t) as [HST | HNoST]; howboutno.
     left; apply T_Nat; auto.
-    howboutno.
   }
   { (* #t *)
-    intros E t p o.
-    destruct (tpo_eqdec t p o tT TT None) as [Heq | Hneq].
-    inversion Heq; subst.
+    destruct (ST_dec tT t) as [HST | HNoST]; howboutno.
     left; apply T_True; auto.
-    howboutno.
   }
   { (* #f *)
-    intros E t p o.
-    destruct (tpo_eqdec t p o tF FF None) as [Heq | Hneq].
-    inversion Heq; subst.
+    destruct (ST_dec tF t) as [HST | HNoST]; howboutno.
     left; apply T_False; auto.
-    howboutno.
   }
-  { (* #t *)
-    intros E t p o.
-    destruct (tpo_eqdec t p o tStr TT None) as [Heq | Hneq].
-    inversion Heq; subst.
+  { (* Str *)
+    destruct (ST_dec tStr t) as [HST | HNoST]; howboutno.
     left; apply T_Str; auto.
-    howboutno.
   }
   { (* $ x *)
-    intros E t p o.
-    destruct (P_dec E (var x ::= t)) as [HProves | HNoProves]; howboutno.
-    destruct (tpo_eqdec t p o t ((var x) ::~ tF) (Some (var x))) as [Heq | Hneq];
-      howboutno.
-    inversion Heq; subst.
+    destruct (P_dec E (var x ::= t)) as [HT | HNoT]; howboutno.
     left; apply T_Var; auto.
   }
-  {
-    destruct o; howboutno.
+  { (* eOp *)
+    destruct abs; howboutno.
+    destruct (ST_dec (const_type c) t) as [HST | HNoST]; howboutno.
+    left; apply T_Const; auto.
+  }
+  { (* If *)
+    destruct (IHcond E tTop); howboutno.
+    destruct (IHtrue ((exp_prop econd)::E) t); howboutno.
+    destruct (IHfalse ((Not (exp_prop econd))::E) t); howboutno.
+    left. apply T_If; auto.
+  }
+  { (* λ *)
+    destruct (IHbody (Atom (istype (var x) t1) :: E) t2) 
+      as [bodyTop | bodyNotTop]; howboutno.
+    destruct (ST_dec (tλ x t1 t2 (exp_prop body) (exp_obj body)) t) 
+      as [HST | HNotST]; howboutno.
+    left. eapply T_Abs; eauto. 
+  }
+  { (* App *)
     (* BOOKMARK *)
-    intros E t p o.
-    destruct (tpo_eqdec t p o (const_type c) TT None) as [Heq | Hneq]; howboutno.
-    inversion Heq; subst.
-    left; apply T_Const; auto.    
   }
-  {
-    intros E t p o.
-    destruct t; howboutno.
-    destruct p as [ | |p2 p3| | | | ]; howboutno.
-    destruct p2 as [ |p1 p2| | | | | ]; howboutno.
-    destruct p3 as [ |p1' p3| | | | | ]; howboutno.
-    destruct (prop_eqdec p1 p1'); howboutno. subst p1'.
-    destruct 
-  }
+  { (* Let *)
 
+  }
+  { (* Cons *)
+
+  }
 
 Definition TypeOf_dec : forall e E,
 {l : list (type * prop * opt object) | 

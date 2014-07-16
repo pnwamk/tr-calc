@@ -133,9 +133,9 @@ Inductive exp : Type :=
 | eVar : id -> exp
 | eOp  : op -> exp
 | eIf  : exp -> exp -> exp -> exp
-| eλ : id -> type -> exp -> exp
+| eλ : id -> type -> type -> exp -> exp
 | eApp : exp -> exp -> exp
-| eLet : id -> exp -> exp -> exp
+| eLet : id -> type -> exp -> exp -> exp
 | eCons : exp -> exp -> exp.
 Hint Constructors exp.
 

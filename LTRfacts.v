@@ -28,6 +28,11 @@ Require Export LTRutil.
 Require Export LTRrel.
 Import ListNotations.
 
+Ltac howboutno :=
+try(solve[right; intros contra; inversion contra; crush]).
+
+
+
 Lemma SO_dec : forall opto1 opto2,
 {SubObj opto1 opto2} + {~SubObj opto1 opto2}.
 Proof.
@@ -1176,7 +1181,8 @@ match e with
 | eTrue => None
 | eFalse => None
 | eStr _ => None
-| eVar X => Some (var (ID_id X))
+| eVar x => Some (var x)
+| eTVar x t => Some (var x)
 | eOp o => None
 | eIf e1 e2 e3 =>
   let o2 := exp_obj e2 in
@@ -1220,7 +1226,8 @@ match e with
 | eTrue => TT
 | eFalse => FF
 | eStr _ => TT
-| eVar x => (var (ID_id x) ::~ tF)
+| eVar x => (var x ::~ tF)
+| eTVar x t => ((var x ::= t) && (var x ::~ tF))
 | eOp o => TT
 | eIf e1 e2 e3 =>
   let p1 := exp_prop e1 in
@@ -1274,19 +1281,20 @@ Inductive TypeOf : list prop -> exp -> type -> Prop :=
     forall Γ t,
       Subtype tF t
       -> TypeOf Γ #f t
-| T_uVar :
+| T_Var :
     forall Γ x t,
       Proves Γ ((var x) ::= t)
-      -> TypeOf Γ (u$ x) t
-| T_uVar :
+      -> TypeOf Γ ($ x) t
+| T_TVar :
     forall Γ x xt t,
-      Proves Γ ((var x) ::= t)
+      Proves Γ ((var x) ::= xt)
+      -> Subtype xt t
       -> TypeOf Γ (t$ x xt) t
 | T_Abs :
     forall Γ x t1 e t2 t,
       TypeOf (((var x) ::= t1)::Γ) e t2
       -> Subtype (tλ x t1 t2 (exp_prop e) (exp_obj e)) t
-      -> TypeOf Γ (eλ x t1 t2 e) t
+      -> TypeOf Γ (eλ x t1 e) t
 | T_App :
     forall Γ e e' t1 t2 x,
       TypeOf Γ e (tλ x t1 t2 (exp_prop e) (exp_obj e))
@@ -1324,7 +1332,7 @@ Inductive TypeOf : list prop -> exp -> type -> Prop :=
                 e1
                 t1
       -> (subst_t t1 (exp_obj e0) x) = t
-      -> TypeOf Γ (Let x t0 e0 e1) t.
+      -> TypeOf Γ (Let x e0 e1) t.
 Hint Constructors TypeOf.
 
 Lemma S_Refl : forall t,
@@ -1334,14 +1342,72 @@ Proof.
   intros t.
   apply P_Axiom. crush.
 Qed.
+Hint Resolve S_Refl.
 
-Lemma S_Refl_Const : forall c,
-Subtype (const_type c) (const_type c).
+Theorem TypeOf_typed : forall e E,
+TypedExp e
+-> ({t : type | TypeOf E e t /\ forall t', TypeOf E e t' -> Subtype t t'} 
+    + (forall t', ~ TypeOf E e t')).
 Proof.
-  intros.
-  destruct c; solve_it.
-Qed.
-Hint Resolve S_Refl_Const.
+  intro e.
+  induction e as 
+      [n |
+       |
+       |
+       s |
+       x |
+       x t |
+       abs |
+       econd IHcond etrue IHtrue efalse IHfalse |
+       x t body IHbody |
+       efun IHfun earg IHarg |
+       x xexp IHx body IHbody |
+       elhs IHlhs erhs IHrhs]; intros.
+  { (* Nat *)
+    left; exists tNat. split; intros.
+    crush.
+    match goal with | [H : TypeOf ?E (# ?n) ?t' |- _] => solve[inversion H; crush] end.
+  }
+  { (* #t *)
+    left; exists tT. split; intros.
+    crush.
+    match goal with | [H : TypeOf ?E #t ?t' |- _] => solve[inversion H; crush] end.
+  }
+  { (* #f *)
+    left; exists tF. split; intros.
+    crush.
+    match goal with | [H : TypeOf ?E #f ?t' |- _] => solve[inversion H; crush] end.
+  }
+  { (* Str *)
+    left; exists tStr. split; intros.
+    crush.
+    match goal with | [H : TypeOf ?E (Str ?s) ?t' |- _] => solve[inversion H; crush] end.
+  }
+  { (* Var *)
+    assert False. inversion H. crush.
+  }
+  { (* TVar *)
+    destruct (P_dec E (Atom (istype (var x) t))) as [HP | HNoP].
+    left. exists t. split.
+    apply T_TVar; auto.
+    intros t' Htype.
+    match goal with | [H : TypeOf ?E (t$ ?x ?t) ?t' |- _] => solve[inversion H; crush] end.
+    right. intros t' contra. inversion contra; crush.
+  }
+  { (* eOp *)
+    destruct abs; try(solve[right; intros t' contra; inversion contra; crush]).
+    left; exists (const_type c).
+    split.
+    apply T_Const; auto.
+    intros.
+    match goal with | [H : TypeOf ?E (eOp (c_op ?c)) ?t' |- _] => solve[inversion H; crush] end.
+  }
+  { (* If *)
+    
+  }
+
+
+
 
 Hint Constructors SubObj.
 Lemma ex_min_super_obj : forall o1 o2,

@@ -127,7 +127,7 @@ Inductive Proves : list formula -> formula -> Prop :=
       In (ox ::= (tλ x1 t1a t1r p1 o1)) L
       -> Proves [(ox ::= (subst_t t1r (Some (var x2)) x1))] (ox ::= t2r)
       -> Proves [(ox ::= t2a)] (ox ::= (subst_t t1a (Some (var x2)) x1))
-      -> Proves [] (formulate ((subst_p p1 (Some (var x2)) x1) ---> p2))
+      -> Proves [(assume (subst_p p1 (Some (var x2)) x1))] (question p2)
       -> SubObj (subst_o o1 (Some (var x2)) x1) o2
       -> Proves L (ox ::= (tλ x2 t2a t2r p2 o2))
 | P_Bot :
@@ -180,4 +180,4 @@ Definition Subtype (t1 t2:type) :=
   Proves [((var (Id 0)) ::= t1)] ((var (Id 0)) ::= t2).
 
 Definition Implies (p1 p2:prop) : Prop :=
-Proves [] (formulate (p1 ---> p2)).
+Proves [(assume p1)] (question p2).

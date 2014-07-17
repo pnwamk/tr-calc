@@ -641,7 +641,7 @@ Proof.
   rewrite Heq.
   apply subst_weight. exact true.
 Defined.
-(* BOOKMARK *)
+(* TODO 
 
 Lemma rem_λ_weight1 : forall L x1 t1a t1r p1 o1 x2 t2a t2r p2 o2 o o',
 In (Atom (istype o (tλ x1 t1a t1r p1 o1))) L
@@ -697,7 +697,7 @@ Proof.
   apply subst_p_weight.
   crush.
 Defined.
-
+*)
 Lemma conj_dec : forall P Q,
 {P} + {~P}
 -> {Q} + {~Q}
@@ -725,23 +725,23 @@ Lemma tBot_In_dec : forall L,
 Proof.
   intros L.
   remember (fun p => match p with
-                     | Atom (istype o tBot) => True
+                     | Elem (istype o tBot) => True
                      | _ => False
                      end) as Pfun.
   assert (forall p, {Pfun p} + {~Pfun p}) as Pfun_dec.
     intros p; destruct p; crush.
-    destruct f. destruct t; crush.
+    destruct d. destruct t; crush.
   destruct (find_witness _ Pfun L Pfun_dec).
-  destruct s. left. destruct x; crush. destruct f. 
+  destruct s. left. destruct x; crush. destruct d. 
   destruct t; crush. exists o. auto.
   right. intros P o HIn contra.
   apply n in HIn. subst P. apply HIn.
   crush.
 Defined.  
 
-Definition get_datum (p:prop) : opt datum :=
+Definition get_datum (p:formula) : opt datum :=
   match p with
-    | Atom f => Some f
+    | Elem f => Some f
     | _ => None
   end.
 
@@ -751,12 +751,12 @@ types_in o (a :: L) = []
 Proof.
   intros L o a Hnil.
   destruct a; crush.
-  destruct f.
+  destruct d.
   destruct (obj_eqdec o o0); crush.
 Defined. 
 
 Lemma types_nil_false : forall L o t,
-In (Atom (istype o t)) L
+In (Elem (istype o t)) L
 -> types_in o L = []
 -> False.
 Proof.
@@ -771,34 +771,27 @@ Proof.
 Defined.  
 
 Lemma Proves_dec_pair : 
-  forall (goal:(list prop * prop)), 
+  forall (goal:(list formula * formula)), 
     {Proves (fst goal) (snd goal)} + {~Proves (fst goal) (snd goal)}.
 Proof.
   induction goal as ((Γ, P),IH') using
     (well_founded_induction
       (well_founded_ltof _ proof_weight)).
-  assert (forall (L : list prop) (P':prop),
-       ltof (list prop * prop) proof_weight (L,P') (Γ, P) ->
+  assert (forall (L : list formula) (P':formula),
+       ltof (list formula * formula) proof_weight (L,P') (Γ, P) ->
        {Proves L P'} + {~ Proves L P'}) as IH.
     intros L P'.
   remember (IH' (L, P')). crush.
   clear IH'.
   (* P_Axiom *)
-  assert ({f | P = Atom f /\ In P Γ} 
-          + {get_datum P = None \/ ~In P Γ}) as Axiom_dec.
+  destruct (In_dec form_eqdec P Γ) as [HAxiomIn | HNoAxiom].
   {
-    destruct P; crush. destruct (In_dec prop_eqdec (Atom f) Γ); crush.
-    left. exists f; auto.
-  }
-  destruct Axiom_dec as [HAxiomIn | HNoAxiom].
-  {
-    simpl. destruct HAxiomIn as [f [Peq PIn]]. subst. 
-    left; apply P_Axiom; auto.
+    simpl; left; apply P_Axiom; auto.
   }
   (* P_True *)
-  destruct (prop_eqdec TT P). { subst; left; apply P_True. }
+  destruct (form_eqdec TT P). { subst; left; apply P_True. }
   (* P_False *)
-  destruct (In_dec prop_eqdec FF Γ).
+  destruct (In_dec form_eqdec FF Γ).
    { left; apply P_False; auto. }
   (* P_Top *)
   assert ({otp | P = ((fst otp) ::= tTop) 
@@ -807,7 +800,7 @@ Proof.
                        types_in o Γ = nil}) as trivTop_dec.
   {
     destruct P; try(solve[right; intros o contra; inversion contra]). 
-    destruct f as [o t].
+    destruct d as [o t].
     remember (types_in o Γ) as otypes. destruct otypes as [| t' otypes']. 
     right. intros o' Heq; crush. 
     assert (In t' (types_in o Γ)) as Ht'In. rewrite <- Heqotypes. left; auto. 
@@ -846,25 +839,25 @@ Proof.
         | P1 --> P2 =>  (Proves (rem (P1 --> P2) Γ) P1)
                         /\ (Proves (P1::P2::(rem (P1 --> P2) Γ)) P)
         (* P_UnionElim *)
-        | Atom (istype o (tU t1 t2)) => 
+        | Elem (istype o (tU t1 t2)) => 
           (Proves ((o ::= t1)::(rem (o ::= (tU t1 t2)) Γ)) P)
           /\ (Proves ((o ::= t2)::(rem (o ::= (tU t1 t2)) Γ)) P)
         (* P_PairElim *)
-        | Atom (istype (obj π x) (tPair t1 t2)) => 
+        | Elem (istype (obj π x) (tPair t1 t2)) => 
           Proves (((obj π x) ::= tCons)
                      ::((obj (π ++ [car]) x) ::= t1)
                      ::((obj (π ++ [cdr]) x) ::= t2)
                      ::(rem ((obj π x) ::= (tPair t1 t2)) Γ)) P
         (* P_Bot *)
-        | Atom (istype o tBot) => True
+        | Elem (istype o tBot) => True
         (* P_Fun *)
-        | Atom (istype o (tλ x1 t1a t1r p1 o1)) =>
+        | Elem (istype o (tλ x1 t1a t1r p1 o1)) =>
           match P with
-            | Atom (istype o' (tλ x2 t2a t2r p2 o2)) =>
+            | Elem (istype o' (tλ x2 t2a t2r p2 o2)) =>
               o = o'
               /\ Proves [(o ::= (subst_t t1r (Some (var x2)) x1))] (o ::= t2r)
               /\ Proves [(o ::= t2a)] (o ::= (subst_t t1a (Some (var x2)) x1))
-              /\ Proves [(subst_p p1 (Some (var x2)) x1)] p2
+              /\ Proves [(assume (subst_p p1 (Some (var x2)) x1))] (question p2)
               /\ SubObj (subst_o o1 (Some (var x2)) x1) o2
              | _ => False
           end
@@ -873,12 +866,12 @@ Proof.
     ) Γ) as [(a,(HaA,HaB))|antecedent_nonexist].
   { (* Prove decidability of decision procedure *)
     intros a HIn.
-    destruct a as [[[π x] t]|P1 P2 |P1 P2|P1 P2| | |]; try (solve[auto]).
+    destruct a as [[[π x] t]|P1 P2 |P1 P2|P1 P2| | ]; try (solve[auto]).
     - destruct t as [ | | | | | |t1 t2|t1 t2| |x1 t1a t1r p1 o1]; 
       try (solve[auto]).
       + apply conj_dec; apply IH; unfold ltof; apply rem_add1_lt; crush.
       + apply IH; unfold ltof; apply rem_add3_lt; crush.
-      + destruct P as [[o' t]| | | | | |]; try(solve[right; auto]).
+      + destruct P as [[o' t]| | | | | ]; try(solve[right; auto]).
         destruct t; try(solve[right; auto]).
         apply conj_dec. apply obj_eqdec.
         apply conj_dec. apply IH. unfold ltof. eapply rem_λ_weight1. exact HIn. 

@@ -67,7 +67,8 @@ Fixpoint formula_weight (f:formula) : nat :=
     | FF => 0
   end.
 
-Hint Unfold formulate formulate'.
+Hint Unfold formulate' question assume.
+
 
 Lemma form'_leq : forall p b1 b2,
 formula_weight (formulate' b1 p) <= formula_weight (formulate' b2 p).
@@ -86,33 +87,39 @@ Proof.
   destruct b1; simpl; omega.
 Qed.
 
-Lemma form_leq_prop : forall p,
-prop_weight p <= formula_weight (formulate p).
+Lemma assume_leq_prop : forall p,
+prop_weight p <= formula_weight (assume p).
 Proof.
   intros p.
+  unfold assume.
   induction p; crush.
   unfold formulate'.
   fold formulate'.
-  fold formulate.
+  remember (form'_leq p1 false true).
   crush.
-  fold formulate.
-  crush.
+Qed.
+
+Lemma question_leq_prop : forall p,
+prop_weight p <= formula_weight (question p).
+Proof.
+  intros p.
+  unfold question.
+  induction p; crush.
   unfold formulate'.
   fold formulate'.
-  unfold formulate in *.
   remember (form'_leq p1 true false).
   crush.
 Qed.
 
-Fixpoint env_weight (l:list prop) : nat :=
+Fixpoint env_weight (l:list formula) : nat :=
   match l with
     | nil => 0
-    | p :: ps => (prop_weight p) + (env_weight ps)
+    | f :: fs => (formula_weight f) + (env_weight fs)
   end.
 Hint Unfold env_weight.
 
-Definition proof_weight (p:(list prop) * prop) : nat :=
-plus (env_weight (fst p)) (prop_weight (snd p)).
+Definition proof_weight (p:(list formula) * formula) : nat :=
+plus (env_weight (fst p)) (formula_weight (snd p)).
 Hint Unfold proof_weight.
 
 
@@ -176,10 +183,10 @@ match p with
   | _ => false
 end.
 
-Fixpoint types_in (o:object) (L:list prop) : list type :=
+Fixpoint types_in (o:object) (L:list formula) : list type :=
   match L with
     | nil => nil
-    | (Atom (istype o' t)) :: ps => 
+    | (Elem (istype o' t)) :: ps => 
       if (obj_eqdec o o')
       then t :: types_in o ps
       else types_in o ps
@@ -196,27 +203,22 @@ Proof.
   intros t o HIn.
   simpl in HIn. destruct p;
     try (solve[right; auto]).
-  destruct f as [o' t'].
+  destruct d as [o' t'].
   destruct (obj_eqdec o o'); subst.
   destruct HIn. subst. left; auto.
   right; auto. right; auto.
 Defined.
 
 Lemma types_in_nonnil : forall L o t,
-In (Atom (istype o t)) L
+In (Elem (istype o t)) L
 -> types_in o L <> [].
 Proof.
   intros L; induction L; crush.
   destruct (obj_eqdec o o). crush. crush.
-  destruct a; crush. destruct f.
+  destruct a; crush; try (solve[eapply IHL; eassumption]).
+  destruct d.
   destruct (obj_eqdec o o0). crush.
-  apply (IHL o t). auto. auto.
-  apply (IHL o t). auto. auto.
-  apply (IHL o t). auto. auto.
-  apply (IHL o t). auto. auto.
-  apply (IHL o t). auto. auto.
-  apply (IHL o t). auto. auto.
-  apply (IHL o t). auto. auto.
+  apply (IHL o t); auto. 
 Defined.      
    
 Fixpoint type_pair_weight (tp : (type * type)) : nat :=
@@ -321,10 +323,10 @@ Proof.
     rewrite flip_eq. apply IH. auto_tp_weight. auto.
 Defined.
 
-Fixpoint contains_type_conflict (o:object) (t:type) (L:list prop) : opt type :=
+Fixpoint contains_type_conflict (o:object) (t:type) (L:list formula) : opt type :=
   match L with
     | nil => None
-    | (Atom (istype o' t')) :: L' =>
+    | (Elem (istype o' t')) :: L' =>
       if (obj_eqdec o o')
       then if CST_dec (t, t')
            then contains_type_conflict o t L'
@@ -782,7 +784,7 @@ Proof.
   crush.
 Defined.  
 
-Definition get_fact (p:prop) : opt fact :=
+Definition get_datum (p:prop) : opt datum :=
   match p with
     | Atom f => Some f
     | _ => None
@@ -828,7 +830,7 @@ Proof.
   clear IH'.
   (* P_Axiom *)
   assert ({f | P = Atom f /\ In P Γ} 
-          + {get_fact P = None \/ ~In P Γ}) as Axiom_dec.
+          + {get_datum P = None \/ ~In P Γ}) as Axiom_dec.
   {
     destruct P; crush. destruct (In_dec prop_eqdec (Atom f) Γ); crush.
     left. exists f; auto.
@@ -1868,7 +1870,7 @@ Proof.
     destruct (IHfalse ((Not p1)::E)) as [[[[t3 p3] o3] [falseT falseH]] | falseHNo];
     clear IHfalse.
     {
-      destruct (ex_min_super_obj o2 o3) as [o [Ho2 [Ho3 Hofact]]].
+      destruct (ex_min_super_obj o2 o3) as [o [Ho2 [Ho3 Hodatum]]].
       left; exists ((tU t2 t3), (((p1 && p2) || ((Not p1) && p3))), o).
       split.
       apply (T_If _ _ _ _ _ _ _ _ _ _ _ _ _ _ condT trueT falseT); auto.

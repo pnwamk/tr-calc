@@ -75,7 +75,7 @@ Inductive type : Set :=
 | tλ    : id -> type -> type -> prop -> opt object -> type
 
 with prop : Set :=
-| Atom        : fact -> prop
+| Atom        : datum -> prop
 | And         : prop -> prop -> prop
 | Or          : prop -> prop -> prop
 | Imp         : prop -> prop -> prop
@@ -83,9 +83,9 @@ with prop : Set :=
 | Falsehood   : prop
 | Unk         : prop
 
-with fact : Set :=
-| istype : object -> type -> fact.
-Hint Constructors type prop fact.
+with datum : Set :=
+| istype : object -> type -> datum.
+Hint Constructors type prop datum.
 
 Fixpoint Not (P:prop) : prop :=
   match P with
@@ -109,7 +109,7 @@ Notation "P '|||' Q" := (Or P Q) (at level 50, left associativity).
 Notation "P '--->' Q" := (Imp P Q) (at level 90).
 
 Inductive formula : Set :=
-| Elem      : fact -> formula
+| Elem      : datum -> formula
 | Conj      : formula -> formula -> formula
 | Disj      : formula -> formula -> formula
 | Impl      : formula -> formula -> formula
@@ -296,13 +296,13 @@ Hint Resolve obj_eqdec.
 
 Fixpoint type_eqdec (x y : type) : {x=y}+{x<>y}
 with prop_eqdec (x y : prop) : {x=y}+{x<>y}
-with fact_eqdec (x y : fact) : {x=y}+{x<>y}.
+with datum_eqdec (x y : datum) : {x=y}+{x<>y}.
 Proof.
 repeat decide equality.
 repeat decide equality.
 repeat decide equality.
 Defined.
-Hint Resolve type_eqdec prop_eqdec fact_eqdec.
+Hint Resolve type_eqdec prop_eqdec datum_eqdec.
 
 Theorem form_eqdec : forall f1 f2 : formula,
 {f1 = f2} + {f1 <> f2}.
@@ -413,14 +413,14 @@ Fixpoint fv_set_t (t : type) : list id :=
 (* free variables in propositions *)
 with fv_set_p (p: prop) : list id :=
   match p with
-    | Atom f => fv_set_f f
+    | Atom d => fv_set_d d
     | p &&& q => app (fv_set_p p) (fv_set_p q)
     | p ||| q => app (fv_set_p p) (fv_set_p q)
     | _ => nil
   end
 
-with fv_set_f (f:fact) : list id :=
-  match f with
+with fv_set_d (d:datum) : list id :=
+  match d with
     | istype o t => 
       app (fv_set_o (Some o)) (fv_set_t t)
   end.
@@ -445,8 +445,8 @@ Fixpoint subst_p'
          (opto:opt object)
          (x:id) : prop :=
   match p with
-    | Atom f => 
-      match (subst_f b f opto x) with
+    | Atom d => 
+      match (subst_d b d opto x) with
         | None => Truth
         | Some f' => Atom f'
       end
@@ -456,11 +456,11 @@ Fixpoint subst_p'
     | _ => p
   end
 
-with subst_f
+with subst_d
        (b:bool)
-       (f:fact)
+       (f:datum)
        (opto:opt object)
-       (x:id) : opt fact :=     
+       (x:id) : opt datum :=     
   match f with
     | istype (obj pth1 z) t =>
       match id_eqdec x z , In_dec id_eqdec z (fv_set_t t) with
@@ -496,20 +496,20 @@ with subst_t'
     | _ => t
   end.
 
-Fixpoint subst_form'
+Fixpoint subst_f'
          (b:bool)
          (f:formula)
          (opto:opt object)
          (x:id) : formula :=
   match f with
-    | Elem f => 
-      match (subst_f b f opto x) with
+    | Elem d => 
+      match (subst_d b d opto x) with
         | None => TT
         | Some f' => Elem f'
       end
-    | P || Q => (subst_form' b P opto x) || (subst_form' b Q opto x)
-    | P && Q => (subst_form' b P opto x) && (subst_form' b Q opto x)
-    | P --> Q => (subst_form' (negb b) P opto x) --> (subst_form' b Q opto x)
+    | P || Q => (subst_f' b P opto x) || (subst_f' b Q opto x)
+    | P && Q => (subst_f' b P opto x) && (subst_f' b Q opto x)
+    | P --> Q => (subst_f' (negb b) P opto x) --> (subst_f' b Q opto x)
     | _ => f
   end.
 
@@ -518,7 +518,7 @@ Fixpoint subst_form'
 which the negative case may then be called.  *) 
 Definition subst_p := subst_p' true.
 Definition subst_t := subst_t' true.
-Definition subst_form := subst_form' true.
+Definition subst_f := subst_f' true.
 
 Lemma split_nonnil {X:Type} : forall l1 l2 (x:X),
 nil <> l1 ++ (x :: l2).

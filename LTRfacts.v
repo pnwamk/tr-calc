@@ -973,13 +973,32 @@ assert (succedent_dec: {succedent} + {~succedent}).
     apply P_Add_rhs; auto.
   apply P_CP; auto.
 }
-{ (* succedent not provable *)
+  remember
+      (match Γ with
+         | [] => Proves (fst ([], P)) (snd (Γ, P))
+      (* P_Weak *)
+         | F :: Fs => Proves (fst (Fs, P)) (snd (Fs, P))
+       end) as weaken.
+  assert (weaken_dec: {weaken}+{~weaken}).
+  {
+    subst.
+    destruct Γ.
+    howboutno.
+    apply IH. unfold ltof. unfold proof_weight. simpl. 
+    destruct f as [[o t]|P1 P2|P1 P2|P1 P2| | ]; try (solve[crush]).
+    destruct t; crush.
+  }
+  subst. destruct weaken_dec as [Hweak | HNoWeak].
+{ (* P_Weak *)
+  destruct Γ. auto. left. apply P_Weak. auto.
+}
+{ (* succedent not provable non-empty *)
   right.
   clear IH.
   intros Hprf.
-  simpl in Hprf.
   induction Hprf as 
-      [ Γ P' HElemIn | (* P_Axiom *)
+      [ Γ P HElemIn | (* P_Axiom *)
+        Γ P Q HProves | (* P_Weak *)
         Γ P t1 t2 o Ht1In Ht2In HNoCST | (* P_Contradiction *)
         Γ P t1 t2 [π x] HIn HlhsPrf HrhsPrf | (* P_UnionElim *)
         Γ P t1 t2 π x HIn HPrf | (* P_PairElim *)

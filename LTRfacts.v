@@ -641,14 +641,12 @@ Proof.
   rewrite Heq.
   apply subst_weight. exact true.
 Defined.
-(* TODO 
-
 Lemma rem_λ_weight1 : forall L x1 t1a t1r p1 o1 x2 t2a t2r p2 o2 o o',
-In (Atom (istype o (tλ x1 t1a t1r p1 o1))) L
-->    proof_weight
-     ([Atom (istype o (subst_t t1r (Some (var x2)) x1))],
-     Atom (istype o t2r)) <
-   proof_weight (L, Atom (istype o' (tλ x2 t2a t2r p2 o2))).
+In (Elem (istype o (tλ x1 t1a t1r p1 o1))) L
+-> proof_weight
+     ([Elem (istype o (subst_t t1r (Some (var x2)) x1))],
+      Elem (istype o t2r)) <
+   proof_weight (L, Elem (istype o' (tλ x2 t2a t2r p2 o2))).
 Proof.
   intros.
   unfold proof_weight. simpl.
@@ -660,11 +658,11 @@ Proof.
 Defined.
 
 Lemma rem_λ_weight2 : forall L x1 t1a t1r p1 o1 x2 t2a t2r p2 o2 o o',
-In (Atom (istype o (tλ x1 t1a t1r p1 o1))) L
+In (Elem (istype o (tλ x1 t1a t1r p1 o1))) L
 -> proof_weight
-     ([Atom (istype o t2a)],
-     Atom (istype o (subst_t t1a (Some (var x2)) x1))) <
-   proof_weight (L, Atom (istype o' (tλ x2 t2a t2r p2 o2))).
+     ([Elem (istype o t2a)],
+     Elem (istype o (subst_t t1a (Some (var x2)) x1))) <
+   proof_weight (L, Elem (istype o' (tλ x2 t2a t2r p2 o2))).
 Proof.
   intros.
   induction L. crush.
@@ -675,29 +673,57 @@ Proof.
   rewrite subst_t_weight. crush.
   crush. 
   unfold proof_weight in *. simpl in *.
-  destruct a as [[o'' t''] |P1 P2|P1 P2|P1 P2| | |]; crush.
+  destruct a as [[o'' t''] |P1 P2|P1 P2|P1 P2| | ]; crush.
 Defined.
 
+Lemma formulate_weight_leq : forall p b,
+formula_weight (formulate' b p) <= prop_weight p.
+Proof.
+  intros p; induction p; intros; crush.
+  specialize (IHp1 b). specialize (IHp2 b). crush.
+  specialize (IHp1 b). specialize (IHp2 b). crush.
+  specialize (IHp1 (negb b)). specialize (IHp2 b). crush.
+  destruct b; crush.
+Qed.
+Hint Resolve formulate_weight_leq.  
+
+Lemma question_weight_leq : forall p,
+formula_weight (question p) <= prop_weight p.
+Proof.
+  intros; unfold question; crush.
+Qed.  
+
+Lemma assume_weight_leq : forall p,
+formula_weight (assume p) <= prop_weight p.
+Proof.
+  intros; unfold assume; crush.
+Qed.  
+Hint Resolve assume_weight_leq question_weight_leq.
+
 Lemma rem_λ_weight3 : forall L x1 t1a t1r p1 o1 x2 t2a t2r p2 o2 o o',
-In (Atom (istype o (tλ x1 t1a t1r p1 o1))) L
--> proof_weight ([subst_p p1 (Some (var x2)) x1], p2) <
-   proof_weight (L, Atom (istype o' (tλ x2 t2a t2r p2 o2))).
+In (Elem (istype o (tλ x1 t1a t1r p1 o1))) L
+-> proof_weight ([assume (subst_p p1 (Some (var x2)) x1)], question p2) <
+   proof_weight (L, Elem (istype o' (tλ x2 t2a t2r p2 o2))).
 Proof.
   intros.
   induction L. crush.
   unfold proof_weight in *. simpl in *.
   destruct H. subst.
-  unfold prop_weight at 3. 
-  unfold prop_weight at 3. unfold type_weight.
+  unfold formula_weight at 3. 
+  unfold type_weight.
   fold type_weight. fold prop_weight.
   assert (prop_weight (subst_p p1 (Some (var x2)) x1) <= prop_weight p1) as Hleq.
   apply subst_p_weight.
+  assert (formula_weight (assume (subst_p p1 (Some (var x2)) x1)) 
+          <= prop_weight p1) as Hleq2.
+  rewrite <- Hleq. crush.
+  assert (formula_weight (question p2) <= prop_weight p2). crush.
   crush.
   assert (prop_weight (subst_p p1 (Some (var x2)) x1) <= prop_weight p1) as Hleq.
   apply subst_p_weight.
   crush.
 Defined.
-*)
+
 Lemma conj_dec : forall P Q,
 {P} + {~P}
 -> {Q} + {~Q}
@@ -884,21 +910,18 @@ Proof.
       first[apply rem_ltgoal_lt | apply rem_add2_lt]; crush.
   }
 { (* antecedent proves *)
-  left. destruct a as [[[π x] t] |P1 P2|P1 P2|P1 P2| | | ].
+  left. destruct a as [[[π x] t] |P1 P2|P1 P2|P1 P2| |]; try(solve[crush]).
   clear HNoAxiom.
   + destruct t as [ | | | | | | |t1 t2|t1 t2| ]; try(solve[crush]).
     eapply P_Bot; eauto.
-    eapply (P_UnionElim _ P t1 t2); crush. exact HaA. auto. auto.
-    eapply (P_PairElim _ _ t1 t2); crush. exact HaA. auto. 
-    destruct P as [[o' t] | | | | | | ]; crush.
+    eapply (P_UnionElim _ P t1 t2); crush; eauto. 
+    eapply (P_PairElim _ _ t1 t2); crush; eauto. 
+    destruct P as [[o' t] | | | | | ]; crush.
     destruct t; crush.
-    eapply P_Fun. eassumption. auto. auto. auto. auto.
+    eapply P_Fun; eauto. 
   + apply (P_Simpl _ _ P1 P2); crush.
   + apply (P_DisjElim _ _ P1 P2); crush.
   + apply (P_MP _ _ P1 P2); crush.
-  + crush. 
-  + crush.
-  + crush. 
 }
 { (* antecedent cannot prove *)
   remember
@@ -910,12 +933,12 @@ Proof.
       (* P_CP *)
       | PA --> PB => Proves (PA::Γ) PB
       (* P_Top *)
-      | (Atom (istype o tTop)) => types_in o Γ <> nil
+      | (Elem (istype o tTop)) => types_in o Γ <> nil
       (* P_UnionElim *)
-      | (Atom (istype o (tU t1 t2))) =>
+      | (Elem (istype o (tU t1 t2))) =>
         Proves Γ (o ::= t1) \/ Proves Γ (o ::= t2)
       (* P_PairElim *)
-      | (Atom (istype o (tPair t1 t2))) =>
+      | (Elem (istype o (tPair t1 t2))) =>
         Proves Γ ((obj_car o) ::= t1)
         /\ Proves Γ ((obj_cdr o) ::= t2)
         /\ Proves Γ (o ::= tCons)
@@ -925,7 +948,7 @@ assert (succedent_dec: {succedent} + {~succedent}).
 {
  subst.
  clear HNoAxiom.
- destruct P as [[o t] |P1 P2|P1 P2|P1 P2| | |]; try (solve[auto]).
+ destruct P as [[o t] |P1 P2|P1 P2|P1 P2| |]; try (solve[auto]).
  destruct t as [ | | | | | | | | | x2 t2a t2r p2 o2 ]; 
    try (solve[auto | 
               apply (In_dec prop_eqdec (Atom (istype o _)) Γ)]).
@@ -940,7 +963,7 @@ assert (succedent_dec: {succedent} + {~succedent}).
   destruct succedent_dec as [HSucc | HNoSucc].
 { (* succedent provable *)
   left.
-  destruct P as [[o t]|P1 P2|P1 P2|P1 P2| | | ]; try (solve[crush]).
+  destruct P as [[o t]|P1 P2|P1 P2|P1 P2| | ]; try (solve[crush]).
   destruct t; try (solve[apply P_Axiom; crush]).
   destruct HSucc. apply P_Union_lhs. auto. apply P_Union_rhs. auto. 
   destruct o. unfold obj_car in HSucc. unfold obj_cdr in HSucc. 
@@ -956,7 +979,7 @@ assert (succedent_dec: {succedent} + {~succedent}).
   intros Hprf.
   simpl in Hprf.
   induction Hprf as 
-      [ Γ f HAtomIn | (* P_Axiom *)
+      [ Γ P' HElemIn | (* P_Axiom *)
         Γ P t1 t2 o Ht1In Ht2In HNoCST | (* P_Contradiction *)
         Γ P t1 t2 [π x] HIn HlhsPrf HrhsPrf | (* P_UnionElim *)
         Γ P t1 t2 π x HIn HPrf | (* P_PairElim *)
@@ -983,6 +1006,82 @@ assert (succedent_dec: {succedent} + {~succedent}).
   + eapply types_nil_false. exact HIn. apply noTopWitness. auto.
 } }
 Defined.
+
+Definition P_dec : forall Γ P,
+{Proves Γ P} + {~Proves Γ P}.
+Proof.
+  intros Γ P.
+  remember (Proves_dec_pair (Γ, P)) as H.
+  crush.
+Defined.
+
+Theorem ST_dec : forall t1 t2,
+{Subtype t1 t2} + {~Subtype t1 t2}.
+Proof.
+  intros t1 t2.
+  unfold Subtype. apply P_dec.
+Defined.
+
+Ltac solve_it :=
+  match goal with 
+    | |- Proves ?L ?P =>
+      let provability := constr:(P_dec L P) in
+      let proof := eval vm_compute in provability in
+      match proof with
+        | left ?prf => exact prf
+        | right _ => fail
+      end
+    | |- Subtype ?t1 ?t2 =>
+      let provability := constr:(ST_dec t1 t2) in
+      let proof := eval vm_compute in provability in
+      match proof with
+        | left ?prf => exact prf
+        | right _ => fail
+      end
+    | |- SubObj ?o1 ?o2 =>
+      let provability := constr:(SO_dec o1 o2) in
+      let proof := eval vm_compute in provability in
+      match proof with
+        | left ?prf => exact prf
+        | right _ => fail
+      end
+  end.
+
+Lemma proves_TT2 :
+Proves [] TT.
+Proof.
+  solve_it.
+Defined.
+
+
+Lemma proves_ex :
+let x := (Id 0) in
+Proves [(var x ::= tNat)] (var x ::= (tU tNat tBool)).
+Proof.
+  simpl.
+  solve_it.
+Defined.
+
+Lemma proves_simple1 : 
+Proves [((var (Id 0)) ::= tNat)] (((var (Id 0)) ::= tTop) || ((var (Id 0)) ::= tBot)).
+Proof.
+  solve_it.
+Qed.
+
+Lemma proves_simple2 : 
+Proves [((var (Id 0)) ::= tNat);
+       (((var (Id 0)) ::= tNat) 
+          --> (((var (Id 1)) ::= tNat) 
+                 || ((var (Id 1)) ::= tBool)));
+       ((((var (Id 1)) ::= tT) 
+          || ((var (Id 1)) ::= tF))
+          --> ((var (Id 2)) ::= tStr))] 
+       (((var (Id 0)) ::= tNat) 
+          && (((var (Id 1)) ::= tNat) || (((var (Id 2)) ::= tStr)
+                                            && ((var (Id 1)) ::= tBool)))).
+Proof.
+  solve_it.
+Qed.
 
 Theorem P_ModusPonens : forall L P Q,
 Proves L P
@@ -1026,45 +1125,7 @@ feapply IHHP1.
   (*  *)
 
 
-Definition P_dec : forall Γ P,
-{Proves Γ P} + {~Proves Γ P}.
-Proof.
-  intros Γ P.
-  remember (Proves_dec_pair (Γ, P)) as H.
-  crush.
-Defined.
 
-Theorem ST_dec : forall t1 t2,
-{Subtype t1 t2} + {~Subtype t1 t2}.
-Proof.
-  intros t1 t2.
-  unfold Subtype. apply P_dec.
-Defined.
-
-Ltac solve_it :=
-  match goal with 
-    | |- Proves ?L ?P =>
-      let provability := constr:(P_dec L P) in
-      let proof := eval vm_compute in provability in
-      match proof with
-        | left ?prf => exact prf
-        | right _ => fail
-      end
-    | |- Subtype ?t1 ?t2 =>
-      let provability := constr:(ST_dec t1 t2) in
-      let proof := eval vm_compute in provability in
-      match proof with
-        | left ?prf => exact prf
-        | right _ => fail
-      end
-    | |- SubObj ?o1 ?o2 =>
-      let provability := constr:(SO_dec o1 o2) in
-      let proof := eval vm_compute in provability in
-      match proof with
-        | left ?prf => exact prf
-        | right _ => fail
-      end
-  end.
 
 Lemma subst_o_eq_id : forall o x,
 (subst_o o (Some (var x)) x) = o.
@@ -1075,116 +1136,7 @@ Proof.
   rewrite app_nil_r. auto.
 Qed.
 
-(* Lemma subst_t_eq_id : forall t x, *)
-(* (subst_t t (Some (var x)) x) = t *)
-(* with subst_p_eq_id : forall p x, *)
-(* (subst_p p (Some (var x)) x) = p. *)
-(* Proof. *)
-(*   clear subst_t_eq_id. *)
-(*   intros. *)
-(*   induction t; crush. *)
-(*   unfold subst_t. unfold subst_t'. *)
-(*   fold subst_t'. fold subst_t. crush. *)
-(*   unfold subst_t. unfold subst_t'. *)
-(*   fold subst_t'. fold subst_t. crush. *)
-(*   unfold subst_t. unfold subst_t'. *)
-(*   destruct (id_eqdec x i). auto.  *)
-(*   fold subst_p'. *)
-(*   fold subst_t'. fold subst_t.  *)
-(*   rewrite subst_o_eq_id.  *)
-(*   rewrite (subst_p_eq_id p). *)
-(*   rewrite IHt1. rewrite IHt2. *)
-(*   auto. *)
 
-(*   clear subst_p_eq_id. *)
-(*   intros. *)
-(*   induction p; crush. *)
-(*   destruct f. *)
-(*   unfold subst_p. unfold subst_p'. *)
-(*   fold subst_t'. fold subst_t.  *)
-(*   destruct o as [π z]. *)
-(*   destruct (id_eqdec x z).  *)
-(*   rewrite app_nil_r.  *)
-(*   rewrite (subst_t_eq_id t x). crush. *)
-(*   destruct (in_dec id_eqdec z (fv_set_t t)). *)
-(*   unfold subst_t. unfold subst_t'. *)
-(*   fold subst_t'. fold subst_t. crush. *)
-(*   unfold subst_t. unfold subst_t'. *)
-(*   destruct (id_eqdec x i). auto.  *)
-(*   fold subst_p'. *)
-(*   fold subst_t'. fold subst_t.  *)
-(*   rewrite subst_o_eq_id.  *)
-(*   rewrite (subst_p_eq_id p). *)
-(*   rewrite IHt1. rewrite IHt2. *)
-(*   auto. *)
-
-(*   intros t x. *)
-
-(* Lemma S_Refl : forall t, *)
-(* Subtype t t. *)
-(* Proof. *)
-(*   intros. *)
-(*   induction t. *)
-(*   solve_it. solve_it. solve_it. solve_it. *)
-(*   solve_it. solve_it. solve_it. *)
-(*   unfold Subtype. *)
-(*   apply (P_UnionElim _ _ t1 t2 (var (Id 0))). *)
-(*   crush. apply P_Union_lhs. apply P_Axiom. crush. *)
-(*   apply P_Union_rhs. apply P_Axiom. crush. *)
-(*   unfold Subtype. *)
-(*   apply (P_PairElim _ _ t1 t2 [] (Id 0)). *)
-(*   crush. apply P_Pair. apply P_Axiom. crush. *)
-(*   apply P_Axiom. crush. apply P_Axiom. crush. *)
-(*   unfold Subtype. *)
-(*   apply (P_Fun _ i t1 t2 p o). crush. *)
-(*   crush. apply P_Pair. apply P_Axiom. crush. *)
-(*   apply P_Axiom. crush. apply P_Axiom. crush. *)
-
-(*   apply P_Union_rhs. apply P_Axiom. crush. *)
-
-(*   auto. *)
-(*   solve_it. *)
-(*   simpl. *)
-
-
-Lemma proves_TT2 :
-Proves [] TT.
-Proof.
-  solve_it.
-Defined.
-
-
-Lemma proves_ex :
-let x := (Id 0) in
-Proves [(var x ::= tNat)] (var x ::= (tU tNat tBool)).
-Proof.
-  simpl.
-  solve_it.
-Defined.
-Print proves_ex.
-
-
-Lemma proves_simple1 : 
-Proves [((var (Id 0)) ::= tNat)] (((var (Id 0)) ::= tTop) || ((var (Id 0)) ::= tBot)).
-Proof.
-  solve_it.
-Qed.
-
-Lemma proves_simple2 : 
-Proves [((var (Id 0)) ::= tNat);
-       (((var (Id 0)) ::= tNat) 
-          --> (((var (Id 1)) ::= tNat) 
-                 || ((var (Id 1)) ::= tBool)));
-       ((((var (Id 1)) ::= tT) 
-          || ((var (Id 1)) ::= tF))
-          --> ((var (Id 2)) ::= tStr))] 
-       (((var (Id 0)) ::= tNat) 
-          && (((var (Id 1)) ::= tNat) || (((var (Id 2)) ::= tStr)
-                                            && ((var (Id 1)) ::= tBool)))).
-Proof.
-  solve_it.
-Qed.
-Print proves_simple2.
 
 Theorem optobj_eqdec : forall o1 o2 : opt object,
 {o1 = o2} + {o1 <> o2}.

@@ -75,13 +75,13 @@ Inductive type : Set :=
 | tλ    : id -> type -> type -> prop -> opt object -> type
 
 with prop : Set :=
-| Atom : fact -> prop
-| And  : prop -> prop -> prop
-| Or   : prop -> prop -> prop
-| Imp  : prop -> prop -> prop
-| TT   : prop
-| FF   : prop
-| Unk  : prop
+| Atom        : fact -> prop
+| And         : prop -> prop -> prop
+| Or          : prop -> prop -> prop
+| Imp         : prop -> prop -> prop
+| Truth       : prop
+| Falsehood   : prop
+| Unk         : prop
 
 with fact : Set :=
 | istype : object -> type -> fact.
@@ -89,47 +89,56 @@ Hint Constructors type prop fact.
 
 Fixpoint Not (P:prop) : prop :=
   match P with
-    | Atom f => (Imp (Atom f) FF)
+    | Atom f => (Imp (Atom f) Falsehood)
     | And P Q => Or (Not P) (Not Q)
     | Or P Q  => And (Not P) (Not Q)
     | Imp P Q => And P (Not Q)
-    | FF => TT
-    | TT => FF
+    | Falsehood => Truth
+    | Truth => Falsehood
     | Unk => Unk
   end.
 
 Notation tBool := (tU tT tF).
 
-Infix "::=" := (fun o t => Atom (istype o t)) 
+Infix ":::=" := (fun o t => Atom (istype o t)) 
                  (at level 30, right associativity).
-Infix "::~" := (fun o t => (Imp (Atom (istype o t)) FF))
+Infix ":::~" := (fun o t => (Imp (Atom (istype o t)) Falsehood))
                  (at level 30, right associativity).
-Notation "P '&&' Q" := (And P Q) (at level 40, left associativity).
-Notation "P '||' Q" := (Or P Q) (at level 50, left associativity).
-Notation "P '-->' Q" := (Imp P Q) (at level 90).
+Notation "P '&&&' Q" := (And P Q) (at level 40, left associativity).
+Notation "P '|||' Q" := (Or P Q) (at level 50, left associativity).
+Notation "P '--->' Q" := (Imp P Q) (at level 90).
 
 Inductive formula : Set :=
 | Elem      : fact -> formula
 | Conj      : formula -> formula -> formula
 | Disj      : formula -> formula -> formula
 | Impl      : formula -> formula -> formula
-| Truth     : formula
-| Falsehood : formula.
+| TT        : formula
+| FF        : formula.
+
+Infix "::=" := (fun o t => Elem (istype o t)) 
+                 (at level 30, right associativity).
+Infix "::~" := (fun o t => (Impl (Elem (istype o t)) FF))
+                 (at level 30, right associativity).
+Notation "P '&&' Q" := (Conj P Q) (at level 40, left associativity).
+Notation "P '||' Q" := (Disj P Q) (at level 50, left associativity).
+Notation "P '-->' Q" := (Impl P Q) (at level 90).
+
 
 Fixpoint Negate (F:formula) : formula :=
   match F with
-    | Elem f => (Impl (Elem f) Falsehood)
+    | Elem f => (Impl (Elem f) FF)
     | Conj P Q => Disj (Negate P) (Negate Q)
     | Disj P Q  => Conj (Negate P) (Negate Q)
     | Impl P Q => Conj P (Negate Q)
-    | Falsehood => Truth
-    | Truth => Falsehood
+    | FF => TT
+    | TT => FF
   end.
 
-Definition unk_form (b:bool) :=
+Definition unk_form (b:bool) : formula :=
   match b with
-    | true => Truth
-    | false => Falsehood
+    | true => FF
+    | false => TT
   end.
 
 Fixpoint formulate' (b:bool) (p:prop) : formula :=
@@ -138,8 +147,8 @@ Fixpoint formulate' (b:bool) (p:prop) : formula :=
     | And P Q => Conj (formulate' b P) (formulate' b Q)
     | Or P Q  => Disj (formulate' b P) (formulate' b Q)
     | Imp P Q => Disj (formulate' (negb b) P) (formulate' b Q)
-    | FF => Falsehood
-    | TT => Truth
+    | Falsehood => FF
+    | Truth => TT
     | Unk => unk_form b
   end.
 
@@ -265,8 +274,8 @@ with prop_weight (p:prop) : nat :=
     | And P Q => 1 + (prop_weight P) + (prop_weight Q)
     | Or P Q => 1 + (prop_weight P) + (prop_weight Q)
     | Imp P Q => 1 + (prop_weight P) + (prop_weight Q)
-    | TT => 0
-    | FF => 0
+    | Truth => 0
+    | Falsehood => 0
     | Unk => 0
   end.
 Hint Unfold type_weight prop_weight.
@@ -277,8 +286,8 @@ Fixpoint formula_weight (f:formula) : nat :=
     | Conj P Q => 1 + (formula_weight P) + (formula_weight Q)
     | Disj P Q => 1 + (formula_weight P) + (formula_weight Q)
     | Impl P Q => 1 + (formula_weight P) + (formula_weight Q)
-    | Truth => 0
-    | Falsehood => 0
+    | TT => 0
+    | FF => 0
   end.
 
 Hint Unfold formulate formulate'.
@@ -370,6 +379,13 @@ repeat decide equality.
 Defined.
 Hint Resolve type_eqdec prop_eqdec fact_eqdec.
 
+Theorem form_eqdec : forall f1 f2 : formula,
+{f1 = f2} + {f1 <> f2}.
+Proof.
+  repeat decide equality.
+Defined.
+
+
 Theorem exp_eqdec : forall e1 e2 : exp,
 {e1 = e2} + {e1 <> e2}.
 Proof.
@@ -384,51 +400,51 @@ let x := (Id 0) in
     | opIsNat =>
       (tλ x 
           tTop tBool
-          ((var x) ::= tNat)
+          ((var x) :::= tNat)
           (Some (var x)))
     | opIsProc =>
       (tλ x 
           tTop tBool
-          ((var x) ::= (tλ x tBot tTop TT None)) 
+          ((var x) :::= (tλ x tBot tTop Truth None)) 
           None)
     | opIsBool =>
       (tλ x 
           tTop tBool
-          ((var x) ::= tBool)
+          ((var x) :::= tBool)
           None)
     | opIsCons =>
       (tλ x 
           tTop tBool
-          ((var x) ::= (tPair tTop tTop))
+          ((var x) :::= (tPair tTop tTop))
           None)
     | opAdd1 =>
       (tλ x 
           tNat tNat
-          TT
+          Truth
           None)
     | opIsZero =>
       (tλ x 
           tNat tBool
-          TT
+          Truth
           None)
     | opIsStr =>
       (tλ x 
           tTop tBool
-          ((var x) ::= tStr)
+          ((var x) :::= tStr)
           None)
     | opStrLen =>
       (tλ x 
           tStr tNat
-          TT
+          Truth
           None)
     | opPlus =>
       (tλ x 
           tNat 
           (tλ x 
               tNat tNat
-              TT
+              Truth
               None)
-          TT
+          Truth
           None)
   end.
 
@@ -473,8 +489,8 @@ Fixpoint fv_set_t (t : type) : list id :=
 with fv_set_p (p: prop) : list id :=
   match p with
     | Atom f => fv_set_f f
-    | p && q => app (fv_set_p p) (fv_set_p q)
-    | p || q => app (fv_set_p p) (fv_set_p q)
+    | p &&& q => app (fv_set_p p) (fv_set_p q)
+    | p ||| q => app (fv_set_p p) (fv_set_p q)
     | _ => nil
   end
 
@@ -506,11 +522,12 @@ Fixpoint subst_p'
   match p with
     | Atom f => 
       match (subst_f b f opto x) with
-        | None => TT
+        | None => Truth
         | Some f' => Atom f'
       end
-    | P || Q => (subst_p' b P opto x) || (subst_p' b Q opto x)
-    | P && Q => (subst_p' b P opto x) && (subst_p' b Q opto x)
+    | P ||| Q => (subst_p' b P opto x) ||| (subst_p' b Q opto x)
+    | P &&& Q => (subst_p' b P opto x) &&& (subst_p' b Q opto x)
+    | P ---> Q => (subst_p' (negb b) P opto x) ---> (subst_p' b Q opto x)
     | _ => p
   end
 
@@ -554,10 +571,29 @@ with subst_t'
     | _ => t
   end.
 
+Fixpoint subst_form'
+         (b:bool)
+         (f:formula)
+         (opto:opt object)
+         (x:id) : formula :=
+  match f with
+    | Elem f => 
+      match (subst_f b f opto x) with
+        | None => TT
+        | Some f' => Elem f'
+      end
+    | P || Q => (subst_form' b P opto x) || (subst_form' b Q opto x)
+    | P && Q => (subst_form' b P opto x) && (subst_form' b Q opto x)
+    | P --> Q => (subst_form' (negb b) P opto x) --> (subst_form' b Q opto x)
+    | _ => f
+  end.
+
+
 (** All uses of subst_p' and subst_t' "in the wild" call the positive case, from
 which the negative case may then be called.  *) 
 Definition subst_p := subst_p' true.
 Definition subst_t := subst_t' true.
+Definition subst_form := subst_form' true.
 
 Lemma split_nonnil {X:Type} : forall l1 l2 (x:X),
 nil <> l1 ++ (x :: l2).
@@ -614,13 +650,13 @@ Proof.
 Defined.
 
 
-Fixpoint rem (p:prop) (l:list prop) : list prop :=
+Fixpoint rem (f:formula) (l:list formula) : list formula :=
   match l with
     | nil => nil
-    | p' :: ps =>
-      if prop_eqdec p p' 
-      then rem p ps
-      else p' :: (rem p ps)
+    | f' :: fs =>
+      if form_eqdec f f' 
+      then rem f fs
+      else f' :: (rem f fs)
   end.
 
 

@@ -76,106 +76,108 @@ Inductive SubObj : relation (opt object) :=
 | SO_Refl : forall x, SubObj x x
 | SO_Top : forall x, SubObj x None.
 
-
 (** ** Proves Relation *)
 
-Inductive Proves : list prop -> prop -> Prop :=
+Inductive Proves : list formula -> formula -> Prop :=
 | P_Axiom :
-    forall Γ f,
-      In (Atom f) Γ
-    -> Proves Γ (Atom f)
+    forall L P,
+      In P L
+    -> Proves L P
 | P_Contradiction :
-    forall Γ P t1 t2 o,
-      In (o ::= t1) Γ
-      -> In (o ::= t2) Γ
+    forall L P t1 t2 o,
+      In (o ::= t1) L
+      -> In (o ::= t2) L
       -> (~CommonSubtype (t1, t2))
-      -> Proves Γ P
+      -> Proves L P
 | P_UnionElim :
-    forall Γ P t1 t2 o ,
-      In (o ::= (tU t1 t2)) Γ
-      -> Proves ((o ::= t1)::(rem (o ::= (tU t1 t2)) Γ)) P
-      -> Proves ((o ::= t2)::(rem (o ::= (tU t1 t2)) Γ)) P
-      -> Proves Γ P
+    forall L P t1 t2 o ,
+      In (o ::= (tU t1 t2)) L
+      -> Proves ((o ::= t1)::(rem (o ::= (tU t1 t2)) L)) P
+      -> Proves ((o ::= t2)::(rem (o ::= (tU t1 t2)) L)) P
+      -> Proves L P
 | P_PairElim :
-    forall Γ P t1 t2 π x,
-      In ((obj π x) ::= (tPair t1 t2)) Γ
+    forall L P t1 t2 π x,
+      In ((obj π x) ::= (tPair t1 t2)) L
       -> Proves (((obj π x) ::= tCons)
                     ::((obj (π ++ [car]) x) ::= t1)
                     ::((obj (π ++ [cdr]) x) ::= t2)
-                    ::(rem ((obj π x) ::= (tPair t1 t2)) Γ)) 
+                    ::(rem ((obj π x) ::= (tPair t1 t2)) L)) 
                    P
-      -> Proves Γ P
+      -> Proves L P
 | P_Top :
-  forall Γ t o,
-    In (o ::= t) Γ
-    -> Proves Γ (o ::= tTop)
+  forall L t o,
+    In (o ::= t) L
+    -> Proves L (o ::= tTop)
 | P_Union_lhs :
-    forall Γ t1 t2 o,
-      Proves Γ (o ::= t1)
-      -> Proves Γ (o ::= (tU t1 t2))
+    forall L t1 t2 o,
+      Proves L (o ::= t1)
+      -> Proves L (o ::= (tU t1 t2))
 | P_Union_rhs :
-    forall Γ t1 t2 o,
-      Proves Γ (o ::= t2)
-      -> Proves Γ (o ::= (tU t1 t2))
+    forall L t1 t2 o,
+      Proves L (o ::= t2)
+      -> Proves L (o ::= (tU t1 t2))
 | P_Pair :
-    forall Γ t1 t2 π x,
-      Proves Γ ((obj (π ++ [car]) x) ::= t1)
-      -> Proves Γ ((obj (π ++ [cdr]) x) ::= t2)
-      -> Proves Γ ((obj π x) ::= tCons)
-      -> Proves Γ ((obj π x) ::= (tPair t1 t2))
+    forall L t1 t2 π x,
+      Proves L ((obj (π ++ [car]) x) ::= t1)
+      -> Proves L ((obj (π ++ [cdr]) x) ::= t2)
+      -> Proves L ((obj π x) ::= tCons)
+      -> Proves L ((obj π x) ::= (tPair t1 t2))
 | P_Fun :
-    forall Γ x1 t1a t1r p1 o1 x2 t2a t2r p2 o2 ox,
-      In (ox ::= (tλ x1 t1a t1r p1 o1)) Γ
+    forall L x1 t1a t1r p1 o1 x2 t2a t2r p2 o2 ox,
+      In (ox ::= (tλ x1 t1a t1r p1 o1)) L
       -> Proves [(ox ::= (subst_t t1r (Some (var x2)) x1))] (ox ::= t2r)
       -> Proves [(ox ::= t2a)] (ox ::= (subst_t t1a (Some (var x2)) x1))
-      -> Proves [(subst_p p1 (Some (var x2)) x1)] p2
+      -> Proves [] (formulate ((subst_p p1 (Some (var x2)) x1) ---> p2))
       -> SubObj (subst_o o1 (Some (var x2)) x1) o2
-      -> Proves Γ (ox ::= (tλ x2 t2a t2r p2 o2))
+      -> Proves L (ox ::= (tλ x2 t2a t2r p2 o2))
 | P_Bot :
-    forall Γ P o,
-      In (o ::= tBot) Γ
-      -> Proves Γ P
+    forall L P o,
+      In (o ::= tBot) L
+      -> Proves L P
 | P_True :
-    forall Γ,
-      Proves Γ TT
+    forall L,
+      Proves L TT
 | P_False :
-    forall Γ P,
-      In FF Γ
-      -> Proves Γ P
+    forall L P,
+      In FF L
+      -> Proves L P
 | P_Simpl :
-    forall Γ R P Q,
-      In (P && Q) Γ
-      -> Proves (P::Q::(rem (P && Q) Γ)) R
-      -> Proves Γ R
+    forall L R P Q,
+      In (P && Q) L
+      -> Proves (P::Q::(rem (P && Q) L)) R
+      -> Proves L R
 | P_DisjElim :
-    forall Γ R P Q,
-      In (P || Q) Γ
-      -> Proves (P::(rem (P || Q) Γ)) R
-      -> Proves (Q::(rem (P || Q) Γ)) R
-      -> Proves Γ R
+    forall L R P Q,
+      In (P || Q) L
+      -> Proves (P::(rem (P || Q) L)) R
+      -> Proves (Q::(rem (P || Q) L)) R
+      -> Proves L R
 | P_MP :
-     forall Γ R P Q,
-       In (P --> Q) Γ
-       -> Proves (rem (P --> Q) Γ) P
-       -> Proves (P::Q::(rem (P --> Q) Γ)) R
-       -> Proves Γ R
+     forall L R P Q,
+       In (P --> Q) L
+       -> Proves (rem (P --> Q) L) P
+       -> Proves (P::Q::(rem (P --> Q) L)) R
+       -> Proves L R
 | P_Conj :
-    forall Γ P Q,
-      Proves Γ P
-      -> Proves Γ Q
-      -> Proves Γ (P && Q)
+    forall L P Q,
+      Proves L P
+      -> Proves L Q
+      -> Proves L (P && Q)
 | P_Add_lhs :
-    forall Γ P Q,
-      Proves Γ P
-      -> Proves Γ (P || Q)
+    forall L P Q,
+      Proves L P
+      -> Proves L (P || Q)
 | P_Add_rhs :
-    forall Γ P Q,
-      Proves Γ Q
-      -> Proves Γ (P || Q)
+    forall L P Q,
+      Proves L Q
+      -> Proves L (P || Q)
  | P_CP :
-     forall Γ P Q,
-       Proves (P::Γ) Q
-       -> Proves Γ (P --> Q).
+     forall L P Q,
+       Proves (P::L) Q
+       -> Proves L (P --> Q).
 
 Definition Subtype (t1 t2:type) := 
   Proves [((var (Id 0)) ::= t1)] ((var (Id 0)) ::= t2).
+
+Definition Implies (p1 p2:prop) : Prop :=
+Proves [] (formulate (p1 ---> p2)).

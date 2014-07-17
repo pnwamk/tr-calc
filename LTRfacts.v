@@ -32,6 +32,89 @@ Ltac howboutno :=
 try(solve[right; intros contra; inversion contra; crush]).
 
 
+(** Weighting for types/props *)
+Fixpoint type_weight (t:type) : nat :=
+  match t with
+    | tU t1 t2 =>
+      2 + (plus (type_weight t1) (type_weight t2))
+    | tλ x t1 t2 p _ => 2 + (type_weight t1) 
+                        + (type_weight t2)
+                        + (prop_weight p)
+                                               
+    | tPair t1 t2 => 4 + (plus (type_weight t1) (type_weight t2))
+    | _ => 1
+  end
+
+with prop_weight (p:prop) : nat :=
+  match p with
+    | Atom (istype o t) => type_weight t
+    | And P Q => 1 + (prop_weight P) + (prop_weight Q)
+    | Or P Q => 1 + (prop_weight P) + (prop_weight Q)
+    | Imp P Q => 1 + (prop_weight P) + (prop_weight Q)
+    | Truth => 0
+    | Falsehood => 0
+    | Unk => 0
+  end.
+Hint Unfold type_weight prop_weight.
+
+Fixpoint formula_weight (f:formula) : nat :=
+  match f with
+    | Elem (istype o t) => type_weight t
+    | Conj P Q => 1 + (formula_weight P) + (formula_weight Q)
+    | Disj P Q => 1 + (formula_weight P) + (formula_weight Q)
+    | Impl P Q => 1 + (formula_weight P) + (formula_weight Q)
+    | TT => 0
+    | FF => 0
+  end.
+
+Hint Unfold formulate formulate'.
+
+Lemma form'_leq : forall p b1 b2,
+formula_weight (formulate' b1 p) <= formula_weight (formulate' b2 p).
+Proof.
+  intros p.
+  induction p; crush.
+  specialize (IHp1 b1 b2).
+  specialize (IHp2 b1 b2).
+  crush.
+  specialize (IHp1 b1 b2).
+  specialize (IHp2 b1 b2).
+  crush.
+  specialize (IHp1 (negb b1) (negb b2)).
+  specialize (IHp2 b1 b2).
+  crush.
+  destruct b1; simpl; omega.
+Qed.
+
+Lemma form_leq_prop : forall p,
+prop_weight p <= formula_weight (formulate p).
+Proof.
+  intros p.
+  induction p; crush.
+  unfold formulate'.
+  fold formulate'.
+  fold formulate.
+  crush.
+  fold formulate.
+  crush.
+  unfold formulate'.
+  fold formulate'.
+  unfold formulate in *.
+  remember (form'_leq p1 true false).
+  crush.
+Qed.
+
+Fixpoint env_weight (l:list prop) : nat :=
+  match l with
+    | nil => 0
+    | p :: ps => (prop_weight p) + (env_weight ps)
+  end.
+Hint Unfold env_weight.
+
+Definition proof_weight (p:(list prop) * prop) : nat :=
+plus (env_weight (fst p)) (prop_weight (snd p)).
+Hint Unfold proof_weight.
+
 
 Lemma SO_dec : forall opto1 opto2,
 {SubObj opto1 opto2} + {~SubObj opto1 opto2}.

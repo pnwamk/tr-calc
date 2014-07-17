@@ -83,6 +83,10 @@ Inductive Proves : list formula -> formula -> Prop :=
     forall L P,
       In P L
     -> Proves L P
+| P_Weak :
+    forall L P Q,
+      Proves L Q
+      -> Proves (P::L) Q
 | P_Contradiction :
     forall L P t1 t2 o,
       In (o ::= t1) L

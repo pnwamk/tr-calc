@@ -1087,7 +1087,7 @@ Theorem P_ModusPonens : forall L P Q,
 Proves L P
 -> Proves L (P-->Q)
 -> Proves L Q.
-Proof. Admitted.
+Proof. Admitted. 
 
 Theorem P_HypSyl : forall L P Q R,
 Proves L (P --> Q)
@@ -1096,9 +1096,16 @@ Proves L (P --> Q)
 Proof.
   intros.
   apply P_CP.
-  assert (Proves (P::L) P).
-  
+  apply P_ModusPonens with (P:=Q).
+  apply P_ModusPonens with (P:=P).
+  apply P_Axiom; crush.
+  apply P_CP.
+  apply P_ModusPonens with (P:=P).
+  apply P_Axiom; crush.
 
+  eapply P_MP.
+  simpl.
+  assert (Proves (P::L) Q).
 
 Theorem P_Cut : forall E P Q,
 Proves E Q

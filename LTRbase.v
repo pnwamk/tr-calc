@@ -60,16 +60,16 @@ Hint Constructors object.
 
 Notation var := (obj []).
 
+Inductive base : Set :=
+  Base : nat ->base.
+
 (** Types and propositions: *)
 (** Types and propositions: *)
 Inductive type : Set :=
 | tTop  : type
 | tBot  : type
-| tNat  : type
-| tStr  : type
-| tT    : type
+| tBase : base -> type
 | tF    : type
-| tCons : type
 | tU    : type -> type -> type
 | tPair : type -> type -> type
 | tλ    : id -> type -> type -> prop -> opt object -> type
@@ -87,6 +87,12 @@ with datum : Set :=
 | istype : object -> type -> datum.
 Hint Constructors type prop datum.
 
+Notation tT := (tBase (Base 0)).
+Notation tNat := (tBase (Base 1)).
+Notation tStr := (tBase (Base 2)).
+Notation tCons := (tBase (Base 3)).
+Notation tBool := (tU tT tF).
+
 Fixpoint Not (P:prop) : prop :=
   match P with
     | Atom f => (Imp (Atom f) Falsehood)
@@ -97,8 +103,6 @@ Fixpoint Not (P:prop) : prop :=
     | Truth => Falsehood
     | Unk => Unk
   end.
-
-Notation tBool := (tU tT tF).
 
 Infix ":::=" := (fun o t => Atom (istype o t)) 
                  (at level 30, right associativity).
@@ -122,7 +126,7 @@ Infix "::~" := (fun o t => (Impl (Elem (istype o t)) FF))
                  (at level 30, right associativity).
 Notation "P '&&' Q" := (Conj P Q) (at level 40, left associativity).
 Notation "P '||' Q" := (Disj P Q) (at level 50, left associativity).
-Notation "P '-->' Q" := (Impl P Q) (at level 90).
+Notation "P '==>' Q" := (Impl P Q) (at level 90).
 
 
 Fixpoint Negate (F:formula) : formula :=
@@ -509,7 +513,7 @@ Fixpoint subst_f'
       end
     | P || Q => (subst_f' b P opto x) || (subst_f' b Q opto x)
     | P && Q => (subst_f' b P opto x) && (subst_f' b Q opto x)
-    | P --> Q => (subst_f' (negb b) P opto x) --> (subst_f' b Q opto x)
+    | P ==> Q => (subst_f' (negb b) P opto x) ==> (subst_f' b Q opto x)
     | _ => f
   end.
 

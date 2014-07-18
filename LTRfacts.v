@@ -996,6 +996,7 @@ assert (succedent_dec: {succedent} + {~succedent}).
   right.
   clear IH.
   intros Hprf.
+  simpl in Hprf.
   induction Hprf as 
       [ Γ P HElemIn | (* P_Axiom *)
         Γ P Q HProves | (* P_Weak *)
@@ -1102,56 +1103,149 @@ Proof.
   solve_it.
 Qed.
 
-Theorem P_ModusPonens : forall L P Q,
-Proves L P
--> Proves L (P-->Q)
--> Proves L Q.
-Proof. Admitted. 
+Fixpoint datum_weight (d:datum) : nat :=
+  match d with
+    | istype o t => type_weight t
+  end.
 
-Theorem P_HypSyl : forall L P Q R,
+Lemma nil_no_Elem : forall d,
+~ Proves [] (Elem d).
+Proof.
+  induction d as (d, IH) using
+    (well_founded_induction
+      (well_founded_ltof _ datum_weight)).
+  intros Hproves.
+  destruct d.
+  destruct t; try(solve[inversion Hproves; crush]).
+  inversion Hproves; crush.
+  apply (IH (istype o t1)). unfold ltof. unfold datum_weight.
+  crush. auto.
+  apply (IH (istype o t2)). unfold ltof. unfold datum_weight.
+  crush. auto.
+  inversion Hproves; crush.
+  apply (IH (istype (obj (π ++ [car]) x) t1)). unfold ltof. unfold datum_weight.
+  crush. auto.
+Qed.
+Hint Resolve nil_no_Elem.
+
+Lemma in_rem : forall L P Q,
+P <> Q
+-> In P L
+-> In P (rem Q L).
+Proof.
+  intros L.
+  induction L; crush.
+  destruct (form_eqdec Q P); crush.
+  destruct (form_eqdec Q a); crush.
+Qed.
+
+Lemma form_neq_self_ant : forall P Q,
+(P <> (P --> Q)).
+Proof.
+  intros P; induction P; crush.
+Qed.
+
+Require Import Coq.Sorting.Permutation.
+
+Theorem P_Perm : forall L1 L2 P,
+Proves L1 P
+-> Permutation L1 L2
+-> Proves L2 P.
+Proof.
+  intros L1 L2 P HProves HPerm.
+  generalize dependent L2.
+  induction HProves; intros.
+  apply P_Axiom. eapply Permutation_in; eauto. 
+  apply (P_Weak _ P) in HProves.
+  
+
+Lemma rem_not_proves : forall L P Q,
+Proves L (P --> Q)
+-> Proves (P::L) Q.
+Proof.
+  intros L P Q HPQ.
+  remember (P --> Q) as R in HPQ.
+  induction HPQ.
+- rewrite HeqR in H.
+  eapply P_MP. right; eauto.
+  unfold rem.
+  destruct (form_eqdec (P--> Q) P).
+  fold rem.
+  symmetry in e.
+  eapply form_neq_self_ant in e. crush.
+  fold rem. apply P_Axiom. crush.
+  apply P_Axiom; crush.
+- subst.
+  inversion HPQ; subst.
+  
+
+Theorem P_Cut : forall P Q L,
+Proves L P
+-> Proves L (P --> Q)
+-> Proves L Q.
+Proof.
+  intros P Q L HP HQ.
+  remember (P --> Q) as R in HQ.
+  induction HQ.
+  subst. eapply P_MP. exact H.
+  apply (P_MP _ P Q).
+  remember 
+  inversion HQ; subst.
+  eapply P_MP. exact H.
+
+  induction PQ 
+    as ((P,Q), IH') 
+         using
+         (well_founded_induction
+            (well_founded_ltof _ fpair_weight)).
+  assert (forall P' Q' : formula,
+        ltof (formula * formula) fpair_weight (P', Q') (P, Q) ->
+        Proves L P' -> Proves L (P' --> Q') -> Proves L Q') as IH.
+  intros P' Q'.
+  remember (IH' (P', Q')). crush.
+  clear IH'.
+  simpl in *.
+  induction HP.
+  induction HQ.
+  inversion HP; subst.
+
+  destruct P; destruct Q; crush.
+
+
+  intros L.
+  induction L.
+  intros P Q HP HPQ.
+  inversion HP; crush.
+  apply nil_no_Elem in H. crush.
+  apply nil_no_Elem in H. crush.
+  apply nil_no_Elem in H. crush.
+
+Theorem P_HypSyl_ext : forall L P Q R,
 Proves L (P --> Q)
 -> Proves L (Q --> R)
 -> Proves L (P --> R).
 Proof.
   intros.
   apply P_CP.
-  apply P_ModusPonens with (P:=Q).
-  apply P_ModusPonens with (P:=P).
+  apply P_MP_ext with (P:=Q).
+  apply P_MP_ext with (P:=P).
   apply P_Axiom; crush.
-  apply P_CP.
-  apply P_ModusPonens with (P:=P).
-  apply P_Axiom; crush.
+  apply P_Weak. auto.
+  apply P_Weak. auto.
+Qed.
 
-  eapply P_MP.
-  simpl.
-  assert (Proves (P::L) Q).
-
-Theorem P_Cut : forall E P Q,
-Proves E Q
--> Proves (P::E) Q.
+Theorem ST_trans : forall t1 t2 t3,
+Subtype t1 t2
+-> Subtype t2 t3
+-> Subtype t1 t3.
 Proof.
-  intros E P Q HP. generalize dependent P.
-  induction HP.
-  intros P.
-  apply P_Axiom. crush.
-  intros P'.
-  apply P_Contradiction with (t1:=t1) (t2:=t2) (o:=o); crush.
-  intros P'.
-  apply P_UnionElim with (t1:=t1) (t2:=t2) (o:=o); auto.
-  right. auto. 
-  destruct (prop_eqdec P' (Atom (istype o (tU t1 t2)))).
-  subst. unfold rem. 
-  destruct  (prop_eqdec (Atom (istype o (tU t1 t2)))
-                        (Atom (istype o (tU t1 t2)))).
-  subst.
-
-
-feapply IHHP1.
-
-  (*  *)
-
-
-
+  intros.
+  unfold Subtype in *.
+  apply P_CP in H.
+  apply P_CP in H0.
+  remember (P_HypSyl_ext [] _ _ _ H H0).
+  inversion p; crush.
+Qed.  
 
 Lemma subst_o_eq_id : forall o x,
 (subst_o o (Some (var x)) x) = o.
@@ -1284,27 +1378,27 @@ end.
 Definition c_λprop (c:const_op) : prop :=
   match (const_type c) with
     | tλ x t1 t2 p opto => p
-    | _ => FF
+    | _ => Falsehood
   end. 
 
 Fixpoint exp_prop (e:exp) : prop :=
 match e with
-| eNat n => TT
-| eTrue => TT
-| eFalse => FF
-| eStr _ => TT
-| eVar x => (var x ::~ tF)
-| eTVar x t => ((var x ::= t) && (var x ::~ tF))
-| eOp o => TT
+| eNat n => Truth
+| eTrue => Truth
+| eFalse => Falsehood
+| eStr _ => Truth
+| eVar x => (var x :::~ tF)
+| eTVar x t => ((var x :::= t) &&& (var x :::~ tF))
+| eOp o => Truth
 | eIf e1 e2 e3 =>
   let p1 := exp_prop e1 in
   let p2 := exp_prop e2 in
   let p3 := exp_prop e3 in
-  ((p1 && p2) || ((Not p1) && p3))
-| eλ _ _ _ => TT
+  ((p1 &&& p2) ||| ((Not p1) &&& p3))
+| eλ _ _ _ => Truth
 | eLet x xexp bexp =>
   (subst_p (exp_prop bexp) (exp_obj xexp) x)
-| eCons lhs rhs => TT
+| eCons lhs rhs => Truth
 | eApp efun earg =>
   let o := exp_obj earg in
   match efun with
@@ -1314,20 +1408,20 @@ match e with
       subst_p fp o x
     | (eOp (p_op opCar)) =>
       let x := (Id 0) in
-      subst_p ((obj [car] x) ::~ tF) o x
+      subst_p ((obj [car] x) :::~ tF) o x
     | (eOp (p_op opCdr)) =>
       let x := (Id 0) in
-      subst_p ((obj [cdr] x) ::~ tF) o x
+      subst_p ((obj [cdr] x) :::~ tF) o x
     | λ x t1 body =>
       let fp := (exp_prop body) in
       subst_p fp o x      
-    | _ => FF
+    | _ => Falsehood
   end
 end.
 
 (** ** TypeOf *)
 
-Inductive TypeOf : list prop -> exp -> type -> Prop :=
+Inductive TypeOf : list formula -> exp -> type -> Prop :=
 | T_Nat :
     forall Γ n t,
       Subtype tNat t
@@ -1370,8 +1464,8 @@ Inductive TypeOf : list prop -> exp -> type -> Prop :=
 | T_If : 
     forall Γ e1 e2 e3 t t1 t2 t3,
       TypeOf Γ e1 t1
-      -> TypeOf ((exp_prop e1)::Γ) e2 t2
-      -> TypeOf ((Not (exp_prop e1))::Γ) e3 t3
+      -> TypeOf ((assume (exp_prop e1))::Γ) e2 t2
+      -> TypeOf ((assume (Not (exp_prop e1)))::Γ) e3 t3
       -> Subtype t2 t
       -> Subtype t3 t
       -> TypeOf Γ (If e1 e2 e3) t
@@ -1395,8 +1489,8 @@ Inductive TypeOf : list prop -> exp -> type -> Prop :=
     forall Γ x e0 e1 t0 t1 t,
       TypeOf Γ e0 t0
       -> TypeOf (((var x) ::= t0)
-                   ::(((var x) ::~ tF) --> (exp_prop e0))
-                   ::(((var x) ::= tF) --> (Not (exp_prop e0)))
+                   ::(((var x) ::~ tF) --> (question (exp_prop e0)))
+                   ::(((var x) ::= tF) --> (question (Not (exp_prop e0))))
                    ::Γ) 
                 e1
                 t1
@@ -1413,26 +1507,7 @@ Proof.
 Qed.
 Hint Resolve ST_Refl.
 
-Lemma S_Trans : forall t1 t2 t3,
-Subtype t1 t2
--> Subtype t2 t3
--> Subtype t1 t3.
-Proof.
-  intros t1 t2 t3 H12. generalize dependent t3. 
-  unfold Subtype in *.
-  induction H12; intros.
-  inversion H0; subst.
-  inversion H3; subst.
-  rewrite <- H1. 
-  apply P_Axiom; auto.
-  crush.
-  inversion H1; crush.
-  inversion H4; crush.
-  inversion H1. rewrite H4 in H0.
-  re
-  inversion H0; crush.
-  inversion H
-  destruct H23.
+
 
 Theorem TypeOf_typed : forall e E,
 TypedExp e
@@ -1472,7 +1547,7 @@ Proof.
   }{ (* Var *)
     assert False. inversion H. crush.
   }{ (* TVar *)
-    destruct (P_dec E (Atom (istype (var x) t))) as [HP | HNoP].
+    destruct (P_dec E (Elem (istype (var x) t))) as [HP | HNoP].
     left. exists t. split.
     apply T_TVar; auto.
     intros t' Htype.
@@ -1489,9 +1564,22 @@ Proof.
     assert ((TypedExp e1) /\ (TypedExp e2) /\ (TypedExp e3)) 
       as [HTE1 [HTE2 HTE3]]. inversion H; crush.
     destruct (IH1 E HTE1) as [[t1 [TypeH1 HU1]] | NoT1]; clear IH1.
-    destruct (IH2 ((exp_prop e1)::E) HTE2) as [[t2 [TypeH2 HU2]] | NoT2]; clear IH2.
-    destruct (IH3 ((Not (exp_prop e1))::E) HTE3) as [[t3 [TypeH3 HU3]] | NoT3]; clear IH3.
+    destruct (IH2 ((assume (exp_prop e1))::E) HTE2) as [[t2 [TypeH2 HU2]] | NoT2]; clear IH2.
+    destruct (IH3 ((assume (Not (exp_prop e1)))::E) HTE3) as [[t3 [TypeH3 HU3]] | NoT3]; clear IH3.
     {
+      left; exists (tU t2 t3).
+      split. 
+      apply T_If with (t1:=t1) (t2:=t2) (t3:=t3); auto.
+      unfold Subtype. apply P_Union_lhs. apply P_Axiom; crush.
+      unfold Subtype. apply P_Union_rhs. apply P_Axiom; crush.
+      intros.
+      inversion H0. subst.
+      apply HU2 in H5.
+      apply HU3 in H7.
+      apply ST_trans with (t2:= (tU t4 t5)).
+      (* Yep, ST_trans would do it *)
+                     match goal with | [H : TypeOf ?E (If e1 e2 e3) ?t' |- _] => solve[inversion H; crush] end.
+
       destruct (ST_dec t2 t3) as [st23 | Nost23].
       {
         left; exists t3. 

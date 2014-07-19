@@ -25,6 +25,9 @@ THE SOFTWARE.
 Require Import LTRbase.
 Require Import Relations.
 Require Import Permutation.
+Require Import Morphisms.
+Require Import Setoid.
+Require Import Perm.
 Import ListNotations.
 (** * λTR Core Relations 
    Logic, TypeOf, Subtyping, etc... *)
@@ -89,11 +92,6 @@ Inductive Proves : list formula -> formula -> Prop :=
     forall L1 L2 P,
       Permutation (P::L1) L2
       -> Proves L2 P
-| P_Weak :
-    forall L1 L2 P Q,
-      Proves L1 Q
-      -> Permutation (P::L1) L2
-      -> Proves L2 Q
 | P_Contradiction :
     forall L P P1 P2,
       Contradictory P1 P2
@@ -167,7 +165,7 @@ Inductive Proves : list formula -> formula -> Prop :=
      forall L1 L2 R P Q,
        Proves (L1) P
        -> Proves (P::Q::L1) R
-       -> Permutation ((P --> Q)::L1) L2
+       -> Permutation ((P =-> Q)::L1) L2
        -> Proves L2 R
 | P_Conj :
     forall L P Q,
@@ -185,7 +183,7 @@ Inductive Proves : list formula -> formula -> Prop :=
  | P_CP :
      forall L P Q,
        Proves (P::L) Q
-       -> Proves L (P --> Q).
+       -> Proves L (P =-> Q).
 
 Definition Subtype (t1 t2:type) := 
   Proves [((var (Id 0)) ::= t1)] ((var (Id 0)) ::= t2).
@@ -208,7 +206,7 @@ Proof.
   left; auto.
 Qed.
 
-Theorem P_Perm : forall L1 L2 P,
+Lemma P_Perm : forall L1 L2 P,
 Proves L1 P
 -> Permutation L1 L2
 -> Proves L2 P.
@@ -217,7 +215,6 @@ Proof.
   generalize dependent L2.
   induction HL1 as 
       [L1 L2 P Hperm | (* P_Axiom *)
-       L1 L2 P Q Hproves IH Hperm | (* P_Weak *)
        L P P1 P2 HContra HIn1 HIn2 | (* P_Contradiction *)
        L1 L2 P t1 t2 o HP1 IH1 HP2 IH2| (* P_UnionElim *)
        L1 L2 P t1 t2 π x HP IHP Hperm IHp | (* P_PairElim *)
@@ -238,9 +235,6 @@ Proof.
        L P Q HP IHP HQ IHQ] (* P_CP *).
 - intros L HPerm.
   eapply P_Axiom. eauto.
-  eapply Permutation_trans; eauto.
-- intros L' HPerm.
-  eapply P_Weak with (P:=P). eauto.
   eapply Permutation_trans; eauto.
 - intros L' HPerm.
   apply (P_Contradiction L' P P1 P2); 
@@ -288,6 +282,126 @@ Proof.
 - intros L' HPerm.
   apply P_CP; crush.
 Qed.
+
+Instance Proves_compat : Proper (@Permutation _==>eq==>iff) Proves.
+Proof.
+unfold Proper,respectful.
+intros L1 L2 HPerm P1 P2 Heq. split.
+intros H1. subst. apply (P_Perm L1 L2); auto.
+intros H2. subst. apply (P_Perm L2 L1); crush.
+Qed.
+
+Lemma P_Weak :
+    forall L1 L2 P Q,
+      Proves L1 P
+      -> Permutation (Q::L1) L2
+      -> Proves L2 P.
+Proof.
+  intros L1 L2 P Q HProves.
+  generalize dependent Q.
+  generalize dependent L2.
+  induction HProves as 
+      [L1 L2 P Hperm | (* P_Axiom *)
+       L P P1 P2 HContra HIn1 HIn2 | (* P_Contradiction *)
+       L1 L2 P t1 t2 o HP1 IH1 HP2 IH2 Hperm| (* P_UnionElim *)
+       L1 L2 P t1 t2 π x HP IHP Hperm IHp | (* P_PairElim *)
+       L t o HIn | (* P_Top *)
+       L t1 t2 o HP IHP | (* P_Union_lhs *)
+       L t1 t2 o HP IHP | (* P_Union_rhs *)
+       L1 t1 t2 π x HPcar IHPcar HPcdr IHPcdr HPCons IHPcons | (* P_Pair *)
+       L x1 t1a t1r p1 o1 x2 t2a t2r p2 o2 o HIn HPa IHPa HPr IHPr HPp IHPp | (* P_Fun *)
+       L P o HIn | (* P_Bot *)
+       L | (* P_True *)
+       L P HIn | (* P_False *)
+       L1 L2 R P Q Hperm IH Hperm2 | (* P_Simpl *)
+       L1 L2 R P Q HPP IHP HPQ IHQ Hperm| (* P_DisjElim *)
+       L1 L2 R P Q HP IHP HPQ IHPQ Hperm | (* P_MP *)
+       L P Q HP IHP HQ IHQ | (* P_Conj *)
+       L P Q HP IHP HQ IHQ | (* P_Add_lhs *)
+       L P Q HP IHP HQ IHQ | (* P_Add_rhs *)
+       L P Q HP IHP HQ IHQ] (* P_CP *).
+Proof.
+- intros L' P1 HPerm.
+  rewrite <- HPerm.
+  eapply (P_Axiom (P1::L1)). 
+  rewrite <- Hperm.
+  perm.
+- intros L' P' HPerm.
+  rewrite <- HPerm.
+  apply (P_Contradiction _ P P1 P2); crush.
+- intros L' P' HPerm.
+  rewrite <- HPerm. rewrite <- Hperm. rewrite perm_swap.
+  apply (P_UnionElim (P' :: L1) _ P t1 t2 o); auto.
+  apply (IH1 _ P'). perm.
+  apply (IH2 _ P'). perm.
+- intros L' P' HPerm.
+  rewrite <- HPerm. rewrite <- Hperm. rewrite perm_swap.
+  apply (P_PairElim (P' :: L1) _ P t1 t2 π x); auto.
+  apply (IHP _ P'). perm.
+- intros L2 P' HPerm.
+  rewrite <- HPerm.
+  eapply P_Top. right; eauto.
+- intros L' P' HPerm.
+  rewrite <- HPerm.
+  apply P_Union_lhs. apply (IHP _ P'). auto.
+- intros L' P' HPerm.
+  rewrite <- HPerm.
+  apply P_Union_rhs. apply (IHP _ P'). auto.
+- intros L' P' HPerm.
+  rewrite <- HPerm.
+  apply P_Pair. 
+  apply (IHPcar _ P'); auto.
+  apply (IHPcdr _ P'); auto.
+  apply (IHPcons _ P'); auto.
+- intros L' P' HPerm.
+  rewrite <- HPerm.
+  eapply P_Fun. right. exact HIn.
+  auto. auto. auto. auto.
+- intros L' P' HPerm.
+  rewrite <- HPerm. 
+  eapply P_Bot. right; eauto.
+- intros L' P' HPerm.
+  apply P_True.
+- intros L' P' HPerm.
+  rewrite <- HPerm. 
+  eapply P_False. right; eauto.
+- intros L' P' HPerm.
+  rewrite <- HPerm.
+  apply (P_Simpl (P'::L1) _  R P Q).
+  apply (IH _ P'). perm.
+  rewrite <- Hperm2. perm.
+- intros L' P' HPerm.
+  rewrite <- HPerm.
+  apply (P_DisjElim (P'::L1) _  R P Q).
+  apply (IHP _ P'). perm.
+  apply (IHQ _ P'). perm.
+  rewrite <- Hperm. perm.
+- intros L' P' HPerm.
+  rewrite <- HPerm.
+  apply (P_MP (P'::L1) _  R P Q).
+  apply (IHP _ P'). perm.
+  apply (IHPQ _ P'). perm.
+  rewrite <- Hperm. perm.
+- intros L' P' HPerm.
+  rewrite <- HPerm.
+  apply P_Conj.
+  apply (IHP _ P'). perm.
+  apply (IHQ _ P'). perm.
+- intros L' P' HPerm.
+  rewrite <- HPerm.
+  apply P_Add_lhs.
+  apply (IHP _ P'). perm.
+- intros L' P' HPerm.
+  rewrite <- HPerm.
+  apply P_Add_rhs.
+  apply (IHP _ P'). perm.
+- intros L' P' HPerm.
+  rewrite <- HPerm.
+  apply P_CP.
+  apply (IHP _ P'). perm.
+Qed.
+
+
 
 Lemma LJ_cut2:
   forall P1 P2 L1 L2,

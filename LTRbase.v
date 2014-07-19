@@ -110,7 +110,7 @@ Infix ":::~" := (fun o t => (Imp (Atom (istype o t)) Falsehood))
                  (at level 30, right associativity).
 Notation "P '&&&' Q" := (And P Q) (at level 40, left associativity).
 Notation "P '|||' Q" := (Or P Q) (at level 50, left associativity).
-Notation "P '--->' Q" := (Imp P Q) (at level 90).
+Notation "P '=-->' Q" := (Imp P Q) (at level 90).
 
 Inductive formula : Set :=
 | Elem      : datum -> formula
@@ -126,7 +126,7 @@ Infix "::~" := (fun o t => (Impl (Elem (istype o t)) FF))
                  (at level 30, right associativity).
 Notation "P '&&' Q" := (Conj P Q) (at level 40, left associativity).
 Notation "P '||' Q" := (Disj P Q) (at level 50, left associativity).
-Notation "P '==>' Q" := (Impl P Q) (at level 90).
+Notation "P '=->' Q" := (Impl P Q) (at level 90).
 
 
 Fixpoint Negate (F:formula) : formula :=
@@ -456,7 +456,7 @@ Fixpoint subst_p'
       end
     | P ||| Q => (subst_p' b P opto x) ||| (subst_p' b Q opto x)
     | P &&& Q => (subst_p' b P opto x) &&& (subst_p' b Q opto x)
-    | P ---> Q => (subst_p' (negb b) P opto x) ---> (subst_p' b Q opto x)
+    | P =--> Q => (subst_p' (negb b) P opto x) =--> (subst_p' b Q opto x)
     | _ => p
   end
 
@@ -488,6 +488,7 @@ with subst_t'
     | tU lhs rhs => tU (subst_t' b lhs opto x) 
                        (subst_t' b rhs opto x)
     | tλ y t1 t2 p1 opto2 =>
+
       if id_eqdec x y
       then t
       else tλ y
@@ -513,7 +514,7 @@ Fixpoint subst_f'
       end
     | P || Q => (subst_f' b P opto x) || (subst_f' b Q opto x)
     | P && Q => (subst_f' b P opto x) && (subst_f' b Q opto x)
-    | P ==> Q => (subst_f' (negb b) P opto x) ==> (subst_f' b Q opto x)
+    | P =-> Q => (subst_f' (negb b) P opto x) =-> (subst_f' b Q opto x)
     | _ => f
   end.
 

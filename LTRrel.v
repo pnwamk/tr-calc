@@ -231,11 +231,11 @@ Proof.
        L P HIn | (* P_False *)
        L1 L2 R P Q Hperm IH Hperm2 | (* P_Simpl *)
        L1 L2 R P Q HPP IHP HPQ IHQ Hperm| (* P_DisjElim *)
-       L1 L2 R P HP IHP Q HQ IHQ | (* P_MP *)
-       L P HP Q HQ | (* P_Conj *)
-       L P HP Q HQ | (* P_Add_lhs *)
-       L P HP Q HQ | (* P_Add_rhs *)
-       L P HP Q HQ] (* P_CP *).
+       L1 L2 R P Q HP IHP HPQ IHPQ Hperm | (* P_MP *)
+       L P Q HP IHP HQ IHQ | (* P_Conj *)
+       L P Q HP IHP HQ IHQ | (* P_Add_lhs *)
+       L P Q HP IHP HQ IHQ | (* P_Add_rhs *)
+       L P Q HP IHP HQ IHQ] (* P_CP *).
 - intros L HPerm.
   eapply P_Axiom. eauto.
   eapply Permutation_trans; eauto.
@@ -276,8 +276,18 @@ Proof.
   assert (Permutation (P || Q :: L1) L') as Hperm'.
     eapply Permutation_trans. exact Hperm. auto.
   apply (P_DisjElim _ _ _ _ _ HPP HPQ Hperm').
-- 
-
+- intros L' HPerm.
+  eapply (P_MP _ _ R P Q); eauto.
+  eapply Permutation_trans; eauto.
+- intros L' HPerm.
+  apply P_Conj; crush.
+- intros L' HPerm.
+  apply P_Add_lhs; crush.
+- intros L' HPerm.
+  apply P_Add_rhs; crush.
+- intros L' HPerm.
+  apply P_CP; crush.
+Qed.
 
 Lemma LJ_cut2:
   forall P1 P2 L1 L2,

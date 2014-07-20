@@ -89,9 +89,9 @@ Inductive Contradictory : relation formula :=
 
 Inductive Proves : list formula -> formula -> Prop :=
 | P_Axiom :
-    forall L1 L2 P,
-      Permutation (P::L1) L2
-      -> Proves L2 P
+    forall L P,
+      In P L
+      -> Proves L P
 | P_Contradiction :
     forall L P P1 P2,
       Contradictory P1 P2
@@ -214,7 +214,7 @@ Proof.
   intros L1 L2 P HL1.
   generalize dependent L2.
   induction HL1 as 
-      [L1 L2 P Hperm | (* P_Axiom *)
+      [L P HIn | (* P_Axiom *)
        L P P1 P2 HContra HIn1 HIn2 | (* P_Contradiction *)
        L1 L2 P t1 t2 o HP1 IH1 HP2 IH2 Hperm| (* P_UnionElim *)
        L1 L2 P t1 t2 π x HP IHP Hperm | (* P_PairElim *)
@@ -233,9 +233,8 @@ Proof.
        L P Q HP IHP | (* P_Add_lhs *)
        L P Q HQ IHQ | (* P_Add_rhs *)
        L P Q HP IHP] (* P_CP *).
-- intros L HPerm.
-  eapply P_Axiom. eauto.
-  eapply Permutation_trans; eauto.
+- intros L1 HPerm.
+  eapply P_Axiom. eapply Permutation_in; eauto.
 - intros L' HPerm.
   apply (P_Contradiction L' P P1 P2); 
     try (apply Permutation_in with (l:=L)); auto.
@@ -301,7 +300,7 @@ Proof.
   generalize dependent Q.
   generalize dependent L2.
   induction HProves as 
-      [L1 L2 P Hperm | (* P_Axiom *)
+      [L P HIn | (* P_Axiom *)
        L P P1 P2 HContra HIn1 HIn2 | (* P_Contradiction *)
        L1 L2 P t1 t2 o HP1 IH1 HP2 IH2 Hperm| (* P_UnionElim *)
        L1 L2 P t1 t2 π x HP IHP Hperm | (* P_PairElim *)
@@ -323,9 +322,8 @@ Proof.
 Proof.
 - intros L' P1 HPerm.
   rewrite <- HPerm.
-  eapply (P_Axiom (P1::L1)). 
-  rewrite <- Hperm.
-  perm.
+  eapply (P_Axiom (P1::L)). 
+  right; auto. 
 - intros L' P' HPerm.
   rewrite <- HPerm.
   apply (P_Contradiction _ P P1 P2); crush.
@@ -455,6 +453,136 @@ Proof.
   inversion HCon; crush.
 Qed.
 
+Lemma cons_perm {X:Type} : forall (a b :X) L1 L2,
+Permutation (a::L1) (b::L2)
+-> ((a=b /\ Permutation L1 L2)
+    \/ (In a L2 /\ In b L1)).
+Proof.
+  intros a b L1 L2 HPerm.
+  assert (In a (b::L2)) as HaIn.
+    eapply Permutation_In_In. eauto. crush.
+  assert (In b (a::L1)) as HbIn.
+    eapply Permutation_In_In. apply Permutation_sym. eauto. crush.
+  destruct HaIn as [Heq | HaIn]; subst.
+  apply Permutation_cons_inv in HPerm.
+  left; crush.
+  destruct HbIn as [Heq | HbIn]; subst.
+  apply Permutation_cons_inv in HPerm.
+  left; crush.
+  right; crush.
+Qed.
+
+Lemma perm_dbl_cons_app1 {X:Type} : forall (P1 P2:X) L1 L2 L3 L4,
+Permutation (P1 :: L1 ++ P2 :: L2)
+            (P2 :: L3 ++ P1 :: L4)
+-> Permutation (L1++L2) (L3++L4).
+Proof. 
+  intros P1 P2 L1 L2 L3 L4 HP.
+  assert (Permutation (P2 :: L3 ++ P1 :: L4) (P1 :: L4 ++ P2 :: L3)). perm.
+  rewrite H in HP.
+  apply Permutation_cons_inv in HP.
+  rewrite <- Permutation_middle in HP. rewrite <- Permutation_middle in HP.
+  apply Permutation_cons_inv in HP.
+  assert (Permutation (L4++L3) (L3++L4)) as Hcomm.
+  apply Permutation_app_comm.
+  rewrite <- Hcomm. auto.
+Qed.  
+
+
+Lemma disj_elimL_lhs:
+  forall P1 P2 P L1,
+    Proves ((P1 || P2)::L1) P 
+    -> Proves (P1::L1) P.
+Proof.
+  intros P1 P2 P L1 HProves.
+  remember (P1 || P2::L1) as L2 in HProves.
+  apply eq_then_Permutation in HeqL2.
+  revert P1 P2 L1 HeqL2.
+  induction HProves as
+      [L P HIn | (* P_Axiom *)
+       L P P1 P2 HContra HIn1 HIn2 | (* P_Contradiction *)
+       L1 L2 P t1 t2 o HP1 IH1 HP2 IH2 Hperm| (* P_UnionElim *)
+       L1 L2 P t1 t2 π x HP IHP Hperm | (* P_PairElim *)
+       L t o HIn | (* P_Top *)
+       L t1 t2 o HP IHP | (* P_Union_lhs *)
+       L t1 t2 o HP IHP | (* P_Union_rhs *)
+       L1 t1 t2 π x HPcar IHPcar HPcdr IHPcdr HPCons IHPcons | (* P_Pair *)
+       L x1 t1a t1r p1 o1 x2 t2a t2r p2 o2 o HIn HPa IHPa HPr IHPr HPp IHPp | (* P_Fun *)
+       L P o HIn | (* P_Bot *)
+       L | (* P_True *)
+       L P HIn | (* P_False *)
+       L1 L2 R P Q Hperm IH Hperm2 | (* P_Simpl *)
+       L1 L2 R P Q HPP IHP HPQ IHQ Hperm| (* P_DisjElim *)
+       L1 L2 R P Q HP IHP HPQ IHPQ Hperm | (* P_MP *)
+       L P Q HP IHP HQ IHQ | (* P_Conj *)
+       L P Q HP IHP | (* P_Add_lhs *)
+       L P Q HQ IHQ | (* P_Add_rhs *)
+       L P Q HP IHP] (* P_CP *).
+- intros P1 P2 L3 HPerm.
+  rewrite HPerm in HIn. destruct HIn as [Heq | HIn].
+  rewrite <- Heq. apply P_Add_lhs. eapply P_Axiom. crush. 
+  eapply P_Axiom; crush.
+- intros P3 P4 L1 HPerm.  
+  rewrite HPerm in HIn1, HIn2.
+  remember (Contradictory_neq _ _ HContra) as Hneq.
+  destruct HIn1 as [Heqor | HIn1]. subst P1. inversion HContra. 
+  destruct HIn2 as [Heqor | HIn2]. subst P2. inversion HContra. 
+  apply (P_Contradiction _ P P1 P2); crush.
+- intros P1 P2 L3 HPerm.
+  rewrite <- Hperm in HPerm.
+  remember HPerm as HPerm2. clear HeqHPerm2.
+  apply cons_perm in HPerm2.
+  destruct HPerm2 as [[Heq HPerm1] | [HIn1 HIn2]]. inversion Heq.
+
+
+  apply in_split in HIn1.
+  destruct HIn1 as [L3A [L3B HL3eq]].
+  apply in_split in HIn2.
+  destruct HIn2 as [L1A [L1B HL1eq]].
+  rewrite HL1eq in HPerm.
+  rewrite HL3eq in HPerm.
+  assert (Permutation (L1A++L1B) (L3A++L3B)) as Hcomplex.
+    eapply perm_dbl_cons_app1. eauto.
+
+
+  cut (exists L3', Permutation L3 ((Elem (istype o (tU t1 t2)))::L3')).
+  intros. destruct H as [L3' HPerm'].
+  rewrite HPerm'.
+  eapply (P_UnionElim (P1::L3') _ P t1 t2 o).
+  rewrite perm_swap. eapply (IH1 P1 P2).
+  rewrite HL1eq.
+
+  cut (Permutation L3' (L3A ++ L3B)).
+  intros H3'.
+  rewrite H3'. rewrite <- Hcomplex. perm.
+  apply Permutation_cons_inv with  (a:=(Elem (istype o (tU t1 t2)))).
+  rewrite <- HPerm'. rewrite HL3eq. perm.
+  
+  rewrite perm_swap. eapply (IH2 P1 P2).
+  rewrite HL1eq.
+  cut (Permutation L3' (L3A ++ L3B)).
+  intros H3'.
+  rewrite H3'. rewrite <- Hcomplex. perm.
+  apply Permutation_cons_inv with  (a:=(Elem (istype o (tU t1 t2)))).
+  rewrite <- HPerm'. rewrite HL3eq. perm.
+  perm.
+
+  
+
+
+
+Lemma disj_elimL_rhs:
+  forall P1 P2 P L1,
+    Proves ((P1 || P2)::L1) P 
+    -> Proves (P2::L1) P.
+Proof.
+  intros P1 P2 P3 L1 H.
+  remember (PPdisj P1 P2::L1) as L2 in H.
+  apply eq_then_Permutation in HeqL2.
+  revert P1 P2 L1 HeqL2.
+  induction H.
+
+
 
 Lemma P_contr : forall P1 P2 L1,
 Proves (P1::P1::L1) P2
@@ -502,6 +630,59 @@ induction HProves as
   apply (P_Contradiction _ _ P1 P2); crush.
   apply (P_Contradiction _ _ P1 P2); crush.
 - intros KL1 HPerm.
+  rewrite HPerm in Hperm.
+  apply contr_perm in Hperm.
+  destruct Hperm as [(Hperm1,Hperm2) | (KL2',(Hperm1,Hperm2))].
+  subst KP1. 
+  eapply (P_UnionElim _ _ _ t1 t2 o).
+  apply HI_rank. unfold ltof. crush.
+
+  eapply P_UnionElim.
+  apply HI_rank.
+ exact HP1. exact HP2.
+
+clear HPerm. clear L2.
+  assert 
+    (forall KL0 : list formula,
+       Permutation 
+         (Elem (istype o t1) :: KL1)
+         (Elem (istype o (tU t1 t2)) :: KL0) ->
+       Proves (Elem (istype o (tU t1 t2)) :: KL0) P) as IH1'.
+  {
+    intros KL0 HP. apply IH1. rewrite <- HP.
+    rewrite Hperm2. perm.
+  } clear IH1.
+  assert 
+    (forall KL0 : list formula,
+       Permutation 
+         (Elem (istype o t2) :: KL1)
+         (Elem (istype o (tU t1 t2)) :: KL0) ->
+       Proves (Elem (istype o (tU t1 t2)) :: KL0) P) as IH2'.
+  {
+    intros KL0 HP. apply IH2. rewrite <- HP.
+    rewrite Hperm2. perm.
+  } clear IH2.
+  rewrite Hperm2 in *.
+  apply IH1'.
+  rewrite HPerm. rewrite perm_swap.
+  apply IH1. rewrite Hperm2. perm.
+  a
+rewrite Hperm2 in HP1. rewrite Hperm2 in HP2.
+  
+
+  apply HI_rank. unfold ltof. simpl.
+  Check P_UnionElim.
+  
+rewrite Hperm2 in IH1. subst L1. clear IH1. clear IH2.
+  rewrite Hperm2 in HP1. rewrite Hperm2 in HP2.
+  apply (P_UnionElim L2 _ _ t1 t2 o); auto.
+  apply HI_rank. unfold ltof. crush.
+  apply HI_rank. unfold ltof. crush. 
+  apply HI_rank. unfold ltof. crush.
+  apply HI_rank. unfold ltof. crush.
+
+  apply IH1.
+
   (* BOOKMARK *)
 
 

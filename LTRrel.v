@@ -429,6 +429,31 @@ destruct H2 as [H|H].
   rewrite HPerm. rewrite Hl2eq. perm.
 Qed.
 
+Lemma both_in_perm {X:Type} : forall (a b c:X) (l1 l2:list X),
+In a l1
+-> In b l1
+-> a <> b
+-> Permutation l1 (c :: c :: l2)
+-> ((a = c /\ In b l2)
+    \/ (b = c /\ In a l2)
+    \/ (In a l2 /\ In b l2)).
+Proof.
+  intros a b c l1 l2 HaIn HbIn Hneq HPerm.
+  rewrite HPerm in HaIn.
+  rewrite HPerm in HbIn.
+  destruct HaIn as [Haeq | [ Haeq | Harest]]; subst.
+  destruct HbIn as [Hcontra | [Hcontra | Hbrest]]; crush.
+  destruct HbIn as [Hcontra | [Hcontra | Hbrest]]; crush.
+  destruct HbIn as [Hcontra | [Hcontra | Hbrest]]; crush.
+Qed.
+
+Lemma Contradictory_neq : forall P1 P2,
+Contradictory P1 P2
+-> P1 <> P2.  
+Proof.  
+  intros P1 P2 HCon Heq. subst.
+  inversion HCon; crush.
+Qed.
 
 
 Lemma P_contr : forall P1 P2 L1,
@@ -462,9 +487,23 @@ induction HProves as
        L P Q HQ IHQ | (* P_Add_rhs *)
        L P Q HP IHP] (* P_CP *).
 - intros KL1 HPerm.
-  (* BOOKMARK *)
   rewrite HPerm in Hperm.
-  apply (P_Axiom ).
+  apply contr_perm in Hperm.
+  destruct Hperm as [(Hperm1,Hperm2) | (KL2',(Hperm1,Hperm2))].
+  subst KP1. apply (P_Axiom KL1). auto. 
+  rewrite Hperm1. eapply (P_Axiom (KP1::KL2')). perm. 
+- intros KL1 HPerm.
+  remember (Contradictory_neq _ _ HContra) as Hneq.
+  destruct (both_in_perm _ _ _ _ _ HIn1 HIn2 Hneq HPerm) 
+    as [[Heq HIn] | [[Heq HIn] | [HIn1' HIn2']]].
+  subst KP1.
+  apply (P_Contradiction _ _ P1 P2); crush.
+  subst KP1.
+  apply (P_Contradiction _ _ P1 P2); crush.
+  apply (P_Contradiction _ _ P1 P2); crush.
+- intros KL1 HPerm.
+  (* BOOKMARK *)
+
 
 Fixpoint replicate{A:Type} (n:nat) (a:A):list A :=
   match n with

@@ -216,8 +216,8 @@ Proof.
   induction HL1 as 
       [L1 L2 P Hperm | (* P_Axiom *)
        L P P1 P2 HContra HIn1 HIn2 | (* P_Contradiction *)
-       L1 L2 P t1 t2 o HP1 IH1 HP2 IH2| (* P_UnionElim *)
-       L1 L2 P t1 t2 π x HP IHP Hperm IHp | (* P_PairElim *)
+       L1 L2 P t1 t2 o HP1 IH1 HP2 IH2 Hperm| (* P_UnionElim *)
+       L1 L2 P t1 t2 π x HP IHP Hperm | (* P_PairElim *)
        L t o HIn | (* P_Top *)
        L t1 t2 o HP IHP | (* P_Union_lhs *)
        L t1 t2 o HP IHP | (* P_Union_rhs *)
@@ -230,9 +230,9 @@ Proof.
        L1 L2 R P Q HPP IHP HPQ IHQ Hperm| (* P_DisjElim *)
        L1 L2 R P Q HP IHP HPQ IHPQ Hperm | (* P_MP *)
        L P Q HP IHP HQ IHQ | (* P_Conj *)
-       L P Q HP IHP HQ IHQ | (* P_Add_lhs *)
-       L P Q HP IHP HQ IHQ | (* P_Add_rhs *)
-       L P Q HP IHP HQ IHQ] (* P_CP *).
+       L P Q HP IHP | (* P_Add_lhs *)
+       L P Q HQ IHQ | (* P_Add_rhs *)
+       L P Q HP IHP] (* P_CP *).
 - intros L HPerm.
   eapply P_Axiom. eauto.
   eapply Permutation_trans; eauto.
@@ -304,7 +304,7 @@ Proof.
       [L1 L2 P Hperm | (* P_Axiom *)
        L P P1 P2 HContra HIn1 HIn2 | (* P_Contradiction *)
        L1 L2 P t1 t2 o HP1 IH1 HP2 IH2 Hperm| (* P_UnionElim *)
-       L1 L2 P t1 t2 π x HP IHP Hperm IHp | (* P_PairElim *)
+       L1 L2 P t1 t2 π x HP IHP Hperm | (* P_PairElim *)
        L t o HIn | (* P_Top *)
        L t1 t2 o HP IHP | (* P_Union_lhs *)
        L t1 t2 o HP IHP | (* P_Union_rhs *)
@@ -317,9 +317,9 @@ Proof.
        L1 L2 R P Q HPP IHP HPQ IHQ Hperm| (* P_DisjElim *)
        L1 L2 R P Q HP IHP HPQ IHPQ Hperm | (* P_MP *)
        L P Q HP IHP HQ IHQ | (* P_Conj *)
-       L P Q HP IHP HQ IHQ | (* P_Add_lhs *)
-       L P Q HP IHP HQ IHQ | (* P_Add_rhs *)
-       L P Q HP IHP HQ IHQ] (* P_CP *).
+       L P Q HP IHP | (* P_Add_lhs *)
+       L P Q HQ IHQ | (* P_Add_rhs *)
+       L P Q HP IHP] (* P_CP *).
 Proof.
 - intros L' P1 HPerm.
   rewrite <- HPerm.
@@ -394,25 +394,138 @@ Proof.
 - intros L' P' HPerm.
   rewrite <- HPerm.
   apply P_Add_rhs.
-  apply (IHP _ P'). perm.
+  apply (IHQ _ P'). perm.
 - intros L' P' HPerm.
   rewrite <- HPerm.
   apply P_CP.
   apply (IHP _ P'). perm.
 Qed.
 
-
-
-Lemma LJ_cut2:
-  forall P1 P2 L1 L2,
-    LJ_provable L1 P1 ->
-    LJ_provable (P1::L2) P2 ->
-    LJ_provable (L1++L2) P2.
+Lemma contr_perm {X:Type} : 
+  forall (a b:X) 
+         (l1 l2:list X),
+Permutation (a::l1) (b::b::l2) 
+-> (a = b /\ Permutation l1 (b::l2)) 
+   \/ (exists l2',
+          Permutation l2 (a::l2') 
+          /\ Permutation l1 (b::b::l2')).
 Proof.
-intros P1 P2 L1 L2.
-apply LJ_cut_general with (n:=1).
+intros a b l1 l2 HPerm.
+assert (H:=in_eq a l1). rewrite HPerm in H.
+assert (H2:In a (b::l2)).
+{ destruct H.
+  left; auto. 
+  auto. }
+clear H.
+destruct H2 as [H|H].
+- left. split; auto.
+  rewrite <-H in HPerm.
+  apply Permutation_cons_inv in HPerm; auto.
+- right.
+  destruct (in_split _ _ H) as (lA,(lB,Hl2eq)).
+  exists (lA++lB).
+  split. subst. perm. 
+  apply Permutation_cons_inv with (a:=a).
+  rewrite HPerm. rewrite Hl2eq. perm.
 Qed.
 
+
+
+Lemma P_contr : forall P1 P2 L1,
+Proves (P1::P1::L1) P2
+-> Proves (P1::L1) P2.
+Proof.
+intro P1.
+induction P1 as (KP1,HI_rank) using (well_founded_ind (well_founded_ltof _ formula_weight)).
+intros KP2 KL1 HProves.
+remember (KP1::KP1::KL1) as KL2 in HProves.
+apply eq_then_Permutation in HeqKL2.
+revert KL1 HeqKL2.
+induction HProves as
+      [L1 L2 P Hperm | (* P_Axiom *)
+       L P P1 P2 HContra HIn1 HIn2 | (* P_Contradiction *)
+       L1 L2 P t1 t2 o HP1 IH1 HP2 IH2 Hperm| (* P_UnionElim *)
+       L1 L2 P t1 t2 π x HP IHP Hperm | (* P_PairElim *)
+       L t o HIn | (* P_Top *)
+       L t1 t2 o HP IHP | (* P_Union_lhs *)
+       L t1 t2 o HP IHP | (* P_Union_rhs *)
+       L1 t1 t2 π x HPcar IHPcar HPcdr IHPcdr HPCons IHPcons | (* P_Pair *)
+       L x1 t1a t1r p1 o1 x2 t2a t2r p2 o2 o HIn HPa IHPa HPr IHPr HPp IHPp | (* P_Fun *)
+       L P o HIn | (* P_Bot *)
+       L | (* P_True *)
+       L P HIn | (* P_False *)
+       L1 L2 R P Q Hperm IH Hperm2 | (* P_Simpl *)
+       L1 L2 R P Q HPP IHP HPQ IHQ Hperm| (* P_DisjElim *)
+       L1 L2 R P Q HP IHP HPQ IHPQ Hperm | (* P_MP *)
+       L P Q HP IHP HQ IHQ | (* P_Conj *)
+       L P Q HP IHP | (* P_Add_lhs *)
+       L P Q HQ IHQ | (* P_Add_rhs *)
+       L P Q HP IHP] (* P_CP *).
+- intros KL1 HPerm.
+  (* BOOKMARK *)
+  rewrite HPerm in Hperm.
+  apply (P_Axiom ).
+
+Fixpoint replicate{A:Type} (n:nat) (a:A):list A :=
+  match n with
+  | O => nil
+  | S n' => a :: replicate n' a
+  end.
+
+Lemma In_replicate_eq: forall{A:Type} (a b:A) (n:nat), In a (replicate n b) -> a = b.
+Proof.
+intros A a b n.
+induction n.
+- intros [].
+- intros [H|H].
+  + congruence.
+  + apply IHn,H.
+Qed.
+
+Lemma LJ_cut_permselect:
+  forall(P1 P2:PProp) (L1 L2:list PProp) (n:nat),
+    Permutation (P1::L1) (replicate n P2++L2) ->
+      (
+        P1 = P2 /\ match n with
+        | O => False
+        | S n' => Permutation L1 (replicate n' P2++L2)
+        end
+      ) \/ (
+        exists L2',
+          Permutation L2 (P1::L2') /\
+          Permutation L1 (replicate n P2++L2')
+      ).
+Proof.
+
+Lemma LJ_cut_permselect_nil:
+  forall(P1 P2:PProp) (L2:list PProp) (n:nat),
+    Permutation (P1::nil) (replicate n P2++L2) ->
+      (
+        P1 = P2 /\ n = 1 /\ L2 = nil
+      ) \/ (
+        n = 0 /\ L2 = (P1::nil)
+      ).
+
+Lemma LJ_disj_elim2_withcut:
+  forall P1 P2 P3 L1 L2,
+    (forall PA LA1 LA2,
+      LJ_provable LA1 P1 -> LJ_provable (P1::LA2) PA -> LJ_provable (LA1++LA2) PA) ->
+    (forall PA LA1 LA2,
+      LJ_provable LA1 P2 -> LJ_provable (P2::LA2) PA -> LJ_provable (LA1++LA2) PA) ->
+    LJ_provable L1 (PPdisj P1 P2) ->
+    LJ_provable (P1::L2) P3 ->
+    LJ_provable (P2::L2) P3 ->
+    LJ_provable (L1++L2) P3.
+Proof.
+
+
+Lemma LJ_weakN: forall P1 L1 L2, LJ_provable L1 P1 -> LJ_provable (L2++L1) P1.
+Proof.
+intros P1 L1 L2 H.
+induction L2.
+- exact H.
+- apply LJ_weak,IHL2.
+Qed.
 
 Lemma LJ_contrN: forall P1 L1 L2, 
 Proves (L2++L2++L1) P1 -> LJ_provable (L2++L1) P1.
@@ -437,6 +550,55 @@ induction L2.
 Qed.
 
 
+Lemma LJ_bot_elim: forall P1 L1, LJ_provable L1 PPbot -> LJ_provable L1 P1.
+Proof.
+intros P1 L1 H.
+remember PPbot as P2 in H.
+induction H.
+
+Lemma LJ_conj_elim_l:
+  forall P1 P2 L1,
+    LJ_provable L1 (PPconj P1 P2) -> LJ_provable L1 P1.
+Proof.
+intros P1 P2 L1 H.
+remember (PPconj P1 P2) as P3 in H.
+induction H.
+
+
+Lemma LJ_conj_elim_r:
+  forall P1 P2 L1,
+    LJ_provable L1 (PPconj P1 P2) -> LJ_provable L1 P2.
+Proof.
+intros P1 P2 L1 H.
+remember (PPconj P1 P2) as P3 in H.
+induction H.
+
+
+Lemma LJ_cut_general:
+  forall P1 P2 L1 L2 n,
+    LJ_provable L1 P1 ->
+    LJ_provable (replicate n P1++L2) P2 ->
+    LJ_provable (L1++L2) P2.
+Proof.
+induction P1 as (KP1,HI_rank) using (well_founded_ind PProp_small_wellfounded).
+intros KP2 KL1 KL2 n HPrL HPrR.
+remember (replicate n KP1 ++ KL2) as KL3 in HPrR.
+assert (HKL3: Permutation KL3 (replicate n KP1 ++ KL2)) by (rewrite HeqKL3; reflexivity).
+clear HeqKL3.
+revert KL1 KL2 n HKL3 HPrL.
+induction HPrR.
+
+
+
+Lemma LJ_cut2:
+  forall P1 P2 L1 L2,
+    LJ_provable L1 P1 ->
+    LJ_provable (P1::L2) P2 ->
+    LJ_provable (L1++L2) P2.
+Proof.
+intros P1 P2 L1 L2.
+apply LJ_cut_general with (n:=1).
+Qed.
 
 
 Theorem LJ_cut:

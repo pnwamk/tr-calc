@@ -163,8 +163,8 @@ Inductive Proves : list formula -> formula -> Prop :=
       -> Proves L2 R
 | P_MP :
      forall L1 L2 R P Q,
-       Proves (L1) P
-       -> Proves (P::Q::L1) R
+       Proves L1 P
+       -> Proves (Q::L1) R
        -> Permutation ((P =-> Q)::L1) L2
        -> Proves L2 R
 | P_Conj :
@@ -289,6 +289,8 @@ intros L1 L2 HPerm P1 P2 Heq. split.
 intros H1. subst. apply (P_Perm L1 L2); auto.
 intros H2. subst. apply (P_Perm L2 L1); crush.
 Qed.
+
+Ltac swap L := apply (P_Perm L); try(solve[perm]).
 
 Lemma P_Weak :
     forall L1 L2 P Q,
@@ -499,7 +501,7 @@ Proof.
 Qed.
 
 
-Lemma disj_elimL_lhs:
+Lemma P_disj_elimL_lhs:
   forall P1 P2 P L1,
     Proves ((P1 || P2)::L1) P 
     -> Proves (P1::L1) P.
@@ -571,14 +573,9 @@ Proof.
     apply Permutation_cons_inv with (a:=(P1||P2)). auto.
   }
   eapply (P_PairElim (P1::L3') _ P t1 t2 π x).
-  assert (Permutation 
-            (P1:: Elem (istype (obj π x) tCons)
-                  :: Elem (istype (obj (π ++ [car]) x) t1)
-                  :: Elem (istype (obj (π ++ [cdr]) x) t2) :: L3') 
-            (Elem (istype (obj π x) tCons)
-                  :: Elem (istype (obj (π ++ [car]) x) t1)
-                  :: Elem (istype (obj (π ++ [cdr]) x) t2) :: P1 :: L3') ) as jmp2front.
-  perm. rewrite <- jmp2front.
+  swap (P1:: Elem (istype (obj π x) tCons)
+          :: Elem (istype (obj (π ++ [car]) x) t1)
+          :: Elem (istype (obj (π ++ [cdr]) x) t2) :: L3').
   eapply (IHP P1 P2). rewrite HPerm1. rewrite HPerm''. perm.
   rewrite HPerm3. perm.
 - intros P1 P2 L1 HPerm.
@@ -633,8 +630,7 @@ Proof.
     apply Permutation_cons_inv with (a:=(P1||P2)). auto.
   }
   apply (P_Simpl (P1::L3') _ R P Q).
-  assert (Permutation (P :: Q :: P1 :: L3') (P1 :: P :: Q :: L3')) as jmp2front.
-  perm. rewrite jmp2front.
+  swap(P1 :: P :: Q :: L3').
   apply (IH P1 P2). rewrite HPerm1. rewrite HPerm''. perm.
   rewrite HPerm3. perm.
 - intros P1 P2 L3 HPerm.
@@ -673,8 +669,8 @@ Proof.
   }
   apply (P_MP (P1::L3') _ _ P Q).
   apply (IHP P1 P2). rewrite HPerm1. rewrite HPerm''. auto.
-  assert (Permutation (P :: Q :: P1 :: L3') (P1 :: P :: Q :: L3')) as jmp2front.
-  perm. rewrite jmp2front. apply (IHPQ P1 P2). rewrite HPerm1. rewrite HPerm''. perm.
+  swap (P1 :: Q :: L3').
+  apply (IHPQ P1 P2). rewrite HPerm1. rewrite HPerm''. perm.
   rewrite HPerm3. perm.
 - intros P1 P2 L1 HPerm.
   apply P_Conj. apply (IHP P1 P2); auto. apply (IHQ P1 P2); auto.
@@ -688,7 +684,7 @@ Proof.
 Qed.
 
 
-Lemma disj_elimL_rhs:
+Lemma P_disj_elimL_rhs:
   forall P1 P2 P L1,
     Proves ((P1 || P2)::L1) P 
     -> Proves (P2::L1) P.
@@ -760,14 +756,9 @@ Proof.
     apply Permutation_cons_inv with (a:=(P1||P2)). auto.
   }
   eapply (P_PairElim (P2::L3') _ P t1 t2 π x).
-  assert (Permutation 
-            (P2:: Elem (istype (obj π x) tCons)
+  swap (P2:: Elem (istype (obj π x) tCons)
                   :: Elem (istype (obj (π ++ [car]) x) t1)
-                  :: Elem (istype (obj (π ++ [cdr]) x) t2) :: L3') 
-            (Elem (istype (obj π x) tCons)
-                  :: Elem (istype (obj (π ++ [car]) x) t1)
-                  :: Elem (istype (obj (π ++ [cdr]) x) t2) :: P2 :: L3') ) as jmp2front.
-  perm. rewrite <- jmp2front.
+                  :: Elem (istype (obj (π ++ [cdr]) x) t2) :: L3').
   eapply (IHP P1 P2). rewrite HPerm1. rewrite HPerm''. perm.
   rewrite HPerm3. perm.
 - intros P1 P2 L1 HPerm.
@@ -822,8 +813,7 @@ Proof.
     apply Permutation_cons_inv with (a:=(P1||P2)). auto.
   }
   apply (P_Simpl (P2::L3') _ R P Q).
-  assert (Permutation (P :: Q :: P2 :: L3') (P2 :: P :: Q :: L3')) as jmp2front.
-  perm. rewrite jmp2front.
+  swap (P2 :: P :: Q :: L3').
   apply (IH P1 P2). rewrite HPerm1. rewrite HPerm''. perm.
   rewrite HPerm3. perm.
 - intros P1 P2 L3 HPerm.
@@ -862,8 +852,8 @@ Proof.
   }
   apply (P_MP (P2::L3') _ _ P Q).
   apply (IHP P1 P2). rewrite HPerm1. rewrite HPerm''. auto.
-  assert (Permutation (P :: Q :: P2 :: L3') (P2 :: P :: Q :: L3')) as jmp2front.
-  perm. rewrite jmp2front. apply (IHPQ P1 P2). rewrite HPerm1. rewrite HPerm''. perm.
+  swap (P2 :: Q :: L3').
+  apply (IHPQ P1 P2). rewrite HPerm1. rewrite HPerm''. perm.
   rewrite HPerm3. perm.
 - intros P1 P2 L1 HPerm.
   apply P_Conj. apply (IHP P1 P2); auto. apply (IHQ P1 P2); auto.
@@ -930,16 +920,11 @@ Proof.
     apply Permutation_cons_inv with (a:=Elem (istype o (tU t1 t2))).
     apply Permutation_cons_inv with (a:=(P1 && P2)). auto.
   }
-  assert (Permutation 
-            (Elem (istype o t1) :: P1 :: P2 :: L3') 
-            (P1 :: P2 :: Elem (istype o t1) :: L3')) as jmp2front. perm.
   eapply (P_UnionElim (P1::P2::L3') _ P t1 t2 o).
-  rewrite jmp2front. eapply (IH1 P1 P2). rewrite HPerm1. rewrite HPerm''. perm.   
-  clear jmp2front.
-  assert (Permutation 
-            (Elem (istype o t2) :: P1 :: P2 :: L3') 
-            (P1 :: P2 :: Elem (istype o t2) :: L3')) as jmp2front. perm.
-  rewrite jmp2front. eapply (IH2 P1 P2). rewrite HPerm1. rewrite HPerm''. perm.   
+  swap (P1 :: P2 :: Elem (istype o t1) :: L3').
+  eapply (IH1 P1 P2). rewrite HPerm1. rewrite HPerm''. perm.   
+  swap (P1 :: P2 :: Elem (istype o t2) :: L3').
+  eapply (IH2 P1 P2). rewrite HPerm1. rewrite HPerm''. perm.   
   rewrite HPerm3. perm.
 - intros P1 P2 L3 HPerm.
   rewrite <- Hperm in HPerm.
@@ -956,14 +941,9 @@ Proof.
     apply Permutation_cons_inv with (a:=(P1&&P2)). auto.
   }
   eapply (P_PairElim (P1::P2::L3') _ P t1 t2 π x).
-  assert (Permutation 
-            (P1 :: P2 :: Elem (istype (obj π x) tCons)
+  swap (P1 :: P2 :: Elem (istype (obj π x) tCons)
                   :: Elem (istype (obj (π ++ [car]) x) t1)
-                  :: Elem (istype (obj (π ++ [cdr]) x) t2) :: L3') 
-            (Elem (istype (obj π x) tCons)
-                  :: Elem (istype (obj (π ++ [car]) x) t1)
-                  :: Elem (istype (obj (π ++ [cdr]) x) t2) :: P1 :: P2 :: L3') ) as jmp2front.
-  perm. rewrite <- jmp2front.
+                  :: Elem (istype (obj (π ++ [cdr]) x) t2) :: L3').
   eapply (IHP P1 P2). rewrite HPerm1. rewrite HPerm''. perm.
   rewrite HPerm3. perm.
 - intros P1 P2 L1 HPerm.
@@ -1019,8 +999,7 @@ Proof.
     apply Permutation_cons_inv with (a:=(P1&&P2)). auto.
   }
   apply (P_Simpl (P1::P2::L3') _ R P Q).
-  assert (Permutation (P :: Q :: P1 :: P2 :: L3') (P1 :: P2 :: P :: Q :: L3')) as jmp2front.
-  perm. rewrite jmp2front.
+  swap (P1 :: P2 :: P :: Q :: L3').
   apply (IH P1 P2). rewrite HPerm1. rewrite HPerm''. perm.
   rewrite HPerm3. perm.
 - intros P1 P2 L3 HPerm.
@@ -1039,11 +1018,9 @@ Proof.
     apply Permutation_cons_inv with (a:=(P1&&P2)). auto.
   }
   apply (P_DisjElim (P1::P2::L3') _ _ P Q).
-  assert (Permutation (P :: P1 :: P2 :: L3') (P1 :: P2 :: P :: L3')) as jmp2front.
-    perm. rewrite jmp2front.
+  swap (P1 :: P2 :: P :: L3').
   apply (IHP P1 P2). rewrite HPerm1. rewrite HPerm''. perm.
-  assert (Permutation (Q :: P1 :: P2 :: L3') (P1 :: P2 :: Q :: L3')) as jmp2front.
-    perm. rewrite jmp2front.
+  swap (P1 :: P2 :: Q :: L3').
   apply (IHQ P1 P2). rewrite HPerm1. rewrite HPerm''. perm.
   rewrite HPerm3. perm.
 - intros P1 P2 L3 HPerm.
@@ -1062,8 +1039,8 @@ Proof.
   }
   apply (P_MP (P1::P2::L3') _ _ P Q).
   apply (IHP P1 P2). rewrite HPerm1. rewrite HPerm''. auto.
-  assert (Permutation (P :: Q :: P1 :: P2 :: L3') (P1 :: P2 :: P :: Q :: L3')) as jmp2front.
-  perm. rewrite jmp2front. apply (IHPQ P1 P2). rewrite HPerm1. rewrite HPerm''. perm.
+  swap (P1 :: P2 :: Q :: L3').
+  apply (IHPQ P1 P2). rewrite HPerm1. rewrite HPerm''. perm.
   rewrite HPerm3. perm.
 - intros P1 P2 L1 HPerm.
   apply P_Conj. apply (IHP P1 P2); auto. apply (IHQ P1 P2); auto.
@@ -1073,14 +1050,191 @@ Proof.
   apply P_Add_rhs. apply (IHQ P1 P2); auto.
 - intros P1 P2 L1 HPerm.
   apply P_CP. 
-  assert (Permutation (P :: P1 :: P2 :: L1) (P1 :: P2 :: P :: L1)) as jmp2front. perm.
-  rewrite jmp2front. apply (IHP P1 P2); auto.
+  swap (P1 :: P2 :: P :: L1).
+  apply (IHP P1 P2); auto.
   rewrite HPerm. perm.
 Qed.
 
-
-
-
+Lemma P_impl_antecedent_weak:
+  forall P1 P2 P3 L1,
+    Proves ((P1 =-> P2)::L1) P3 ->
+    Proves (P2::L1) P3.
+Proof.
+  intros P1 P2 P3 L1 HProves.
+  remember ((P1 =-> P2)::L1) as L2 in HProves.
+  apply eq_then_Permutation in HeqL2.
+  revert L1 HeqL2.
+  induction HProves as
+      [L P HIn | (* P_Axiom *)
+       L P P3 P4 HContra HIn1 HIn2 | (* P_Contradiction *)
+       L1 L2 P t1 t2 o HP1 IH1 HP2 IH2 Hperm| (* P_UnionElim *)
+       L1 L2 P t1 t2 π x HP IHP Hperm | (* P_PairElim *)
+       L t o HIn | (* P_Top *)
+       L t1 t2 o HP IHP | (* P_Union_lhs *)
+       L t1 t2 o HP IHP | (* P_Union_rhs *)
+       L1 t1 t2 π x HPcar IHPcar HPcdr IHPcdr HPCons IHPcons | (* P_Pair *)
+       L x1 t1a t1r p1 o1 x2 t2a t2r p2 o2 o HIn HPa IHPa HPr IHPr HPp IHPp | (* P_Fun *)
+       L P o HIn | (* P_Bot *)
+       L | (* P_True *)
+       L P HIn | (* P_False *)
+       L1 L2 R P Q Hperm IH Hperm2 | (* P_Simpl *)
+       L1 L2 R P Q HPP IHP HPQ IHQ Hperm| (* P_DisjElim *)
+       L1 L2 R P Q HP IHP HPQ IHPQ Hperm | (* P_MP *)
+       L P Q HP IHP HQ IHQ | (* P_Conj *)
+       L P Q HP IHP | (* P_Add_lhs *)
+       L P Q HQ IHQ | (* P_Add_rhs *)
+       L P Q HP IHP] (* P_CP *).
+- intros L3 HPerm.
+  rewrite HPerm in HIn. destruct HIn as [Heq | HIn].
+  rewrite <- Heq. apply P_CP. eapply P_Axiom. crush. 
+  eapply P_Axiom. crush.
+- intros L1 HPerm.  
+  rewrite HPerm in HIn1, HIn2.
+  remember (Contradictory_neq _ _ HContra) as Hneq.
+  destruct HIn1 as [Heqor | HIn1]. subst P3. inversion HContra. 
+  destruct HIn2 as [Heqor | HIn2]. subst P4. inversion HContra. 
+  apply (P_Contradiction _ P P3 P4); crush.
+- intros L3 HPerm.
+  rewrite <- Hperm in HPerm.
+  remember HPerm as HPerm2. clear HeqHPerm2.
+  apply cons_perm in HPerm2.
+  destruct HPerm2 as [[Heq HPerm1] | [HIn1 HIn2]]. inversion Heq.
+  destruct (In_perm _ _ HIn1) as [L3' HPerm3].
+  destruct (In_perm _ _ HIn2) as [L1' HPerm1].
+  assert (Permutation L1' L3') as HPerm''.
+  {
+    rewrite HPerm3 in HPerm. rewrite HPerm1 in HPerm.
+    rewrite perm_swap in HPerm.
+    apply Permutation_cons_inv with (a:=Elem (istype o (tU t1 t2))).
+    apply Permutation_cons_inv with (a:=(P1 =-> P2)). auto.
+  }
+  eapply (P_UnionElim (P2::L3') _ P t1 t2 o).
+  swap (P2 :: Elem (istype o t1) :: L3').
+  eapply IH1. rewrite HPerm1. rewrite HPerm''. perm.   
+  swap (P2 :: Elem (istype o t2) :: L3').
+  eapply IH2. rewrite HPerm1. rewrite HPerm''. perm.   
+  rewrite HPerm3. perm.
+- intros L3 HPerm.
+  rewrite <- Hperm in HPerm.
+  remember HPerm as HPerm2. clear HeqHPerm2.
+  apply cons_perm in HPerm2.
+  destruct HPerm2 as [[Heq HPerm1] | [HIn1 HIn2]]. inversion Heq.
+  destruct (In_perm _ _ HIn1) as [L3' HPerm3].
+  destruct (In_perm _ _ HIn2) as [L1' HPerm1].
+  assert (Permutation L1' L3') as HPerm''.
+  {
+    rewrite HPerm3 in HPerm. rewrite HPerm1 in HPerm.
+    rewrite perm_swap in HPerm.
+    apply Permutation_cons_inv with (a:=Elem (istype (obj π x) (tPair t1 t2))).
+    apply Permutation_cons_inv with (a:=(P1=->P2)). auto.
+  }
+  eapply (P_PairElim (P2::L3') _ P t1 t2 π x).
+  swap (P2 :: Elem (istype (obj π x) tCons)
+           :: Elem (istype (obj (π ++ [car]) x) t1)
+           :: Elem (istype (obj (π ++ [cdr]) x) t2) :: L3').
+  apply IHP. rewrite HPerm1. rewrite HPerm''. perm.
+  rewrite HPerm3. perm.
+- intros L1 HPerm.
+  destruct (In_perm _ _ HIn) as [L' HPerm'].
+  rewrite HPerm in HPerm'.
+  remember HPerm' as HPerm2. clear HeqHPerm2.
+  apply cons_perm in HPerm2.
+  destruct HPerm2 as [[Heq HPerm1] | [HIn1 HIn2]]. inversion Heq.
+  apply (P_Top _ t o). right; auto.
+- intros; apply P_Union_lhs; crush. 
+- intros; apply P_Union_rhs; crush. 
+- intros. apply P_Pair; crush. 
+- intros L1 HPerm.
+  destruct (In_perm _ _ HIn) as [L' HPerm'].
+  rewrite HPerm' in HPerm.
+  remember HPerm as HPerm2. clear HeqHPerm2.
+  apply cons_perm in HPerm2.
+  destruct HPerm2 as [[Heq HPerm1] | [HIn1 HIn2]]. inversion Heq.
+  apply (P_Fun _ x1 t1a t1r p1 o1); auto. crush. 
+- intros L1 HPerm.
+  destruct (In_perm _ _ HIn) as [L' HPerm'].
+  rewrite HPerm' in HPerm.
+  remember HPerm as HPerm2. clear HeqHPerm2.
+  apply cons_perm in HPerm2.
+  destruct HPerm2 as [[Heq HPerm1] | [HIn1 HIn2]]. inversion Heq.
+  apply (P_Bot _ _ o). crush. 
+- intros; apply P_True.
+- intros L1 HPerm.
+  destruct (In_perm _ _ HIn) as [L' HPerm'].
+  rewrite HPerm' in HPerm.
+  remember HPerm as HPerm2. clear HeqHPerm2.
+  apply cons_perm in HPerm2.
+  destruct HPerm2 as [[Heq HPerm1] | [HIn1 HIn2]]. inversion Heq.
+  apply P_False. crush. 
+- intros L3 HPerm.
+  rewrite <- Hperm2 in HPerm.
+  remember HPerm as HPerm2. clear HeqHPerm2.
+  apply cons_perm in HPerm2.
+  destruct HPerm2 as [[Heq HPerm1] | [HIn1 HIn2]]. 
+  inversion Heq. 
+  destruct (In_perm _ _ HIn1) as [L3' HPerm3].
+  destruct (In_perm _ _ HIn2) as [L1' HPerm1].
+  assert (Permutation L1' L3') as HPerm''.
+  {
+    rewrite HPerm3 in HPerm. rewrite HPerm1 in HPerm.
+    rewrite perm_swap in HPerm.
+    apply Permutation_cons_inv with (a:=(P&&Q)).
+    apply Permutation_cons_inv with (a:=(P1=->P2)). auto.
+  }
+  apply (P_Simpl (P2::L3') _ R P Q).
+  swap (P2 :: P :: Q :: L3').
+  apply IH. rewrite HPerm1. rewrite HPerm''. perm.
+  rewrite HPerm3. perm.
+- intros L3 HPerm.
+  rewrite <- Hperm in HPerm.
+  remember HPerm as HPerm2. clear HeqHPerm2.
+  apply cons_perm in HPerm2.
+  destruct HPerm2 as [[Heq HPerm1] | [HIn1 HIn2]]. 
+  inversion Heq; subst.
+  destruct (In_perm _ _ HIn1) as [L3' HPerm3].
+  destruct (In_perm _ _ HIn2) as [L1' HPerm1].
+  assert (Permutation L1' L3') as HPerm''.
+  {
+    rewrite HPerm3 in HPerm. rewrite HPerm1 in HPerm.
+    rewrite perm_swap in HPerm.
+    apply Permutation_cons_inv with (a:=P||Q).
+    apply Permutation_cons_inv with (a:=(P1=->P2)). auto.
+  }
+  apply (P_DisjElim (P2::L3') _ _ P Q).
+  swap (P2 :: P :: L3').
+  apply IHP. rewrite HPerm1. rewrite HPerm''. perm.
+  swap (P2 :: Q :: L3').
+  apply IHQ. rewrite HPerm1. rewrite HPerm''. perm.
+  rewrite HPerm3. perm.
+- intros L3 HPerm.
+  rewrite <- Hperm in HPerm.
+  remember HPerm as HPerm2. clear HeqHPerm2.
+  apply cons_perm in HPerm2.
+  destruct HPerm2 as [[Heq HPerm1] | [HIn1 HIn2]]. 
+  inversion Heq. subst. rewrite <- HPerm1. assumption.
+  destruct (In_perm _ _ HIn1) as [L3' HPerm3].
+  destruct (In_perm _ _ HIn2) as [L1' HPerm1].
+  assert (Permutation L1' L3') as HPerm''.
+  {
+    rewrite HPerm3 in HPerm. rewrite HPerm1 in HPerm.
+    rewrite perm_swap in HPerm.
+    apply Permutation_cons_inv with (a:=P=->Q).
+    apply Permutation_cons_inv with (a:=(P1=->P2)). auto.
+  }
+  apply (P_MP (P2::L3') _ _ P Q).
+  apply IHP. rewrite HPerm1. rewrite HPerm''. auto.
+  swap (P2 :: Q :: L3').
+  apply IHPQ. rewrite HPerm1. rewrite HPerm''. perm.
+  rewrite HPerm3. perm.
+- intros  L1 HPerm. apply P_Conj; crush. 
+- intros L1 HPerm. apply P_Add_lhs; crush.
+- intros L1 HPerm. apply P_Add_rhs; crush.
+- intros L1 HPerm.
+  apply P_CP. 
+  swap (P2 :: P :: L1).
+  apply IHP; auto.
+  rewrite HPerm. perm.
+Qed.
 
 
 Lemma P_contr : forall P1 P2 L1,

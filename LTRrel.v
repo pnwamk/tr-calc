@@ -32,78 +32,25 @@ Import ListNotations.
 (** * λTR Core Relations 
    Logic, TypeOf, Subtyping, etc... *)
 
-
-Inductive CommonSubtype : (type * type) -> Prop :=
-| CST_Refl :
-    forall t, CommonSubtype (t, t)
-| CST_Top_rhs :
-    forall t, CommonSubtype (t, tTop)
-| CST_Top_lhs :
-    forall t, CommonSubtype (tTop, t)
-| CST_lhsUnion_lhs :
-    forall t1 t2 t, 
-      CommonSubtype (t1, t)
-      -> CommonSubtype ((tU t1 t2), t)
-| CST_lhsUnion_rhs :
-    forall t1 t2 t, 
-      CommonSubtype (t2, t)
-      -> CommonSubtype ((tU t1 t2), t)
-| CST_rhsUnion_lhs :
-    forall t1 t2 t, 
-      CommonSubtype (t, t1)
-      -> CommonSubtype (t, (tU t1 t2))
-| CST_rhsUnion_rhs :
-    forall t1 t2 t, 
-      CommonSubtype (t, t2)
-      -> CommonSubtype (t, (tU t1 t2))
-| CST_Abs :
-    forall x y t1 t2 t3 t4 p1 p2 o1 o2,
-      CommonSubtype ((tλ x t1 t2 p1 o1), (tλ y t3 t4 p2 o2))
-| CST_Pair :
-    forall t1 t2 t3 t4, 
-      CommonSubtype (t1, t3)
-      -> CommonSubtype (t2, t4)
-      -> CommonSubtype ((tPair t1 t2), (tPair t3 t4))
-| CST_Cons_lhs :
-    forall t1 t2,
-      CommonSubtype (tCons, (tPair t1 t2))
-| CST_Cons_rhs :
-    forall t1 t2,
-      CommonSubtype ((tPair t1 t2), tCons).
-Hint Resolve CST_Refl CST_Top_rhs CST_Top_lhs
-             CST_Cons_lhs CST_Cons_rhs
-             CST_Pair CST_Abs.
+Inductive TypeConflict : relation type :=
+| TC_Base :
+    forall b1 b2,
+      b1 <> b2
+      -> TypeConflict (tBase b1) (tBase b2)
+| TC_Baseλ :
+    forall b x t1 t2 p1 o1,
+      TypeConflict (tBase b) (tλ x t1 t2 p1 o1)
+| TC_λBase :
+    forall b x t1 t2 p1 o1,
+      TypeConflict (tλ x t1 t2 p1 o1) (tBase b).
+Hint Constructors TypeConflict.
 
 Inductive Contradictory : relation formula :=
 | con_type : 
     forall o t1 t2,
-      ~CommonSubtype (t1,t2)
-      -> Contradictory (o ::= t1) (o ::= t2)
-(* | con_pair_cons_lhs :  *)
-(*     forall o t1 t2 t3, *)
-(*       ~CommonSubtype (t3,tCons) *)
-(*       -> Contradictory (o ::= (tPair t1 t2)) (o ::= t3) *)
-(* | con_pair_cons_rhs :  *)
-(*     forall o t1 t2 t3, *)
-(*       ~CommonSubtype (t3,tCons) *)
-(*       -> Contradictory (o ::= t3) (o ::= (tPair t1 t2)) *)
-| con_pair_car_lhs : 
-    forall π x t1 t2 P,
-      Contradictory (((obj (π ++ [car])) x) ::= t1) P
-      -> Contradictory ((obj π x) ::= (tPair t1 t2)) P
-| con_pair_cdr_lhs : 
-    forall π x t1 t2 P,
-      Contradictory (((obj (π ++ [cdr])) x) ::= t2) P
-      -> Contradictory ((obj π x) ::= (tPair t1 t2)) P
-| con_pair_car_rhs : 
-    forall π x t1 t2 P,
-      Contradictory P (((obj (π ++ [car])) x) ::= t1)
-      -> Contradictory P ((obj π x) ::= (tPair t1 t2))
-| con_pair_cdr_rhs : 
-    forall π x t1 t2 P,
-      Contradictory P (((obj (π ++ [cdr])) x) ::= t2)
-      -> Contradictory P ((obj π x) ::= (tPair t1 t2)).
-
+      TypeConflict t1 t2
+      -> Contradictory (o ::= t1) (o ::= t2).
+Hint Constructors Contradictory.
 
 (** ** Sub-Object Relation*)
 Inductive SubObj : relation (opt object) :=
@@ -215,142 +162,6 @@ Definition Subtype (t1 t2:type) :=
 
 Definition Implies (p1 p2:prop) : Prop :=
 Proves [(assume p1)] (question p2).
-
-Lemma contra_unionL_lhs : forall o t1 t2 P,
-Contradictory (o ::= (tU t1 t2)) P
--> Contradictory (o ::= t1) P.
-Proof.
-  intros o t1 t2 P2 Hcontra.
-  remember (o ::= tU t1 t2) as P1.
-  induction Hcontra; try(solve[inversion HeqP1]).
-- inversion HeqP1; subst.
-  apply con_type.
-  intros contra. apply H. apply CST_lhsUnion_lhs; auto.
-(* - inversion HeqP1; subst. *)
-(*   apply con_pair_cons_rhs. *)
-(*   intros contra. apply H.  *)
-(*   apply CST_lhsUnion_lhs; auto. *)
-- subst P.
-  apply con_pair_car_rhs. crush.
-- subst P.
-  apply con_pair_cdr_rhs. crush.
-Qed.              
-
-Lemma contra_unionL_rhs : forall o t1 t2 P,
-Contradictory (o ::= (tU t1 t2)) P
--> Contradictory (o ::= t2) P.
-Proof.
-  intros o t1 t2 P2 Hcontra.
-  remember (o ::= tU t1 t2) as P1.
-  induction Hcontra; try(solve[inversion HeqP1]).
-- inversion HeqP1; subst.
-  apply con_type.
-  intros contra. apply H. apply CST_lhsUnion_rhs; auto.
-(* - inversion HeqP1; subst. *)
-(*   apply con_pair_cons_rhs. *)
-(*   intros contra. apply H.  *)
-(*   apply CST_lhsUnion_rhs; auto. *)
-- subst P.
-  apply con_pair_car_rhs. crush.
-- subst P.
-  apply con_pair_cdr_rhs. crush.
-Qed.              
-
-Lemma contra_unionR_lhs : forall o t1 t2 P,
-Contradictory P (o ::= (tU t1 t2))
--> Contradictory P (o ::= t1).
-Proof.
-  intros o t1 t2 P2 Hcontra.
-  remember (o ::= tU t1 t2) as P1.
-  induction Hcontra; try(solve[inversion HeqP1]).
-- inversion HeqP1; subst.
-  apply con_type.
-  intros contra. apply H. apply CST_rhsUnion_lhs; auto.
-(* - inversion HeqP1; subst. *)
-(*   apply con_pair_cons_rhs. *)
-(*   intros contra. apply H.  *)
-(*   apply CST_lhsUnion_lhs; auto. *)
-- subst P.
-  apply con_pair_car_lhs. crush.
-- subst P.
-  apply con_pair_cdr_lhs. crush.
-Qed.              
-
-Lemma contra_unionR_rhs : forall o t1 t2 P,
-Contradictory P (o ::= (tU t1 t2))
--> Contradictory P (o ::= t2).
-Proof.
-  intros o t1 t2 P2 Hcontra.
-  remember (o ::= tU t1 t2) as P1.
-  induction Hcontra; try(solve[inversion HeqP1]).
-- inversion HeqP1; subst.
-  apply con_type.
-  intros contra. apply H. apply CST_rhsUnion_rhs; auto.
-(* - inversion HeqP1; subst. *)
-(*   apply con_pair_cons_rhs. *)
-(*   intros contra. apply H.  *)
-(*   apply CST_lhsUnion_rhs; auto. *)
-- subst P.
-  apply con_pair_car_lhs. crush.
-- subst P.
-  apply con_pair_cdr_lhs. crush.
-Qed.              
-
-
-Lemma contra_pairL : forall π x t1 t2 P,
-Contradictory ((obj π x) ::= (tPair t1 t2)) P
--> (Contradictory ((obj π x) ::= tCons) P
-    \/ Contradictory ((obj (π++[car]) x) ::= t1) P
-    \/ Contradictory ((obj (π++[cdr]) x) ::= t2) P).
-Proof.
-  intros π x t1 t2 P2 Hcontra.
-  remember ((obj π x) ::= (tPair t1 t2)) as P1 in Hcontra.
-  induction Hcontra; try(solve[inversion HeqP1]).
-- inversion HeqP1; subst. 
-  induction t3.
-  + assert False. apply H. auto. crush.
-  + left. apply con_type. intros contra; inversion contra; crush.
-  + destruct (type_eqdec tCons (tBase b)) as [Heq | Hneq].
-    * assert False. apply H. rewrite <- Heq. auto. crush.
-    * left. apply con_type. intros contra; inversion contra. crush.
-  + left. apply con_type. intros contra; inversion contra; crush.
-  + assert (~ CommonSubtype (tPair t1 t2, t3_1)) as HNotlhs.
-      intros contra. apply H. apply CST_rhsUnion_lhs; auto.
-      apply IHt3_1 in HNotlhs. clear IHt3_1.
-    assert (~ CommonSubtype (tPair t1 t2, t3_2)) as HNotrhs.
-      intros contra. apply H. apply CST_rhsUnion_rhs; auto.
-      apply IHt3_2 in HNotrhs. clear IHt3_2.
-      
-    destruct HNotlhs as [Hnotlhs | [Hnotlhs | Hnotlhs]].
-    destruct HNotrhs as [Hnotrhs | [Hnotrhs | Hnotrhs]].
-    
-    left. 
-
-    
-
-
-      eapply contra_unionR_lhs. apply con_type. exact H.
-      eapply con_type in H0.
-      apply IHt3_1 in H0.
-
-left. apply con_type. intro Hcon.
- apply (con_type (obj π x)) in H. 
-    
-    assert (~CommonSubtype ).
-
-left. apply con_type. intros contra; inversion contra; crush.
-
-  induction (obj π x ::= tPair t1 t2)
-        using (well_founded_induction
-                 (well_founded_ltof _ formula_weight)).
-
-
- inversion HeqP1; subst.
-  destruct 
-
-
-  left. apply con_pair_cons_rhs. con_type. intros Hcons.
-  apply H.
 
 
 Lemma perm_split {X:Type} : 
@@ -615,64 +426,17 @@ Contradictory P1 P2
 Proof.  
   intros P1 P2 HCon Heq. subst.
   inversion HCon; crush.
+  inversion HCon; crush.
+  inversion H0; crush.
 Qed.
 
-Definition flip_pair {X:Type} (p:X*X) : X*X := ((snd p), (fst p)).
-Hint Unfold flip_pair.
-
-Fixpoint type_pair_weight (tp : (type * type)) : nat :=
-(type_weight (fst tp)) + (type_weight (snd tp)).
-
-Ltac auto_tp_weight :=
-  unfold type_pair_weight; unfold ltof; crush.
-
-Lemma flip_eq {X:Type} : forall t1 t2 : X ,
-(t1, t2) = flip_pair (t2,t1).
+Lemma TC_sym : forall t1 t2,
+TypeConflict t1 t2
+-> TypeConflict t2 t1.  
 Proof.
-  crush.
-Defined.  
-
-Lemma CST_symmetric : forall tp,
-CommonSubtype tp
--> CommonSubtype (flip_pair tp).
-Proof.
-  intros tp H.
-  induction tp as ((t1, t2),IH) 
-                    using
-                    (well_founded_induction
-                       (well_founded_ltof _ type_pair_weight)).
-  remember (is_tU t1) as Ht1U.
-  destruct Ht1U as [[ta tb] |]. apply is_tU_eq in HeqHt1U. subst.
-  inversion H; crush. 
-  compute. apply CST_Top_lhs. 
-  compute. apply CST_rhsUnion_lhs. 
-    rewrite flip_eq. apply IH. auto_tp_weight. auto.
-  compute. apply CST_rhsUnion_rhs. 
-    rewrite flip_eq. apply IH. auto_tp_weight. auto.
-  compute. apply CST_lhsUnion_lhs.
-    rewrite flip_eq. apply IH. auto_tp_weight. auto.
-  compute. apply CST_lhsUnion_rhs.
-    rewrite flip_eq. apply IH. auto_tp_weight. auto.
-  remember (is_tU t2) as Ht2U.
-  destruct Ht2U as [[ta tb] |]. apply is_tU_eq in HeqHt2U. subst.
-  inversion H; crush. 
-  compute. apply CST_Top_rhs. 
-  compute. apply CST_lhsUnion_lhs. 
-    rewrite flip_eq. apply IH. auto_tp_weight. auto.
-  compute. apply CST_lhsUnion_rhs. 
-    rewrite flip_eq. apply IH. auto_tp_weight. auto.
-  destruct t1; destruct t2; 
-  try(solve[compute; auto |
-            inversion H; crush |
-            right; intros contra; inversion contra; crush]).
-  inversion H; subst; crush. compute. apply CST_Cons_rhs.
-  inversion H; subst; crush. compute. apply CST_Cons_lhs.
-  inversion H; subst.
-  compute. apply CST_Refl.
-  apply CST_Pair. 
-    rewrite flip_eq. apply IH. auto_tp_weight. auto. 
-    rewrite flip_eq. apply IH. auto_tp_weight. auto.
-Defined.
+  intros t1 t2 Htc.
+  inversion Htc; crush.
+Qed.
 
 Lemma Contradictory_sym : forall P1 P2,
 Contradictory P1 P2
@@ -680,11 +444,18 @@ Contradictory P1 P2
 Proof.  
   intros P1 P2 HCon. 
   inversion HCon; crush.
-  apply contratype.
-  intros HCST.
-  apply CST_symmetric in HCST. compute in HCST.
-  crush.
-Qed.
+  apply TC_sym in H. crush.
+Qed.  
+
+Ltac absurd_contra :=
+  match goal with
+    | [H1 : Contradictory ?P1 ?P2 |- _] =>
+      inversion H1; 
+        match goal with
+          | [H2 : TypeConflict ?t1 ?t2 |- _] =>
+            solve[inversion H2; crush]
+        end
+  end.
 
 Lemma cons_perm {X:Type} : forall (a b :X) L1 L2,
 Permutation (a::L1) (b::L2)
@@ -767,9 +538,8 @@ Proof.
   eapply P_Axiom; crush.
 - intros P3 P4 L1 HPerm.  
   rewrite HPerm in HIn1, HIn2.
-  remember (Contradictory_neq _ _ HContra) as Hneq.
-  destruct HIn1 as [Heqor | HIn1]. subst P1. inversion HContra. 
-  destruct HIn2 as [Heqor | HIn2]. subst P2. inversion HContra. 
+  destruct HIn1 as [Heqor | HIn1]. subst P1. absurd_contra. 
+  destruct HIn2 as [Heqor | HIn2]. subst P2. absurd_contra. 
   apply (P_Contradiction _ P P1 P2); crush.
 - intros P1 P2 L3 HPerm.
   rewrite <- Hperm in HPerm.
@@ -949,16 +719,8 @@ Proof.
   eapply P_Axiom. crush.
 - intros o t1 t2  L1 HPerm.  
   rewrite HPerm in HIn1, HIn2.
-  remember (Contradictory_neq _ _ HContra) as Hneq.
-  destruct HIn1 as [Heqor | HIn1]. subst P1. 
-  destruct HIn2 as [Heqor | HIn2]. subst P2. crush.
-  apply (P_Contradiction _ P (o ::= t1) P2).
-  eapply contra_unionL_lhs. eauto. crush. crush.
-  destruct HIn2 as [Heqor | HIn2]. subst P2. 
-  apply (P_Contradiction _ P (o ::= t1) P1).
-  clear HeqHneq.
-  apply Contradictory_sym in HContra.
-  eapply contra_unionL_lhs. eauto. crush. crush.
+  destruct HIn1 as [Heqor | HIn1]. subst P1. absurd_contra.
+  destruct HIn2 as [Heqor | HIn2]. subst P2. absurd_contra. 
   apply (P_Contradiction _ P P1 P2); crush.
 - intros o t1 t2  L3 HPerm.
   rewrite <- Hperm in HPerm.
@@ -1149,9 +911,8 @@ Proof.
   eapply P_Axiom; crush.
 - intros P3 P4 L1 HPerm.  
   rewrite HPerm in HIn1, HIn2.
-  remember (Contradictory_neq _ _ HContra) as Hneq.
-  destruct HIn1 as [Heqor | HIn1]. subst P1. inversion HContra. 
-  destruct HIn2 as [Heqor | HIn2]. subst P2. inversion HContra. 
+  destruct HIn1 as [Heqor | HIn1]. subst P1. absurd_contra. 
+  destruct HIn2 as [Heqor | HIn2]. subst P2. absurd_contra. 
   apply (P_Contradiction _ P P1 P2); crush.
 - intros P1 P2 L3 HPerm.
   rewrite <- Hperm in HPerm.
@@ -1331,16 +1092,8 @@ Proof.
   eapply P_Axiom. crush.
 - intros o t1 t2  L1 HPerm.  
   rewrite HPerm in HIn1, HIn2.
-  remember (Contradictory_neq _ _ HContra) as Hneq.
-  destruct HIn1 as [Heqor | HIn1]. subst P1. 
-  destruct HIn2 as [Heqor | HIn2]. subst P2. crush.
-  apply (P_Contradiction _ P (o ::= t2) P2). 
-  eapply contra_unionL_rhs. eauto. crush. crush.
-  destruct HIn2 as [Heqor | HIn2]. subst P2. 
-  apply (P_Contradiction _ P (o ::= t2) P1).
-  clear HeqHneq.
-  apply Contradictory_sym in HContra.
-  eapply contra_unionL_rhs. eauto. crush. crush.
+  destruct HIn1 as [Heqor | HIn1]. subst P1. absurd_contra.
+  destruct HIn2 as [Heqor | HIn2]. subst P2. absurd_contra.
   apply (P_Contradiction _ P P1 P2); crush.
 - intros o t1 t2  L3 HPerm.
   rewrite <- Hperm in HPerm.
@@ -1532,9 +1285,8 @@ Proof.
   eapply P_Axiom. right; right; crush.
 - intros P3 P4 L1 HPerm.  
   rewrite HPerm in HIn1, HIn2.
-  remember (Contradictory_neq _ _ HContra) as Hneq.
-  destruct HIn1 as [Heqor | HIn1]. subst P1. inversion HContra. 
-  destruct HIn2 as [Heqor | HIn2]. subst P2. inversion HContra. 
+  destruct HIn1 as [Heqor | HIn1]. subst P1. absurd_contra.
+  destruct HIn2 as [Heqor | HIn2]. subst P2. absurd_contra. 
   apply (P_Contradiction _ P P1 P2); crush.
 - intros P1 P2 L3 HPerm.
   rewrite <- Hperm in HPerm.
@@ -1720,9 +1472,8 @@ Proof.
   eapply P_Axiom. crush.
 - intros L1 HPerm.  
   rewrite HPerm in HIn1, HIn2.
-  remember (Contradictory_neq _ _ HContra) as Hneq.
-  destruct HIn1 as [Heqor | HIn1]. subst P3. inversion HContra. 
-  destruct HIn2 as [Heqor | HIn2]. subst P4. inversion HContra. 
+  destruct HIn1 as [Heqor | HIn1]. subst P3. absurd_contra. 
+  destruct HIn2 as [Heqor | HIn2]. subst P4. absurd_contra. 
   apply (P_Contradiction _ P P3 P4); crush.
 - intros L3 HPerm.
   rewrite <- Hperm in HPerm.
@@ -1904,34 +1655,10 @@ Proof.
   apply P_Axiom. crush.
 - intros L1 t1 t2 π x HPerm.
   rewrite HPerm in HIn1, HIn2.
-  remember (Contradictory_neq _ _ HContra) as Hneq. clear HeqHneq.
-  destruct HIn1 as [Heqor | HIn1]. subst P1. 
-  destruct HIn2 as [Heqor | HIn2]. subst P2. crush.
-  
-
-  apply (P_Contradiction _ P (Elem (istype (obj π x) (tPair t1 t2))) P2). auto.
-  eapply contra_unionL_lhs. eauto. crush. crush.
-  destruct HIn2 as [Heqor | HIn2]. subst P2. 
-  apply (P_Contradiction _ P (o ::= t1) P1).
-  clear HeqHneq.
-  apply Contradictory_sym in HContra.
-  eapply contra_unionL_lhs. eauto. crush. crush.
+  destruct HIn1 as [Heqor | HIn1]. subst P1. absurd_contra.
+  destruct HIn2 as [Heqor | HIn2]. subst P2. absurd_contra.
   apply (P_Contradiction _ P P1 P2); crush.
-
-
-
-
-
-
-
-
-  rewrite HPerm in HIn1, HIn2.
-  remember (Contradictory_neq _ _ HContra) as Hneq.
-  destruct HIn1 as [Heqor | HIn1]. subst P1. 
-  destruct HIn2 as [Heqor | HIn2]. subst P2. 
-  crush.
-  apply (P_Contradiction _ P P1 P2); crush.
-- intros P1 P2 L3 HPerm.
+- intros L3 t3 t4 π x HPerm.
   rewrite <- Hperm in HPerm.
   remember HPerm as HPerm2. clear HeqHPerm2.
   apply cons_perm in HPerm2.
@@ -1943,73 +1670,25 @@ Proof.
     rewrite HPerm3 in HPerm. rewrite HPerm1 in HPerm.
     rewrite perm_swap in HPerm.
     apply Permutation_cons_inv with (a:=Elem (istype o (tU t1 t2))).
-    apply Permutation_cons_inv with (a:=(P1 && P2)). auto.
+    apply Permutation_cons_inv with (a:=(Elem (istype (obj π x) (tPair t3 t4)))). 
+    auto.
   }
-  eapply (P_UnionElim (P1::P2::L3') _ P t1 t2 o).
-  swap (P1 :: P2 :: Elem (istype o t1) :: L3').
-  eapply (IH1 P1 P2). rewrite HPerm1. rewrite HPerm''. perm.   
-  swap (P1 :: P2 :: Elem (istype o t2) :: L3').
-  eapply (IH2 P1 P2). rewrite HPerm1. rewrite HPerm''. perm.   
+  eapply (P_UnionElim (Elem (istype (obj π x) tCons)
+           :: Elem (istype (obj (π ++ [car]) x) t3)
+              :: Elem (istype (obj (π ++ [cdr]) x) t4) :: L3') _ P t1 t2 o).
+  swap (Elem (istype (obj π x) tCons)
+           :: Elem (istype (obj (π ++ [car]) x) t3)
+           :: Elem (istype (obj (π ++ [cdr]) x) t4) 
+           :: Elem (istype o t1) :: L3').
+  eapply (IH1 _ t3 t4). rewrite HPerm1. rewrite HPerm''. perm.   
+  swap (Elem (istype (obj π x) tCons)
+           :: Elem (istype (obj (π ++ [car]) x) t3)
+           :: Elem (istype (obj (π ++ [cdr]) x) t4) 
+           :: Elem (istype o t2) :: L3').
+  eapply (IH2 _ t3 t4). rewrite HPerm1. rewrite HPerm''. perm.   
   rewrite HPerm3. perm.
-- intros P1 P2 L3 HPerm.
+- intros L3 t3 t4 π' x' HPerm.
   rewrite <- Hperm in HPerm.
-  remember HPerm as HPerm2. clear HeqHPerm2.
-  apply cons_perm in HPerm2.
-  destruct HPerm2 as [[Heq HPerm1] | [HIn1 HIn2]]. inversion Heq.
-  destruct (In_perm _ _ HIn1) as [L3' HPerm3].
-  destruct (In_perm _ _ HIn2) as [L1' HPerm1].
-  assert (Permutation L1' L3') as HPerm''.
-  {
-    rewrite HPerm3 in HPerm. rewrite HPerm1 in HPerm.
-    rewrite perm_swap in HPerm.
-    apply Permutation_cons_inv with (a:=Elem (istype (obj π x) (tPair t1 t2))).
-    apply Permutation_cons_inv with (a:=(P1&&P2)). auto.
-  }
-  eapply (P_PairElim (P1::P2::L3') _ P t1 t2 π x).
-  swap (P1 :: P2 :: Elem (istype (obj π x) tCons)
-                  :: Elem (istype (obj (π ++ [car]) x) t1)
-                  :: Elem (istype (obj (π ++ [cdr]) x) t2) :: L3').
-  eapply (IHP P1 P2). rewrite HPerm1. rewrite HPerm''. perm.
-  rewrite HPerm3. perm.
-- intros P1 P2 L1 HPerm.
-  destruct (In_perm _ _ HIn) as [L' HPerm'].
-  rewrite HPerm in HPerm'.
-  remember HPerm' as HPerm2. clear HeqHPerm2.
-  apply cons_perm in HPerm2.
-  destruct HPerm2 as [[Heq HPerm1] | [HIn1 HIn2]]. inversion Heq.
-  apply (P_Top _ t o). right; right; auto.
-- intros P1 P2 L1 HPerm.
-  apply P_Union_lhs. apply (IHP P1 P2); auto.
-- intros P1 P2 L1 HPerm.
-  apply P_Union_rhs. apply (IHP P1 P2); auto.
-- intros P1 P2 L2 HPerm.
-  apply P_Pair. apply (IHPcar P1 P2); auto.
-  apply (IHPcdr P1 P2); auto.
-  apply (IHPcons P1 P2); auto.
-- intros P1 P2 L1 HPerm.
-  destruct (In_perm _ _ HIn) as [L' HPerm'].
-  rewrite HPerm' in HPerm.
-  remember HPerm as HPerm2. clear HeqHPerm2.
-  apply cons_perm in HPerm2.
-  destruct HPerm2 as [[Heq HPerm1] | [HIn1 HIn2]]. inversion Heq.
-  apply (P_Fun _ x1 t1a t1r p1 o1); auto. right; right; auto.
-- intros P1 P2 L1 HPerm.
-  destruct (In_perm _ _ HIn) as [L' HPerm'].
-  rewrite HPerm' in HPerm.
-  remember HPerm as HPerm2. clear HeqHPerm2.
-  apply cons_perm in HPerm2.
-  destruct HPerm2 as [[Heq HPerm1] | [HIn1 HIn2]]. inversion Heq.
-  apply (P_Bot _ _ o). right; right; auto.
-- intros P1 P2 L1 HPerm. apply P_True.
-- intros P1 P2 L1 HPerm.
-  destruct (In_perm _ _ HIn) as [L' HPerm'].
-  rewrite HPerm' in HPerm.
-  remember HPerm as HPerm2. clear HeqHPerm2.
-  apply cons_perm in HPerm2.
-  destruct HPerm2 as [[Heq HPerm1] | [HIn1 HIn2]]. inversion Heq.
-  apply P_False. right; right; auto.
-- intros P1 P2 L3 HPerm.
-  rewrite <- Hperm2 in HPerm.
   remember HPerm as HPerm2. clear HeqHPerm2.
   apply cons_perm in HPerm2.
   destruct HPerm2 as [[Heq HPerm1] | [HIn1 HIn2]]. 
@@ -2020,14 +1699,95 @@ Proof.
   {
     rewrite HPerm3 in HPerm. rewrite HPerm1 in HPerm.
     rewrite perm_swap in HPerm.
-    apply Permutation_cons_inv with (a:=(P&&Q)).
-    apply Permutation_cons_inv with (a:=(P1&&P2)). auto.
+    apply Permutation_cons_inv with (a:=Elem (istype (obj π x) (tPair t1 t2))).
+    apply Permutation_cons_inv with 
+    (a:=(Elem (istype (obj π' x') (tPair t3 t4)))). 
+    auto.
   }
-  apply (P_Simpl (P1::P2::L3') _ R P Q).
-  swap (P1 :: P2 :: P :: Q :: L3').
-  apply (IH P1 P2). rewrite HPerm1. rewrite HPerm''. perm.
+  rewrite HPerm3.
+  eapply (P_PairElim 
+            (((obj π' x') ::= tCons)
+             ::((obj (π' ++ [car]) x') ::= t3)
+             ::((obj (π' ++ [cdr]) x') ::= t4)
+             ::L3')
+            _ P t1 t2 π x); try perm.
+  swap (Elem (istype (obj π' x') tCons)
+              :: Elem (istype (obj (π' ++ [car]) x') t3)
+              :: Elem (istype (obj (π' ++ [cdr]) x') t4) 
+              :: (Elem (istype (obj π x) tCons)
+              :: Elem (istype (obj (π ++ [car]) x) t1)
+              :: Elem (istype (obj (π ++ [cdr]) x) t2)
+              :: L3')).
+  apply IHP. rewrite HPerm1. rewrite HPerm''. perm.
+- intros L1 t1 t2 π x HPerm.
+  destruct (In_perm _ _ HIn) as [L' HPerm'].
+  rewrite HPerm in HPerm'.
+  remember HPerm' as HPerm2. clear HeqHPerm2.
+  apply cons_perm in HPerm2.
+  destruct HPerm2 as [[Heq HPerm1] | [HIn1 HIn2]]. 
+  inversion Heq; subst.
+  apply (P_Top _ tCons (obj π x)). crush. 
+  apply (P_Top _ t o). crush.   
+- intros L1 t3 t4 π x HPerm.
+  apply P_Union_lhs. apply (IHP _ t3 t4); auto.
+- intros L1 t3 t4 π x HPerm.
+  apply P_Union_rhs. apply (IHP _ t3 t4); auto.
+- intros L2 t3 t4 π' x' HPerm.
+  apply P_Pair.
+  apply (IHPcar _ t3 t4); auto.
+  apply (IHPcdr _ t3 t4); auto.
+  apply (IHPcons _ t3 t4); auto.
+- intros L1 t1 t2 π x HPerm.
+  destruct (In_perm _ _ HIn) as [L' HPerm'].
+  rewrite HPerm' in HPerm.
+  remember HPerm as HPerm2. clear HeqHPerm2.
+  apply cons_perm in HPerm2.
+  destruct HPerm2 as [[Heq HPerm1] | [HIn1 HIn2]]. inversion Heq.
+  apply (P_Fun _ x1 t1a t1r p1 o1); auto. crush. 
+- intros L1 t1 t2 π x HPerm.
+  destruct (In_perm _ _ HIn) as [L' HPerm'].
+  rewrite HPerm' in HPerm.
+  remember HPerm as HPerm2. clear HeqHPerm2.
+  apply cons_perm in HPerm2.
+  destruct HPerm2 as [[Heq HPerm1] | [HIn1 HIn2]]. inversion Heq.
+  apply (P_Bot _ _ o). crush. 
+- intros L1 t1 t2 π x HPerm.
+  apply P_True.
+- intros L1 t1 t2 π x HPerm.
+  destruct (In_perm _ _ HIn) as [L' HPerm'].
+  rewrite HPerm' in HPerm.
+  remember HPerm as HPerm2. clear HeqHPerm2.
+  apply cons_perm in HPerm2.
+  destruct HPerm2 as [[Heq HPerm1] | [HIn1 HIn2]]. inversion Heq.
+  apply P_False. crush. 
+- intros L3 t1 t2 π x HPerm.
+  rewrite <- Hperm2 in HPerm.
+  remember HPerm as HPerm2. clear HeqHPerm2.
+  apply cons_perm in HPerm2.
+  destruct HPerm2 as [[Heq HPerm1] | [HIn1 HIn2]]. 
+  inversion Heq. 
+  destruct (In_perm _ _ HIn1) as [L3' HPerm3].
+  destruct (In_perm _ _ HIn2) as [L1' HPerm1].
+  assert (Permutation L1' L3') as HPerm''.
+  {
+    rewrite HPerm3 in HPerm. rewrite HPerm1 in HPerm.
+    rewrite perm_swap in HPerm.
+    apply Permutation_cons_inv with (a:=(P&&Q)).
+    apply Permutation_cons_inv with 
+      (a:=(Elem (istype (obj π x) (tPair t1 t2)))). auto.
+  }
+  apply (P_Simpl (Elem (istype (obj π x) tCons)
+          :: Elem (istype (obj (π ++ [car]) x) t1)
+             :: Elem (istype (obj (π ++ [cdr]) x) t2)::L3') _ R P Q).
+  swap (Elem (istype (obj π x) tCons)
+        :: Elem (istype (obj (π ++ [car]) x) t1)
+        :: Elem (istype (obj (π ++ [cdr]) x) t2)
+        :: P
+        :: Q
+        :: L3').
+  apply (IH _ t1 t2). rewrite HPerm1. rewrite HPerm''. perm.
   rewrite HPerm3. perm.
-- intros P1 P2 L3 HPerm.
+- intros L3 t1 t2 π x HPerm.
   rewrite <- Hperm in HPerm.
   remember HPerm as HPerm2. clear HeqHPerm2.
   apply cons_perm in HPerm2.
@@ -2040,15 +1800,26 @@ Proof.
     rewrite HPerm3 in HPerm. rewrite HPerm1 in HPerm.
     rewrite perm_swap in HPerm.
     apply Permutation_cons_inv with (a:=P||Q).
-    apply Permutation_cons_inv with (a:=(P1&&P2)). auto.
+    apply Permutation_cons_inv with 
+      (a:=(Elem (istype (obj π x) (tPair t1 t2)))). auto.
   }
-  apply (P_DisjElim (P1::P2::L3') _ _ P Q).
-  swap (P1 :: P2 :: P :: L3').
-  apply (IHP P1 P2). rewrite HPerm1. rewrite HPerm''. perm.
-  swap (P1 :: P2 :: Q :: L3').
-  apply (IHQ P1 P2). rewrite HPerm1. rewrite HPerm''. perm.
+  apply (P_DisjElim (Elem (istype (obj π x) tCons)
+          :: Elem (istype (obj (π ++ [car]) x) t1)
+             :: Elem (istype (obj (π ++ [cdr]) x) t2)::L3') _ _ P Q).
+  swap (Elem (istype (obj π x) tCons)
+          :: Elem (istype (obj (π ++ [car]) x) t1)
+             :: Elem (istype (obj (π ++ [cdr]) x) t2)
+             :: P 
+             :: L3').
+  apply (IHP _ t1 t2). rewrite HPerm1. rewrite HPerm''. perm.
+  swap (Elem (istype (obj π x) tCons)
+          :: Elem (istype (obj (π ++ [car]) x) t1)
+             :: Elem (istype (obj (π ++ [cdr]) x) t2)
+             :: Q
+             :: L3').
+  apply (IHQ _ t1 t2). rewrite HPerm1. rewrite HPerm''. perm.
   rewrite HPerm3. perm.
-- intros P1 P2 L3 HPerm.
+- intros L3 t1 t2 π x HPerm.
   rewrite <- Hperm in HPerm.
   remember HPerm as HPerm2. clear HeqHPerm2.
   apply cons_perm in HPerm2.
@@ -2060,23 +1831,34 @@ Proof.
     rewrite HPerm3 in HPerm. rewrite HPerm1 in HPerm.
     rewrite perm_swap in HPerm.
     apply Permutation_cons_inv with (a:=P=->Q).
-    apply Permutation_cons_inv with (a:=(P1&&P2)). auto.
+    apply Permutation_cons_inv with 
+      (a:=(Elem (istype (obj π x) (tPair t1 t2)))). auto.
   }
-  apply (P_MP (P1::P2::L3') _ _ P Q).
-  apply (IHP P1 P2). rewrite HPerm1. rewrite HPerm''. auto.
-  swap (P1 :: P2 :: Q :: L3').
-  apply (IHPQ P1 P2). rewrite HPerm1. rewrite HPerm''. perm.
+  apply (P_MP (Elem (istype (obj π x) tCons)
+          :: Elem (istype (obj (π ++ [car]) x) t1)
+             :: Elem (istype (obj (π ++ [cdr]) x) t2)::L3') _ _ P Q).
+  apply (IHP _ t1 t2). rewrite HPerm1. rewrite HPerm''. auto.
+  swap (Elem (istype (obj π x) tCons)
+          :: Elem (istype (obj (π ++ [car]) x) t1)
+          :: Elem (istype (obj (π ++ [cdr]) x) t2)
+          :: Q 
+          :: L3').
+  apply (IHPQ _ t1 t2). rewrite HPerm1. rewrite HPerm''. perm.
   rewrite HPerm3. perm.
-- intros P1 P2 L1 HPerm.
-  apply P_Conj. apply (IHP P1 P2); auto. apply (IHQ P1 P2); auto.
-- intros P1 P2 L1 HPerm.
-  apply P_Add_lhs. apply (IHP P1 P2); auto.
-- intros P1 P2 L1 HPerm.
-  apply P_Add_rhs. apply (IHQ P1 P2); auto.
-- intros P1 P2 L1 HPerm.
+- intros L1 t1 t2 π x HPerm.
+  apply P_Conj. apply (IHP _ t1 t2); auto. apply (IHQ _ t1 t2); auto.
+- intros L1 t1 t2 π x HPerm.
+  apply P_Add_lhs. apply (IHP _ t1 t2); auto.
+- intros L1 t1 t2 π x HPerm.
+  apply P_Add_rhs. apply (IHQ _ t1 t2); auto.
+- intros L1 t1 t2 π x HPerm.
   apply P_CP. 
-  swap (P1 :: P2 :: P :: L1).
-  apply (IHP P1 P2); auto.
+  swap (Elem (istype (obj π x) tCons)
+        :: Elem (istype (obj (π ++ [car]) x) t1)
+        :: Elem (istype (obj (π ++ [cdr]) x) t2) 
+        :: P 
+        :: L1).
+  apply (IHP _ t1 t2); auto.
   rewrite HPerm. perm.
 Qed.
   

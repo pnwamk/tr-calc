@@ -69,7 +69,6 @@ Inductive type : Set :=
 | tTop  : type
 | tBot  : type
 | tBase : base -> type
-| tF    : type
 | tU    : type -> type -> type
 | tPair : type -> type -> type
 | tλ    : id -> type -> type -> prop -> opt object -> type
@@ -88,9 +87,10 @@ with datum : Set :=
 Hint Constructors type prop datum.
 
 Notation tT := (tBase (Base 0)).
-Notation tNat := (tBase (Base 1)).
-Notation tStr := (tBase (Base 2)).
-Notation tCons := (tBase (Base 3)).
+Notation tF := (tBase (Base 1)).
+Notation tNat := (tBase (Base 2)).
+Notation tStr := (tBase (Base 3)).
+Notation tCons := (tBase (Base 4)).
 Notation tBool := (tU tT tF).
 
 Fixpoint Not (P:prop) : prop :=

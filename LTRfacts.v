@@ -130,9 +130,6 @@ Proof.
   apply (IHL o t); auto. 
 Defined.      
    
-Fixpoint type_pair_weight (tp : (type * type)) : nat :=
-(type_weight (fst tp)) + (type_weight (snd tp)).
-
 Lemma CST_dec : forall tp,
 {CommonSubtype tp} + {~CommonSubtype tp}.
 Proof.
@@ -179,57 +176,6 @@ Proof.
   apply IH. unfold type_pair_weight. unfold ltof. crush.
   destruct Hlhs; destruct Hrhs; crush;
     try (solve[right; intros contra; inversion contra; crush]).
-Defined.
-
-Definition flip_pair {X:Type} (p:X*X) : X*X := ((snd p), (fst p)).
-Hint Unfold flip_pair.
-
-Ltac auto_tp_weight :=
-  unfold type_pair_weight; unfold ltof; crush.
-
-Lemma flip_eq {X:Type} : forall t1 t2 : X ,
-(t1, t2) = flip_pair (t2,t1).
-Proof.
-  crush.
-Defined.  
-
-Lemma CST_symmetric : forall tp,
-CommonSubtype tp
--> CommonSubtype (flip_pair tp).
-Proof.
-  intros tp H.
-  induction tp as ((t1, t2),IH) 
-                    using
-                    (well_founded_induction
-                       (well_founded_ltof _ type_pair_weight)).
-  remember (is_tU t1) as Ht1U.
-  destruct Ht1U as [[ta tb] |]. apply is_tU_eq in HeqHt1U. subst.
-  inversion H; crush. 
-  compute. apply CST_Top_lhs. 
-  compute. apply CST_rhsUnion_lhs. 
-    rewrite flip_eq. apply IH. auto_tp_weight. auto.
-  compute. apply CST_rhsUnion_rhs. 
-    rewrite flip_eq. apply IH. auto_tp_weight. auto.
-  compute. apply CST_lhsUnion_lhs.
-    rewrite flip_eq. apply IH. auto_tp_weight. auto.
-  compute. apply CST_lhsUnion_rhs.
-    rewrite flip_eq. apply IH. auto_tp_weight. auto.
-  remember (is_tU t2) as Ht2U.
-  destruct Ht2U as [[ta tb] |]. apply is_tU_eq in HeqHt2U. subst.
-  inversion H; crush. 
-  compute. apply CST_Top_rhs. 
-  compute. apply CST_lhsUnion_lhs. 
-    rewrite flip_eq. apply IH. auto_tp_weight. auto.
-  compute. apply CST_lhsUnion_rhs. 
-    rewrite flip_eq. apply IH. auto_tp_weight. auto.
-  destruct t1; destruct t2; 
-  try(solve[compute; auto |
-            inversion H; crush |
-            right; intros contra; inversion contra; crush]).
-  inversion H; subst; crush.
-  apply CST_Pair. 
-    rewrite flip_eq. apply IH. auto_tp_weight. auto.
-    rewrite flip_eq. apply IH. auto_tp_weight. auto.
 Defined.
 
 Fixpoint contains_type_conflict (o:object) (t:type) (L:list formula) : opt type :=

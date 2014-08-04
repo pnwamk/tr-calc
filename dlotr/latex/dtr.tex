@@ -342,15 +342,13 @@ equivalent to $(\U)$.
 
 \and
   \inferrule[L-IneqSimple]
-  {\Gamma, \Ntype_x, \Phi[x / \ast] \vdash \psi}
+  {\Gamma, \Ntype_x, \Phi[x / \diamond] \vdash \psi}
   {\Gamma, \deptype{\Phi}_x \vdash \psi}
 
 \and
   \inferrule[L-IneqJoin]
   {\Gamma, (\Phi_1 \Join \Phi_2) \vdash \psi}
   {\Gamma, \Phi_1, \Phi_2 \vdash \psi}
-
-
 
 
 \end{mathpar}

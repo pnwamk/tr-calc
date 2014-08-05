@@ -45,11 +45,13 @@
 \newcommand{\deptype}[1]{\{ \diamond : \Ntype \: | \: #1 \}}
 \newcommand{\pairtype}[2]{\langle #1 , #2 \rangle}
 \newcommand{\U}{\bigcup}
+\newcommand{\NullO}{\emptyset}
 
 \begin{document}
 \index{structural!rules|(}%
 \index{rule!structural|(}%
 
+\begin{figure}
 \begin{tabular}{r  l  l}
 
 $e  ::= $ & $ x \mid 
@@ -83,7 +85,7 @@ $ pe ::= $ & $
 $ \pi ::= $ & $ 
 	\listof{pe} $ & Paths \\
 $ o ::= $ & $ 
-	\emptyset \mid 
+	\NullO \mid 
     \pi (x) $ & Objects \\
 $ \phi ::= $ & $ 
 	a_0 o_0 + ... + a_n o_n \leq a_{n+1} $ & Linear Inequalities \\
@@ -111,27 +113,27 @@ $\psi ::= $ & $
 $ \Gamma ::= $ & $ 
 	\listof{\psi} $ & Environments \\	
 \end{tabular}
-
-Note: $\Btype$ is equivalent to $(\U \Ttype \: \Ftype)$, and $\bot$ is
-equivalent to $(\U)$.
+\caption{Syntax of Types, Propositions, Terms, etc...}
+\end{figure}
 
 
 % Typing Rules
+\begin{figure}
 \begin{mathpar}
   \inferrule[T-Num]
-  {}{\TypeOf{\Gamma}{n}{\deptype{\diamond = n}}{\Tprop}{\Fprop}{\emptyset}}
+  {}{\TypeOf{\Gamma}{n}{\deptype{\diamond = n}}{\Tprop}{\Fprop}{\NullO}}
 
 \and
   \inferrule[T-Const]
-  {}{\TypeOf{\Gamma}{c}{\delta_{\tau}(c)}{\Tprop}{\Fprop}{\emptyset}}
+  {}{\TypeOf{\Gamma}{c}{\delta_{\tau}(c)}{\Tprop}{\Fprop}{\NullO}}
 
 \and
   \inferrule[T-True]
-  {}{\TypeOf{\Gamma}{\Tval}{\Ttype}{\Tprop}{\Fprop}{\emptyset}}
+  {}{\TypeOf{\Gamma}{\Tval}{\Ttype}{\Tprop}{\Fprop}{\NullO}}
 
 \and
   \inferrule[T-False]
-  {}{\TypeOf{\Gamma}{\Fval}{\Ftype}{\Fprop}{\Tprop}{\emptyset}}
+  {}{\TypeOf{\Gamma}{\Fval}{\Ftype}{\Fprop}{\Tprop}{\NullO}}
 
 \and
   \inferrule[T-Var]
@@ -141,7 +143,7 @@ equivalent to $(\U)$.
 \and
   \inferrule[T-Abs]
   {\TypeOf{\Gamma, \sigma_x}{e}{\tau}{\psi_+}{\psi_-}{o}}
-  {\TypeOf{\Gamma}{\lambda x^\sigma . e}{\funtype{x}{\sigma}{\psi_+}{\psi_-}{o}{\tau}}{\Tprop}{\Fprop}{\emptyset}}
+  {\TypeOf{\Gamma}{\lambda x^\sigma . e}{\funtype{x}{\sigma}{\psi_+}{\psi_-}{o}{\tau}}{\Tprop}{\Fprop}{\NullO}}
 
 
 \and
@@ -169,7 +171,7 @@ equivalent to $(\U)$.
   \inferrule[T-Cons]
   {\TypeOf{\Gamma}{e_1}{\tau_1}{\psi_{1+}}{\psi_{1-}}{o_1} \\\\
     \TypeOf{\Gamma}{e_2}{\tau_2}{\psi_{2+}}{\psi_{2-}}{o_2}}
-  {\TypeOf{\Gamma}{(cons \: e_1 \: e_2)}{\pairtype{\tau_1}{\tau_2}}{\Tprop}{\Fprop}{\emptyset}}
+  {\TypeOf{\Gamma}{(cons \: e_1 \: e_2)}{\pairtype{\tau_1}{\tau_2}}{\Tprop}{\Fprop}{\NullO}}
 
 \and
   \inferrule[T-Car]
@@ -188,7 +190,7 @@ equivalent to $(\U)$.
   {\TypeOf{\Gamma}{e_1}{\tau_1}{\psi_{1+}}{\psi_{1-}}{o_1} \\\\
     \dots \\\\
     \TypeOf{\Gamma}{e_n}{\tau_n}{\psi_{n+}}{\psi_{n-}}{o_n}}
-  {\TypeOf{\Gamma}{(vec \: e_1 \: \dots \: e_n)}{ \lvec \tau_1 \: \dots \: \tau_n \rvec}{\Tprop}{\Fprop}{\emptyset}}
+  {\TypeOf{\Gamma}{(vec \: e_1 \: \dots \: e_n)}{ \lvec \tau_1 \: \dots \: \tau_n \rvec}{\Tprop}{\Fprop}{\NullO}}
 
 \and
   \inferrule[T-Ref]
@@ -207,10 +209,11 @@ equivalent to $(\U)$.
   {\TypeOf{\Gamma}{e}{\tau'}{\psi'_+}{\psi'_-}{o'}}
 
 \end{mathpar}
-
-\pagebreak
+\caption{Typing Rules}
+\end{figure}
 
 % Subtyping Rules
+\begin{figure}
 \begin{mathpar}
   \inferrule[S-Refl]
   {}{\vdash \tau <: \tau}
@@ -263,10 +266,13 @@ equivalent to $(\U)$.
 
 
 \end{mathpar}
-
+\caption{Subtyping Rules}
+\end{figure}
 
 % Logic Rules
+\begin{figure}
 \begin{mathpar}
+
   \inferrule[L-Atom]
   {\psi \in \Gamma}
   {\Gamma \vdash \psi}
@@ -350,8 +356,44 @@ equivalent to $(\U)$.
   {\Gamma, (\Phi_1 \Join \Phi_2) \vdash \psi}
   {\Gamma, \Phi_1, \Phi_2 \vdash \psi}
 
-
 \end{mathpar}
+\caption{Logic Rules}
+
+\end{figure}
+
+\begin{figure}
+\begin{tabular}{l  l  r}
+
+$ \psi_1 \mid \psi_2 [o / x] $ & $ = \psi_1 [o / x] \mid \psi_2 [o / x] $ & \\
+\\
+$ \nu_{\pi(x)}[\pi'(y)/x] $ & $ = (\nu[\pi'(y)/x])_{\pi(\pi'(y))} $ & \\
+$ \nu_{\pi(x)}[\NullO/x]^+ $ & $ = \Tprop $ & \\
+$ \nu_{\pi(x)}[\NullO/x]^- $ & $ = \Fprop $ & \\
+$ \nu_{\pi(x)}[o/z] $ & $ = \nu_{\pi(x)} $ & $ x \neq z $ and $ z \not\in \textrm{fv}(\nu) $ \\
+$ \nu_{\pi(x)}[o/z]^+ $ & $ = \Tprop $ & $ x \neq z $ and $ z \in \textrm{fv}(\nu) $ \\
+$ \nu_{\pi(x)}[o/z]^- $ & $ = \Fprop $ & $ x \neq z $ and $ z \in \textrm{fv}(\nu) $ \\
+$ \Tprop[o/x] $ & $ = \Tprop $ & \\
+$ \Fprop[o/x] $ & $ = \Fprop $ & \\
+$ (\psi_1 \supset \psi_2)[o/x]^+ $ & $ = \psi_1[o/x]^- \supset \psi_2[o/x]^+ $ & \\
+$ (\psi_1 \supset \psi_2)[o/x]^- $ & $ = \psi_1[o/x]^+ \supset \psi_2[o/x]^- $ & \\
+$ (\psi_1 \vee \psi_2)[o/x] $ & $ = \psi_1[o/x] \vee \psi_2[o/x] $ & \\
+$ (\psi_1 \wedge \psi_2)[o/x] $ & $ = \psi_1[o/x] \wedge \psi_2[o/x] $ & \\
+$ \Phi[o/x] $ & $ = \Phi $ & $ x \not\in \Phi $ \\
+$ \Phi[\pi'(y)/x] $ & $ = \forall \phi \in \Phi,\: \phi[x \mapsto \pi'(y)] $ & $ x \in \Phi $ \\
+$ \Phi[\NullO/x]^{\pm} $ & $ = \textrm{FME}(\Phi, \: x, \: \pm) $ & $ x \in \Phi $ \\
+\\
+$ \pi(x)[\pi'(y)/x]$ & $ =\pi(\pi(y)) $ & \\
+$ \pi(x)[\NullO/x]$ & $ =\NullO $ & \\
+$ \pi(x)[o/z]$ & $ =\pi(x) $ & $ x \neq z $ \\
+$ \NullO[o/x]$ & $ =\NullO $ & 
+
+
+\end{tabular}
+
+\caption{Substitution}
+
+\end{figure}
+
 
 
 \end{document}

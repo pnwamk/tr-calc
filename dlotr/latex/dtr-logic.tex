@@ -1,0 +1,456 @@
+\documentclass{article}
+\usepackage{xspace}
+\usepackage{amssymb}
+\usepackage{amsmath}
+\usepackage{amsfonts}
+\usepackage{amsthm}
+%\usepackage{mathabx}
+\usepackage{mathpartir}
+\usepackage[margin=0.5in]{geometry}
+
+\usepackage{bbm}
+\makeatletter
+\newcommand{\ctx}{\ensuremath{\mathsf{ctx}}}
+\newcommand{\define}[1]{\textbf{#1}}
+\newcommand{\indexdef}[1]{\index{#1|defstyle}}   
+\newcommand{\indexsee}[2]{\index{#1|see{#2}}}    
+\newcommand{\intro}{\textsc{intro}}
+\def\lamu#1{{\lambda}\@lamuarg#1:\@endlamuarg\@ifnextchar\bgroup{.\,\lamu}{.\,}}
+\def\@lamuarg#1:#2\@endlamuarg{#1}
+\newcommand{\Subst}{\mathsf{Subst}}
+\newcommand{\tmtp}[2]{#1 \mathord{:} #2}
+\def\tprd#1{\@tprd{#1}\@ifnextchar\bgroup{\tprd}{}}
+\def\@tprd#1{\mathchoice{{\textstyle\prod_{(#1)}}}{\prod_{(#1)}}{\prod_{(#1)}}{\prod_{(#1)}}}
+\newcommand{\UU}{\ensuremath{\mathcal{U}}\xspace}
+\newcommand{\Vble}{\mathsf{Vble}}
+\newcommand{\Weak}{\mathsf{Wkg}}
+\newcommand{\wfctx}[1]{#1\ \ctx}
+\makeatother
+
+\newcommand{\Ttype}{\mathbf{T}}
+\newcommand{\Ftype}{\mathbf{F}}
+\newcommand{\Tval}{\# \textrm{t}}
+\newcommand{\Fval}{\# \textrm{f}}
+\newcommand{\Tprop}{\mathbb{T}}
+\newcommand{\Fprop}{\mathbb{F}}
+\newcommand{\Ntype}{\mathbf{N}}
+\newcommand{\Btype}{\mathbf{B}}
+\newcommand{\NOT}{\overline}
+\newcommand{\TypeOf}[6]{#1 \vdash #2 : #3 \: ; \: #4 \mid #5 \: ; \: #6}
+\newcommand{\Proves}[2]{#1 \vdash #2}
+\newcommand{\listof}{\overrightarrow}
+\newcommand{\lvec}{[[}
+\newcommand{\rvec}{]]}
+\newcommand{\funtype}[6]{#1\mathord{:}#2 \xrightarrow[ #5 ]{ #3 \mid #4 } #6 }
+\newcommand{\deptype}[1]{\{ \diamond : \Ntype \: | \: #1 \}}
+\newcommand{\pairtype}[2]{\langle #1 , #2 \rangle}
+\newcommand{\U}{\bigcup}
+\newcommand{\NullO}{\emptyset}
+
+\begin{document}
+\index{structural!rules|(}%
+\index{rule!structural|(}%
+
+\begin{figure}
+\begin{tabular}{r  l  l}
+
+$e  ::= $ & $ x \mid 
+	            (e \: e) \mid  
+	            \lambda x^{\tau}.e \mid 
+	            (\mathbf{if} \: e \: e \: e) \mid
+	            c \mid
+	            \Tval \mid
+	            \Fval \mid
+	             (cons \: e \: e) \mid
+	             (vec \: \listof{e}) \mid
+	            n $ & Expressions \\
+$c  ::= $ & $ 
+	add1 \mid 
+	\: = \: \mid  
+	\: \leq \: \mid  
+	num? \mid 
+	 bool? \mid
+	 proc? \mid
+	 cons? \mid
+	 vec? \mid
+	 car \mid
+	 cdr \mid
+	 len \mid
+     ref[n] $ & Primitive Operations \\
+$ pe ::= $ & $ 
+	\mathbf{car} \mid 
+	\mathbf{cdr} \mid
+	\mathbf{ref}_n \mid
+	\mathbf{len} $ & Path Elements \\
+$ \pi ::= $ & $ 
+	\listof{pe} $ & Paths \\
+$ o ::= $ & $ 
+	\NullO \mid 
+    \pi (x) $ & Objects \\
+$ \phi ::= $ & $ 
+	a_0 o_0 + ... + a_n o_n \leq a_{n+1} $ & Linear Inequalities \\
+$ \Phi ::= $ & $ 
+	\listof{\phi} $ & System of Linear Inequalities \\
+$\sigma , \tau  ::= $ & $ 
+	\top \mid
+    \Ntype \mid 
+	\deptype{\Phi} \mid
+	\Ttype \mid
+	\Ftype  \mid
+	(\U \listof{\tau}) \mid
+	\pairtype{\tau}{\tau} \mid
+	\lvec \listof{\tau} \rvec^n \mid
+	\funtype{x}{\sigma}{\psi}{\psi}{o}{\tau} $ & Types \\
+$\psi ::= $ & $ 
+	\tau_{\pi(x)} \mid 
+	\NOT{\tau}_{\pi(x)} \mid  
+	\psi \supset \psi \mid 
+	\psi \wedge \psi \mid 
+	\psi \vee \psi \mid
+    \Phi \mid
+	\Tprop \mid
+	\Fprop  $ & Propositions \\
+$ \Gamma ::= $ & $ 
+	\listof{\psi} $ & Environments \\	
+\end{tabular}
+\caption{Syntax of Types, Propositions, Terms, etc...}
+\end{figure}
+
+
+% Typing Rules
+\begin{figure}
+\begin{mathpar}
+  \inferrule[T-Num]
+  {}{\TypeOf{\Gamma}{n}{\deptype{\diamond = n}}{\Tprop}{\Fprop}{\NullO}}
+
+\and
+  \inferrule[T-Const]
+  {}{\TypeOf{\Gamma}{c}{\delta_{\tau}(c)}{\Tprop}{\Fprop}{\NullO}}
+
+\and
+  \inferrule[T-True]
+  {}{\TypeOf{\Gamma}{\Tval}{\Ttype}{\Tprop}{\Fprop}{\NullO}}
+
+\and
+  \inferrule[T-False]
+  {}{\TypeOf{\Gamma}{\Fval}{\Ftype}{\Fprop}{\Tprop}{\NullO}}
+
+\and
+  \inferrule[T-Var]
+  {\Proves{\Gamma}{\tau_{x}}}
+  {\TypeOf{\Gamma}{x}{\tau}{\NOT{\Ftype}_x}{\Ftype_x}{x}}
+
+\and
+  \inferrule[T-Abs]
+  {\TypeOf{\Gamma, \sigma_x}{e}{\tau}{\psi_+}{\psi_-}{o}}
+  {\TypeOf{\Gamma}{\lambda x^\sigma . e}{\funtype{x}{\sigma}{\psi_+}{\psi_-}{o}{\tau}}{\Tprop}{\Fprop}{\NullO}}
+
+
+\and
+  \inferrule[T-App]
+  {\TypeOf{\Gamma}{e}{\funtype{x}{\sigma}{\psi_{f+}}{\psi_{f-}}{o_f}{\tau}}{\psi_+}{\psi_-}{o} \\\\
+    \TypeOf{\Gamma}{e'}{\sigma}{\psi'_+}{} \mid \psi'_- \: ; \: o'}
+  {\TypeOf{\Gamma} {(e \: e')}{\tau [o' / x]}{\psi_{f+}}{\psi_{f-}[o' / x]}{o_f[o' / x]}}
+
+
+\and
+  \inferrule[T-If]
+  {\TypeOf{\Gamma}{e_1}{\tau_1}{\psi_{1+}}{\psi_{1-}}{o_1} \\\\
+    \TypeOf{\Gamma}{e_2}{\tau}{\psi_{2+}}{\psi_{2-}}{o} \\\\
+    \TypeOf{\Gamma}{e_3}{\tau}{\psi_{3+}}{\psi_{3-}}{o}}
+  {\TypeOf{\Gamma}{(\mathbf{if} \: e_1 \: e_2 \: e_3)}{ \tau}{\psi_{2+} \vee \psi_{3+}}{\psi_{2-} \vee \psi_{3-}}{o}}
+
+\and
+  \inferrule[T-Let]
+  {\TypeOf{\Gamma}{e_0}{\tau}{\psi_{0+}}{\psi_{0-}}{o_0} \\\\
+    \TypeOf{\Gamma, \tau_x, \NOT{\Ftype}_x \supset \psi_{0+}, \Ftype_x \supset \psi_{0-}}{e_1}{\sigma}{\psi_{1+}}{\psi_{1-}}{o_1}}
+  {\TypeOf{\Gamma}{(\mathbf{let} \: (x \: e_0) \: e_1)}{\sigma [o_0 / x]}{\psi_{1+}}{\psi_{1-} [o_0 / x]} {o_1 [o_0 / x]}}
+
+
+\and
+  \inferrule[T-Cons]
+  {\TypeOf{\Gamma}{e_1}{\tau_1}{\psi_{1+}}{\psi_{1-}}{o_1} \\\\
+    \TypeOf{\Gamma}{e_2}{\tau_2}{\psi_{2+}}{\psi_{2-}}{o_2}}
+  {\TypeOf{\Gamma}{(cons \: e_1 \: e_2)}{\pairtype{\tau_1}{\tau_2}}{\Tprop}{\Fprop}{\NullO}}
+
+\and
+  \inferrule[T-Car]
+  {\TypeOf{\Gamma}{e}{\pairtype{\tau_1}{\tau_2}}{\psi_{+}}{\psi_{-}}{o} \\\\
+  \psi_{r+} \mid \psi_{r-} = \NOT{\Ftype}_{\mathbf{car}(x)} \mid \Ftype_{\mathbf{car}(x)} [o / x]}
+  {\TypeOf{\Gamma}{(car \: e)}{\tau_1}{\psi_{r+}}{\psi_{r-}}{\mathbf{car}(x) [o / x]}}
+
+\and
+  \inferrule[T-Cdr]
+  {\TypeOf{\Gamma}{e}{\pairtype{\tau_1}{\tau_2}}{\psi_{+}}{\psi_{-}}{o} \\\\
+  \psi_{r+} \mid \psi_{r-} = \NOT{\Ftype}_{\mathbf{cdr}(x)} \mid \Ftype_{\mathbf{cdr}(x)} [o / x]}
+  {\TypeOf{\Gamma}{(cdr \: e)}{\tau_2}{\psi_{r+}}{\psi_{r-}}{\mathbf{cdr}(x) [o / x]}}
+
+\and
+  \inferrule[T-Vec]
+  {\TypeOf{\Gamma}{e_0}{\tau_0}{\psi_{0+}}{\psi_{0-}}{o_0} \\\\
+    \dots \\\\
+    \TypeOf{\Gamma}{e_{(n-1)}}{\tau_{(n-1)}}{\psi_{(n-1)+}}{\psi_{(n-1)-}}{o_{(n-1)}}}
+  {\TypeOf{\Gamma}{(vec \: e_0 \: \dots \: e_{(n-1)})}{ \lvec \tau_0 \: \dots \: \tau_{(n-1)} \rvec^n}{\Tprop}{\Fprop}{\NullO}}
+
+\and
+  \inferrule[T-Ref]
+  {\TypeOf{\Gamma}{e}{\lvec \dots \tau_i \dots \rvec}{\psi_{i+}}{\psi_{i-}}{o_i} \\\\
+    \psi_{r+} \mid \psi_{r-} = \NOT{\Ftype}_{\mathbf{ref_i}(x)} \mid \Ftype_{\mathbf{ref_i}(x)} [o / x]}
+  {\TypeOf{\Gamma}{(ref[i] \: \: e)}{ \tau_i}{\psi_{r+}}{\psi_{r-}}{\mathbf{ref_i}(x) [o / x]}}
+
+
+\and
+  \inferrule[T-Subsume]
+  {\TypeOf{\Gamma}{e}{\tau}{\psi_+}{\psi_-}{o} \\\\
+    \Proves{\Gamma, \psi_+}{\psi'_+} \\
+    \Proves{\Gamma, \psi_-}{\psi'_-} \\\\
+    \tau <: \tau' \\
+    o <: o'}
+  {\TypeOf{\Gamma}{e}{\tau'}{\psi'_+}{\psi'_-}{o'}}
+
+\end{mathpar}
+\caption{Typing Rules}
+\end{figure}
+
+% Subtyping Rules
+\begin{figure}
+\begin{mathpar}
+  \inferrule[S-Refl]
+  {}{\vdash \tau <: \tau}
+
+\and
+  \inferrule[S-Top]
+  {}{\vdash \tau <: \top}
+
+\and
+  \inferrule[S-UnionSuper]
+  {\exists \sigma \in \listof{\sigma}, \: \vdash \tau <: \sigma}
+  {\vdash \tau <: (\U \listof{\sigma})}
+
+\and
+  \inferrule[S-UnionSub]
+  {\forall \tau \in  \listof{\tau}, \vdash \tau <: \sigma}{\vdash (\U \listof{\tau}) <: \sigma}
+
+\and
+  \inferrule[S-Pair]
+  {\vdash \sigma_1 <: \tau_1 \\\\
+  \vdash \sigma_2 <: \tau_2}
+  {\vdash \pairtype{\sigma_1}{\sigma_2} <: \pairtype{\tau_1}{\tau_2}}
+
+
+\and
+  \inferrule[S-Fun]
+  {\vdash \sigma' <: \sigma \\ \vdash \tau <: \tau' \\\\
+  \psi_+ \vdash \psi'_+ \\ \psi_- \vdash \psi'_- \\ \vdash o <: o' \\ }
+  {\vdash \funtype{x}{\sigma}{\psi_{+}}{\psi_{-}}{o}{\tau} 
+    <: 
+   \funtype{x}{\sigma'}{\psi'_{+}}{\psi'_{-}}{o'}{\tau'}}
+
+\and
+  \inferrule[S-Vec]
+  {\forall i, \vdash \sigma_i <: \tau_i}
+  {\vdash \lvec \sigma_o \dots \sigma_i \rvec 
+    <: 
+  \lvec \tau_o \dots \tau_i \rvec}
+
+
+\and
+  \inferrule[S-Ineq]
+  {\textrm{overconstrained}(\Phi \Join \NOT{\Phi'})}
+  {\vdash \deptype{\Phi} <: \deptype{\Phi'}}
+
+\and
+  \inferrule[S-IneqNum]
+  {\vdash \Ntype <: \tau}
+  {\vdash \deptype{\Phi} <: \tau}
+
+
+\end{mathpar}
+\caption{Subtyping Rules}
+\end{figure}
+
+% Logic Rules
+\begin{figure}
+\begin{mathpar}
+
+  \inferrule[L-Atom]
+  {\psi \in \Gamma}
+  {\Gamma \vdash \psi}
+
+\and
+  \inferrule[L-True]
+  {}
+  {\Gamma \vdash \Tprop}
+
+\and
+  \inferrule[L-False]
+  {\Gamma \vdash \Fprop}
+  {\Gamma \vdash \psi}
+
+\and
+  \inferrule[L-AndI]
+  {\Gamma \vdash \psi_1 \\\\
+    \Gamma \vdash \psi_2}
+  {\Gamma \vdash \psi_1 \wedge \psi_2}
+
+\and
+  \inferrule[L-AndE]
+  {\Gamma, \psi_1, \psi_2 \vdash \psi}
+  {\Gamma, \psi_1 \wedge \psi_2 \vdash \psi}
+
+\and
+  \inferrule[L-ImpI]
+  {\Gamma, \psi_1 \vdash \psi_2}
+  {\Gamma \vdash \psi_1 \supset \psi_2}
+
+\and
+  \inferrule[L-ImpE]
+  {\Gamma \vdash \psi_1 \\\\
+    \Gamma \vdash \psi_1 \supset \psi_2}
+  {\Gamma \vdash \psi_2}
+
+\and
+  \inferrule[L-OrI]
+  {\Gamma \vdash \psi_1 \: \: \textrm{or} \: \: \Gamma \vdash \psi_2}
+  {\Gamma \vdash \psi_1 \vee \psi_2}
+
+\and
+  \inferrule[L-OrE]
+  {\Gamma, \psi_1 \vdash \psi \\\\ 
+    \Gamma, \psi_2 \vdash \psi}
+  {\Gamma, \psi_1 \vee \psi_2 \vdash \psi}
+
+\and
+  \inferrule[L-Sub]
+  {\Gamma \vdash \tau_x \\ \vdash \tau <: \sigma} 
+  {\Gamma \vdash \sigma_x}
+
+\and
+  \inferrule[L-SubNot]
+  {\Gamma \vdash \NOT{\sigma}_x \\ \vdash \tau <: \sigma} 
+  {\Gamma \vdash \NOT{\tau}_x}
+
+\and
+  \inferrule[L-Bot]
+  {\Gamma \vdash \bot_x} 
+  {\Gamma \vdash \psi}
+
+\and
+  \inferrule[L-Update]
+  {\Gamma \vdash \tau_x \\ \Gamma \vdash \nu_x}
+  {\Gamma \vdash \textrm{update}(\tau, \nu)_x}
+
+\and
+  \inferrule[L-Ineq]
+  {\Gamma \vdash \Ntype_x \\ \Gamma \vdash \Phi' \\\\ 
+    \textrm{overconstrained}(\Phi' \Join (\Phi[x / \diamond]))}
+  {\Gamma \vdash \deptype{\Phi}_x}
+
+\and
+  \inferrule[L-IneqSimple]
+  {\Gamma, \Ntype_x, \Phi[x / \diamond] \vdash \psi}
+  {\Gamma, \deptype{\Phi}_x \vdash \psi}
+
+\and
+  \inferrule[L-IneqJoin]
+  {\Gamma, (\Phi_1 \Join \Phi_2) \vdash \psi}
+  {\Gamma, \Phi_1, \Phi_2 \vdash \psi}
+
+\end{mathpar}
+\caption{Logic Rules}
+\end{figure}
+
+% Logic Rules
+\begin{figure}
+\begin{mathpar}
+
+  \inferrule[L-UnionI]
+  {\exists \tau \in \listof{\sigma}, \: \Gamma \vdash \tau_x}
+  {\Gamma \vdash (\U \listof{\sigma})_x}
+
+\and
+  \inferrule[L-UnionE]
+  {\Gamma, \tau_x \vdash \psi \\\\ 
+    \Gamma, (\U \sigma \dots)_x \vdash \psi}
+  {\Gamma, (\U \tau \: \sigma \dots)_x \vdash \psi}
+
+\and
+  \inferrule[L-PairI]
+  {\Gamma \vdash \mathbf{P}_x \\\\
+    \Gamma \vdash \tau_{\mathbf{car}(x)} \\\\
+    \Gamma \vdash \sigma_{\mathbf{cdr}(x)}}
+  {\Gamma \vdash \pairtype{\tau}{\sigma}_x}
+
+\and
+  \inferrule[L-PairE]
+  {\Gamma, \mathbf{P}_x, \tau_{\mathbf{car}(x)}, \sigma_{\mathbf{cdr}(x)} \vdash \psi}
+  {\Gamma, \pairtype{\tau}{\sigma}_x \vdash \psi}
+
+\and
+  \inferrule[L-VecI]
+  {\Gamma \vdash \mathbf{V}_x \\\\
+    \Gamma \vdash \overset{n}{\Ntype}_{\mathbf{len}(x)} \\\\
+  \Gamma \vdash \tau_{\mathbf{ref_0}(x)} \: \dots \: \Gamma \vdash \sigma_{\mathbf{ref_{(n-1)}}(x)}}
+  {\Gamma \vdash \lvec \tau \dots \sigma \rvec^n_x}
+
+\and
+  \inferrule[L-VecE]
+  {\Gamma, \mathbf{V}_x, \overset{n}{\Ntype}_{\mathbf{len}(x)}, \tau_{\mathbf{ref_0}(x)}, \dots, \sigma_{\mathbf{ref_{(n-1)}}(x)} \vdash \psi}
+  {\Gamma, \lvec \tau \dots \sigma \rvec^n_x \vdash \psi}
+
+\and
+  \inferrule[L-Restrict]
+  {\Gamma \vdash \tau_x \\
+    \Gamma \vdash \sigma_x \\\\
+  \not\exists v, \: v : \tau \: \textrm{and} \: v : \sigma}
+  {\Gamma \vdash \bot_x}
+
+\and
+  \inferrule[L-Remove]
+  {\Gamma \vdash \NOT{\tau}_x \\
+    \Gamma \vdash \sigma_x \\
+  \sigma <: \tau}
+  {\Gamma \vdash \bot_x}
+
+
+\end{mathpar}
+\caption{Logic Rules for Types}
+
+\end{figure}
+
+\begin{figure}
+\begin{tabular}{l  l  r}
+
+$ \psi_1 \mid \psi_2 [o / x] $ & $ = \psi_1 [o / x] \mid \psi_2 [o / x] $ & \\
+\\
+$ \nu_{\pi(x)}[\pi'(y)/x] $ & $ = (\nu[\pi'(y)/x])_{\pi(\pi'(y))} $ & \\
+$ \nu_{\pi(x)}[\NullO/x]^+ $ & $ = \Tprop $ & \\
+$ \nu_{\pi(x)}[\NullO/x]^- $ & $ = \Fprop $ & \\
+$ \nu_{\pi(x)}[o/z] $ & $ = \nu_{\pi(x)} $ & $ x \neq z $ and $ z \not\in \textrm{fv}(\nu) $ \\
+$ \nu_{\pi(x)}[o/z]^+ $ & $ = \Tprop $ & $ x \neq z $ and $ z \in \textrm{fv}(\nu) $ \\
+$ \nu_{\pi(x)}[o/z]^- $ & $ = \Fprop $ & $ x \neq z $ and $ z \in \textrm{fv}(\nu) $ \\
+$ \Tprop[o/x] $ & $ = \Tprop $ & \\
+$ \Fprop[o/x] $ & $ = \Fprop $ & \\
+$ (\psi_1 \supset \psi_2)[o/x]^+ $ & $ = \psi_1[o/x]^- \supset \psi_2[o/x]^+ $ & \\
+$ (\psi_1 \supset \psi_2)[o/x]^- $ & $ = \psi_1[o/x]^+ \supset \psi_2[o/x]^- $ & \\
+$ (\psi_1 \vee \psi_2)[o/x] $ & $ = \psi_1[o/x] \vee \psi_2[o/x] $ & \\
+$ (\psi_1 \wedge \psi_2)[o/x] $ & $ = \psi_1[o/x] \wedge \psi_2[o/x] $ & \\
+$ \Phi[o/x] $ & $ = \Phi $ & $ x \not\in \Phi $ \\
+$ \Phi[\pi'(y)/x] $ & $ = \forall \phi \in \Phi,\: \phi[x \mapsto \pi'(y)] $ & $ x \in \Phi $ \\
+$ \Phi[\NullO/x]^{\pm} $ & $ = \textrm{FME}(\Phi, \: x, \: \pm) $ & $ x \in \Phi $ \\
+\\
+$ \pi(x)[\pi'(y)/x]$ & $ =\pi(\pi(y)) $ & \\
+$ \pi(x)[\NullO/x]$ & $ =\NullO $ & \\
+$ \pi(x)[o/z]$ & $ =\pi(x) $ & $ x \neq z $ \\
+$ \NullO[o/x]$ & $ =\NullO $ & 
+
+
+\end{tabular}
+
+\caption{Substitution}
+
+\end{figure}
+
+
+
+\end{document}

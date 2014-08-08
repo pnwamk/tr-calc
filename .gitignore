@@ -5,3 +5,5 @@
 *.aux
 *.log
 *~
+*.dep
+*.zo

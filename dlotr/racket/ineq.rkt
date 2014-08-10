@@ -363,12 +363,14 @@
                                (lc (2 'y) (42 'q))))))
 
 
-; cartesian-product
-(define (cartesian-product xs ys)
+; cartesian-map
+; map of f over each pair of cartesian
+; product of input lists
+(define (cartesian-map f xs ys)
   (for/fold ([pairs empty]) ([x xs])
     (append pairs
             (for/list ([y ys])
-              (cons x y)))))
+              (f x y)))))
 
 
 
@@ -379,11 +381,9 @@
   (unless x
     (error 'sli-elim-var "can't eliminate constant scalars from ineqs"))
   (define-values (xltleqs xgtleqs noxleqs) (sli-partition sli x))
-  (define leq-pairs (cartesian-product xltleqs xgtleqs))
-  (append (map (λ (ineqp) (simplify-leq-pair (car ineqp)
-                                             (cdr ineqp)
-                                             x))
-               leq-pairs)
+  (append (cartesian-map (λ (leq1 leq2) (simplify-leq-pair leq1 leq2 x)) 
+                                 xltleqs 
+                                 xgtleqs)
           noxleqs))
 
 ; sli-satisfiable?
@@ -426,14 +426,14 @@
                              (leq (lc (1 'x))
                                   (lc (1 'z)))))
 
-; x + y <= z; 0 <= y; 0 <= x --> x <= z
+; x + y <= z; 1 <= y; 0 <= x --> x + 1 <= z
 (check-true (sli-implies-leq (list (leq (lc (1 'x) (1 'y))
                                         (lc (1 'z)))
-                                   (leq (lc)
+                                   (leq (lc (1 #f))
                                         (lc (1 'y)))
                                    (leq (lc)
                                         (lc (1 'x))))
-                             (leq (lc (1 'x))
+                             (leq (lc (1 'x) (1 #f))
                                   (lc (1 'z)))))
 
 ; sli-implies-sli

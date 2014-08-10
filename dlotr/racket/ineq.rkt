@@ -151,6 +151,15 @@
 (check-false (lc-has-var? (lc: '(42 . x) '(17 . #f)) 'y))
 (check-not-false (lc-has-var? (lc: '(42 . x) '(17 . #f)) 'x))
 
+(define (lc-add1 lc)
+  (if (lc-has-var? lc #f)
+      (lc-set-var-scalar lc #f (add1 (lc-scalar lc #f)))
+      (lc-set-var-scalar lc #f 1)))
+
+(check-equal? (lc-add1 (lc:)) (lc: '(1 . #f)))
+(check-equal? (lc-add1 (lc: '(1 . #f) '(5 . x))) 
+              (lc: '(2 . #f) '(5 . x)))
+
 ;************************************************
 ; Linear Inequalities  (leq)
 ;   (and related operations)
@@ -177,6 +186,17 @@
   (remove-duplicates (append (lc-vars (leq-lhs ineq))
                              (lc-vars (leq-rhs ineq)))))
 
+; leq-negate
+; ~ (l1 <= l2) ->
+; l2 <= 1 + l1
+(define (leq-negate ineq)
+  (leq (lc-add1 (leq-rhs ineq))
+       (leq-lhs ineq)))
+
+(check-equal? (leq-negate (leq (lc: '(1 . x))
+                               (lc: '(1 . y))))
+              (leq (lc: '(1 . y) '(1 . #f))
+                   (lc: '(1 . x))))
 ; leq-normalize
 ; converts leq with x into either:
 ;  1) ax <= by + cz + ...
@@ -395,3 +415,44 @@
                                           (lc: '(1 . x)))
                                      (leq (lc: '(1 . #f))
                                           (lc: '(1 . y))))))
+
+; sli-implies-leq
+(define (sli-implies-leq system ineq)
+  (not (sli-satisfiable? (cons (leq-negate ineq)
+                               system))))
+
+; transitivity! x <= y /\ y <= z --> x <= z
+(check-true (sli-implies-leq (list (leq (lc: '(1 . x))
+                                        (lc: '(1 . y)))
+                                   (leq (lc: '(1 . y))
+                                        (lc: '(1 . z))))
+                             (leq (lc: '(1 . x))
+                                  (lc: '(1 . z)))))
+
+; x + y <= z; 0 <= y; 0 <= x --> x <= z
+(check-true (sli-implies-leq (list (leq (lc: '(1 . x) '(1 . y))
+                                        (lc: '(1 . z)))
+                                   (leq (lc:)
+                                        (lc: '(1 . y)))
+                                   (leq (lc:)
+                                        (lc: '(1 . x))))
+                             (leq (lc: '(1 . x))
+                                  (lc: '(1 . z)))))
+
+; sli-implies-sli
+(define (sli-implies-sli assumptions goals)
+  (andmap (λ (ineq) (sli-implies-leq assumptions ineq))
+          goals))
+
+
+; x + y <= z; 0 <= y; 0 <= x --> x <= z /\ y <= z
+(check-true (sli-implies-sli (list (leq (lc: '(1 . x) '(1 . y))
+                                        (lc: '(1 . z)))
+                                   (leq (lc:)
+                                        (lc: '(1 . y)))
+                                   (leq (lc:)
+                                        (lc: '(1 . x))))
+                             (list (leq (lc: '(1 . x))
+                                        (lc: '(1 . z)))
+                                   (leq (lc: '(1 . y))
+                                        (lc: '(1 . z))))))

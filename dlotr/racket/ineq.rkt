@@ -7,8 +7,6 @@
 (define (cons-swap c)
   (cons (cdr c) (car c)))
 
-(check-equal? (cons-swap '(1 . 2))
-              '(2 . 1))
 
 ;************************************************
 ; Linear Combinations  (lc)
@@ -16,41 +14,40 @@
 ;************************************************
 
 ; defining linear combinations
-; takes list of (scalar . symbol)
+; takes list of (scalar symbol)
 ; #f is used for a constant
-(define (lc: . loexps)
-  (unless (andmap (λ (x) (and (exact-integer? (car x))
-                              (or (symbol? (cdr x))
-                                  (not (cdr x)))))
-                  loexps)
-    (error 'lc: "arguments must be integer/symbol pairs"))
-  (apply hash (flatten (map cons-swap loexps))))
+(define-syntax lc
+  (syntax-rules ()
+    [(lc) (hash)]
+    [(lc (a x)) 
+     (hash x a)]
+    [(lc (a x) (b y) ...) 
+     (hash-set (lc (b y) ...) x a)]))
 
-(check-equal? (lc:) (hash))
-(check-equal? (lc: '(1 . x) '(42 . y) '(1 . #f))
+(check-equal? (lc) (hash))
+(check-equal? (lc (1 'x) (42 'y) (1 #f))
               (hash 'x 1 'y 42 #f 1))
-(check-exn exn:fail? (λ () (lc: '('a . 'b))))
 
 ; scalar-accessor
 (define (lc-scalar lc var [notinval #f])
   (hash-ref lc var notinval))
 
-(check-equal? (lc-scalar (lc: '(1 . x) '(42 . y) '(1 . #f)) 'y) 42)
-(check-equal? (lc-scalar (lc: '(1 . x) '(42 . y) '(1 . #f)) #f) 1)
-(check-equal? (lc-scalar (lc: '(1 . x) '(42 . y) '(1 . #f)) 'q) #f)
+(check-equal? (lc-scalar (lc (1 'x) (42 'y) (1 #f)) 'y) 42)
+(check-equal? (lc-scalar (lc (1 'x) (42 'y) (1 #f)) #f) 1)
+(check-equal? (lc-scalar (lc (1 'x) (42 'y) (1 #f)) 'q) #f)
 
 ; lc?
 (define (lc? x)
   (hash? x))
 
-(check-true (lc? (lc:)))
+(check-true (lc? (lc)))
 
 ; lc-var-list
 ; (no particular order)
 (define (lc-vars lc)
   (hash-keys lc))
 
-(check-not-false (let ([vars (lc-vars (lc: '(42 . x) '(17 . #f)))])
+(check-not-false (let ([vars (lc-vars (lc (42 'x) (17 #f)))])
                    (and (= 2 (length vars))
                         (member 'x vars)
                         (member #f vars))))
@@ -60,7 +57,7 @@
 (define (lc-scalars lc)
   (hash-values lc))
 
-(check-not-false (let ([scalars (lc-scalars (lc: '(42 . x) '(17 . #f)))])
+(check-not-false (let ([scalars (lc-scalars (lc (42 'x) (17 #f)))])
                    (and (= 2 (length scalars))
                         (member 42 scalars)
                         (member 17 scalars))))
@@ -70,7 +67,7 @@
 (define (lc-pairs lc)
   (map cons-swap (hash->list lc)))
 
-(check-not-false (let ([pairs (lc-pairs (lc: '(42 . x) '(17 . #f)))])
+(check-not-false (let ([pairs (lc-pairs (lc (42 'x) (17 #f)))])
                    (and (= 2 (length pairs))
                         (member '(42 . x) pairs)
                         (member '(17 . #f) pairs))))
@@ -80,7 +77,7 @@
   (for/hash ([x (lc-vars lc)])
     (values x (* a (lc-scalar lc x)))))
 
-(check-not-false (let ([scalars (lc-scalars (lc-scale (lc: '(42 . x) '(17 . #f)) 2))])
+(check-not-false (let ([scalars (lc-scalars (lc-scale (lc (42 'x) (17 #f)) 2))])
                    (and (= 2 (length scalars))
                         (member 84 scalars)
                         (member 34 scalars))))
@@ -89,8 +86,8 @@
 (define (lc-remove-var lc var)
   (hash-remove lc var))
 
-(check-equal? (lc-remove-var (lc: '(42 . x) '(17 . #f)) 'x)
-              (lc: '(17 . #f)))
+(check-equal? (lc-remove-var (lc (42 'x) (17 #f)) 'x)
+              (lc (17 #f)))
 
 ; lc-set-var-scalar
 (define (lc-set-var-scalar lc var scalar)
@@ -101,24 +98,24 @@
     (error 'lc-add-var "invalid args"))
   (hash-set lc var scalar))
 
-(check-equal? (lc-set-var-scalar (lc: '(17 . #f)) 'x 42)
-              (lc: '(42 . x) '(17 . #f)))
-(check-equal? (lc-set-var-scalar (lc: '(2 . x) '(17 . #f)) 'x 42)
-              (lc: '(42 . x) '(17 . #f)))
+(check-equal? (lc-set-var-scalar (lc (17 #f)) 'x 42)
+              (lc (42 'x) (17 #f)))
+(check-equal? (lc-set-var-scalar (lc (2 'x) (17 #f)) 'x 42)
+              (lc (42 'x) (17 #f)))
 
 ; lc-size
 (define (lc-size lc)
   (hash-count lc))
 
-(check-equal? (lc-size (lc: '(42 . x) '(17 . #f)))
+(check-equal? (lc-size (lc (42 'x) (17 #f)))
               2)
 
 ; lc-empty?
 (define (lc-empty? lc)
   (hash-empty? lc))
 
-(check-false (lc-empty? (lc: '(42 . x) '(17 . #f))))
-(check-not-false (lc-empty? (lc:)))
+(check-false (lc-empty? (lc (42 'x) (17 #f))))
+(check-not-false (lc-empty? (lc)))
 
 ; lc-subtract
 (define (lc-subtract lc1 lc2)
@@ -131,12 +128,12 @@
           (lc-remove-var lc x)
           (lc-set-var-scalar lc x snew)))))
 
-(check-equal? (lc-subtract (lc: '(2 . x) '(3 . y) '(-1 . #f))
-                           (lc: '(2 . x) '(-1 . #f) '(42 . z)))
-              (lc: '(3 . y) '(-42 . z)))
-(check-equal? (lc-subtract (lc: '(0 . #f))
-                           (lc: '(2 . x) '(-1 . #f) '(42 . z)))
-              (lc: '(-2 . x) '(-42 . z) '(1 . #f)))
+(check-equal? (lc-subtract (lc (2 'x) (3 'y) (-1 #f))
+                           (lc (2 'x) (-1 #f) (42 'z)))
+              (lc (3 'y) (-42 'z)))
+(check-equal? (lc-subtract (lc (0 #f))
+                           (lc (2 'x) (-1 #f) (42 'z)))
+              (lc (-2 'x) (-42 'z) (1 #f)))
 
 ;lc-scalar-gcd
 ; NOTE! currently this includes
@@ -148,17 +145,17 @@
 (define (lc-has-var? lc x)
   (hash-has-key? lc x))
 
-(check-false (lc-has-var? (lc: '(42 . x) '(17 . #f)) 'y))
-(check-not-false (lc-has-var? (lc: '(42 . x) '(17 . #f)) 'x))
+(check-false (lc-has-var? (lc (42 'x) (17 #f)) 'y))
+(check-not-false (lc-has-var? (lc (42 'x) (17 #f)) 'x))
 
 (define (lc-add1 lc)
   (if (lc-has-var? lc #f)
       (lc-set-var-scalar lc #f (add1 (lc-scalar lc #f)))
       (lc-set-var-scalar lc #f 1)))
 
-(check-equal? (lc-add1 (lc:)) (lc: '(1 . #f)))
-(check-equal? (lc-add1 (lc: '(1 . #f) '(5 . x))) 
-              (lc: '(2 . #f) '(5 . x)))
+(check-equal? (lc-add1 (lc)) (lc (1 #f)))
+(check-equal? (lc-add1 (lc (1 #f) (5 'x))) 
+              (lc (2 #f) (5 'x)))
 
 ;************************************************
 ; Linear Inequalities  (leq)
@@ -193,10 +190,10 @@
   (leq (lc-add1 (leq-rhs ineq))
        (leq-lhs ineq)))
 
-(check-equal? (leq-negate (leq (lc: '(1 . x))
-                               (lc: '(1 . y))))
-              (leq (lc: '(1 . y) '(1 . #f))
-                   (lc: '(1 . x))))
+(check-equal? (leq-negate (leq (lc (1 'x))
+                               (lc (1 'y))))
+              (leq (lc (1 'y) (1 #f))
+                   (lc (1 'x))))
 ; leq-normalize
 ; converts leq with x into either:
 ;  1) ax <= by + cz + ...
@@ -215,43 +212,43 @@
     [(and a b (< a b))
      (leq (lc-subtract (lc-remove-var lhs x)
                        (lc-remove-var rhs x))
-          (lc: (cons (- b a) x)))]
+          (lc ((- b a) x)))]
     [(and a b (> a b))
-     (leq (lc: (cons (- a b) x))
+     (leq (lc ((- a b) x))
           (lc-subtract (lc-remove-var rhs x)
                        (lc-remove-var lhs x)))]
     [else
      ineq]))
 
 ; x lhs
-(check-equal? (leq-normalize (leq (lc: '(3 . x) '(2 . z) '(5 . y))
-                                  (lc: '(1 . x) '(1 . z)))
+(check-equal? (leq-normalize (leq (lc (3 'x) (2 'z) (5 'y))
+                                  (lc (1 'x) (1 'z)))
                              'x)
-              (leq (lc: '(2 . x)) (lc: '(-5 . y) '(-1 . z))))
+              (leq (lc (2 'x)) (lc (-5 'y) (-1 'z))))
 
 ; x rhs
-(check-equal? (leq-normalize (leq (lc: '(3 . x) '(2 . z) '(5 . y))
-                                  (lc: '(1 . z) '(33 . x)))
+(check-equal? (leq-normalize (leq (lc (3 'x) (2 'z) (5 'y))
+                                  (lc (1 'z) (33 'x)))
                              'x)
-              (leq (lc: '(1 . z) '(5 . y)) (lc: '(30 . x))))
+              (leq (lc (1 'z) (5 'y)) (lc (30 'x))))
 ; x eq
-(check-equal? (leq-normalize (leq (lc: '(42 . x) '(2 . z) '(5 . y))
-                                  (lc: '(42 . x) '(1 . z)))
+(check-equal? (leq-normalize (leq (lc (42 'x) (2 'z) (5 'y))
+                                  (lc (42 'x) (1 'z)))
                              'x)
-              (leq (lc: '(2 . z) '(5 . y))
-                   (lc: '(1 . z))))
+              (leq (lc (2 'z) (5 'y))
+                   (lc (1 'z))))
 ; no x
-(check-equal? (leq-normalize (leq (lc: '(2 . z) '(5 . y))
-                                  (lc: '(1 . z)))
+(check-equal? (leq-normalize (leq (lc (2 'z) (5 'y))
+                                  (lc (1 'z)))
                              'x)
-              (leq (lc: '(2 . z) '(5 . y))
-                   (lc: '(1 . z))))
+              (leq (lc (2 'z) (5 'y))
+                   (lc (1 'z))))
 
 ; x mix
-(check-equal? (leq-normalize (leq (lc: '(2 . x) '(4 . y) '(1 . #f))
-                                  (lc: '(2 . y))) 'x)
-              (leq (lc: '(2 . x))
-                   (lc: '(-1 . #f) '(-2 . y))))
+(check-equal? (leq-normalize (leq (lc (2 'x) (4 'y) (1 #f))
+                                  (lc (2 'y))) 'x)
+              (leq (lc (2 'x))
+                   (lc (-1 #f) (-2 'y))))
 
 
 ; simplify-leq-pair
@@ -280,19 +277,19 @@
     [else
      (error "bad pair for simplification of ~a: ~a, ~a" x leq1 leq2)]))
 
-(check-equal? (simplify-leq-pair (leq (lc: '(2 . x))
-                                      (lc: '(4 . y) '(10 . #f)))
-                                 (leq (lc: '(4 . z) '(2 . #f))
-                                      (lc: '(4 . x)))
+(check-equal? (simplify-leq-pair (leq (lc (2 'x))
+                                      (lc (4 'y) (10 #f)))
+                                 (leq (lc (4 'z) (2 #f))
+                                      (lc (4 'x)))
                                  'x)
-              (leq (lc: '(8 . z) '(4 . #f))
-                   (lc: '(16 . y) '(40 . #f))))
+              (leq (lc (8 'z) (4 #f))
+                   (lc (16 'y) (40 #f))))
 
 
 ; trivially-valid?
 (define (leq-trivially-valid? ineq)
   (unless (or (empty? (leq-vars ineq))
-              (equal? '(#f) (leq-vars ineq)))
+              (equal? (list #f) (leq-vars ineq)))
     (error 'trivially-valid? "non-trivial inequality: ~a" ineq))
   (define lhs-val (lc-scalar (leq-lhs ineq) #f 0))
   (define rhs-val (lc-scalar (leq-rhs ineq) #f 0))
@@ -329,41 +326,41 @@
        (values xslhs xsrhs (cons ineq noxs))])))
 
 (check-equal? (let-values ([(lt gt no)
-                            (sli-partition  (list (leq (lc: '(2 . x) '(4 . y) '(1 . #f))
-                                                       (lc: '(2 . y)))) 
+                            (sli-partition  (list (leq (lc (2 'x) (4 'y) (1 #f))
+                                                       (lc (2 'y)))) 
                                             'x)])
                 (list lt gt no))
-              (list (list (leq (lc: '(2 . x)) 
-                               (lc: '(-2 . y) '(-1 . #f))))
+              (list (list (leq (lc (2 'x)) 
+                               (lc (-2 'y) (-1 #f))))
                     empty
                     empty))
 (check-equal? (let-values ([(lt gt no)
-                            (sli-partition  (list (leq (lc: '(2 . x) '(4 . y) '(1 . #f))
-                                                       (lc: '(2 . y)))
-                                                  (leq (lc: '(2 . x) '(4 . y))
-                                                       (lc: '(2 . y) '(42 . x)))) 
+                            (sli-partition  (list (leq (lc (2 'x) (4 'y) (1 #f))
+                                                       (lc (2 'y)))
+                                                  (leq (lc (2 'x) (4 'y))
+                                                       (lc (2 'y) (42 'x)))) 
                                             'x)])
                 (list lt gt no))
-              (list (list (leq (lc: '(2 . x)) 
-                               (lc: '(-2 . y) '(-1 . #f))))
-                    (list (leq (lc: '(2 . y))
-                               (lc: '(40 . x))))
+              (list (list (leq (lc (2 'x)) 
+                               (lc (-2 'y) (-1 #f))))
+                    (list (leq (lc (2 'y))
+                               (lc (40 'x))))
                     empty))
 (check-equal? (let-values ([(lt gt no)
-                            (sli-partition  (list (leq (lc: '(2 . x) '(4 . y) '(1 . #f))
-                                                       (lc: '(2 . y)))
-                                                  (leq (lc: '(2 . x) '(4 . y))
-                                                       (lc: '(2 . y) '(42 . x)))
-                                                  (leq (lc: '(2 . z) '(4 . y))
-                                                       (lc: '(2 . y) '(42 . q)))) 
+                            (sli-partition  (list (leq (lc (2 'x) (4 'y) (-1 #f))
+                                                       (lc (2 'y)))
+                                                  (leq (lc (2 'x) (4 'y))
+                                                       (lc (2 'y) (42 'x)))
+                                                  (leq (lc (2 'z) (4 'y))
+                                                       (lc (2 'y) (42 'q)))) 
                                             'x)])
                 (list lt gt no))
-              (list (list (leq (lc: '(2 . x)) 
-                               (lc: '(-2 . y) '(-1 . #f))))
-                    (list (leq (lc: '(2 . y))
-                               (lc: '(40 . x))))
-                    (list (leq (lc: '(2 . z) '(4 . y))
-                               (lc: '(2 . y) '(42 . q))))))
+              (list (list (leq (lc (2 'x)) 
+                               (lc (-2 'y) (1 #f))))
+                    (list (leq (lc (2 'y))
+                               (lc (40 'x))))
+                    (list (leq (lc (2 'z) (4 'y))
+                               (lc (2 'y) (42 'q))))))
 
 
 ; cartesian-product
@@ -398,23 +395,23 @@
   (andmap leq-trivially-valid? simple-system))
 
 ; 3x + 2y <= 7; 6x + 4y <= 15;  -x <= 1; 0 <= 2y has integer solutions
-(check-true (sli-satisfiable? (list (leq (lc: '(3 . x) '(2 . y))
-                                         (lc: '(7 . #f)))
-                                    (leq (lc: '(6 . x) '(4 . y))
-                                         (lc: '(15 . #f)))
-                                    (leq (lc: '(-1 . x))
-                                         (lc: '(1 . #f)))
-                                    (leq (lc: '(0 . #f))
-                                         (lc: '(2 . y))))))
+(check-true (sli-satisfiable? (list (leq (lc (3 'x) (2 'y))
+                                         (lc (7 #f)))
+                                    (leq (lc (6 'x) (4 'y))
+                                         (lc (15 #f)))
+                                    (leq (lc (-1 'x))
+                                         (lc (1 #f)))
+                                    (leq (lc (0 #f))
+                                         (lc (2 'y))))))
 
 
 ; 3x + 2y <= 4; 1 <= x; 1 <= y no solutions 
-(check-false (sli-satisfiable? (list (leq (lc: '(3 . x) '(2 . y))
-                                          (lc: '(4 . #f)))
-                                     (leq (lc: '(1 . #f))
-                                          (lc: '(1 . x)))
-                                     (leq (lc: '(1 . #f))
-                                          (lc: '(1 . y))))))
+(check-false (sli-satisfiable? (list (leq (lc (3 'x) (2 'y))
+                                          (lc (4 #f)))
+                                     (leq (lc (1 #f))
+                                          (lc (1 'x)))
+                                     (leq (lc (1 #f))
+                                          (lc (1 'y))))))
 
 ; sli-implies-leq
 (define (sli-implies-leq system ineq)
@@ -422,22 +419,22 @@
                                system))))
 
 ; transitivity! x <= y /\ y <= z --> x <= z
-(check-true (sli-implies-leq (list (leq (lc: '(1 . x))
-                                        (lc: '(1 . y)))
-                                   (leq (lc: '(1 . y))
-                                        (lc: '(1 . z))))
-                             (leq (lc: '(1 . x))
-                                  (lc: '(1 . z)))))
+(check-true (sli-implies-leq (list (leq (lc (1 'x))
+                                        (lc (1 'y)))
+                                   (leq (lc (1 'y))
+                                        (lc (1 'z))))
+                             (leq (lc (1 'x))
+                                  (lc (1 'z)))))
 
 ; x + y <= z; 0 <= y; 0 <= x --> x <= z
-(check-true (sli-implies-leq (list (leq (lc: '(1 . x) '(1 . y))
-                                        (lc: '(1 . z)))
-                                   (leq (lc:)
-                                        (lc: '(1 . y)))
-                                   (leq (lc:)
-                                        (lc: '(1 . x))))
-                             (leq (lc: '(1 . x))
-                                  (lc: '(1 . z)))))
+(check-true (sli-implies-leq (list (leq (lc (1 'x) (1 'y))
+                                        (lc (1 'z)))
+                                   (leq (lc)
+                                        (lc (1 'y)))
+                                   (leq (lc)
+                                        (lc (1 'x))))
+                             (leq (lc (1 'x))
+                                  (lc (1 'z)))))
 
 ; sli-implies-sli
 (define (sli-implies-sli assumptions goals)
@@ -446,13 +443,13 @@
 
 
 ; x + y <= z; 0 <= y; 0 <= x --> x <= z /\ y <= z
-(check-true (sli-implies-sli (list (leq (lc: '(1 . x) '(1 . y))
-                                        (lc: '(1 . z)))
-                                   (leq (lc:)
-                                        (lc: '(1 . y)))
-                                   (leq (lc:)
-                                        (lc: '(1 . x))))
-                             (list (leq (lc: '(1 . x))
-                                        (lc: '(1 . z)))
-                                   (leq (lc: '(1 . y))
-                                        (lc: '(1 . z))))))
+(check-true (sli-implies-sli (list (leq (lc (1 'x) (1 'y))
+                                        (lc (1 'z)))
+                                   (leq (lc)
+                                        (lc (1 'y)))
+                                   (leq (lc)
+                                        (lc (1 'x))))
+                             (list (leq (lc (1 'x))
+                                        (lc (1 'z)))
+                                   (leq (lc (1 'y))
+                                        (lc (1 'z))))))

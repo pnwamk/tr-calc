@@ -1,4 +1,56 @@
 #lang racket/base
+; The MIT License (MIT)
+;
+; Copyright (c) 2014 Andrew M. Kent
+;
+; Permission is hereby granted, free of charge, to any person obtaining a copy
+; of this software and associated documentation files (the "Software"), to deal
+; in the Software without restriction, including without limitation the rights
+; to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+; copies of the Software, and to permit persons to whom the Software is
+; furnished to do so, subject to the following conditions:
+;
+; The above copyright notice and this permission notice shall be included in
+; all copies or substantial portions of the Software.
+;
+; THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+; IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+; FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+; AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+; LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+; OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
+; THE SOFTWARE.
+
+
+;**********************************************************************
+; Inequality Proving Library
+;**********************************************************************
+;
+; This library aims to provide a sound algorithm for deciding
+; if one system of linear inequalities over integers (P) implies
+; another (Q) by assuming (P /\ ~Q) and testing for unsatisfiability.
+;
+; The transformations are based on the fourier-motzkin elimination method.
+; Variables are eliminated until the system is trivial.
+;
+; Elimination is performed as follows:
+;   1) partition the set of inequalities into those which can be 
+;      written as a*x <= l, those which can be written as l <= a*x,
+;      and those without x (where a is a positive coefficient and l
+;      is a linear combination of variables and coefficients)
+;   2) for each possible pairing l1 <= a1*x  and a2*x <= l2, we add
+;      a2*l1 <= a1*l2 to the system and remove the equations with x
+;      - now our system is larger and does not contain the variable x
+;   3) this is repeated until the system can be trivially checked
+;      to see if it is unsatisfiable
+;
+; Because this method is for linear inequalities with variables that range
+; over reals (and not integers), it is a sound but incomplete model with 
+; respect to testing for unsatisfiability
+;
+; All inequalities in this system are represented with <=
+; For negation we utilize the equivalence ~(a <= b) <-> 1 + b <= a
+; since we are concerned with integer solutions.
 
 (require racket/list racket/bool)
 (require rackunit)
@@ -8,10 +60,11 @@
   (cons (cdr c) (car c)))
 
 
-;************************************************
+;**********************************************************************
 ; Linear Combinations  (lc)
+; ax + by + cz + ...
 ;   (and related operations)
-;************************************************
+;**********************************************************************
 
 ; defining linear combinations
 ; takes list of (scalar symbol)
@@ -157,10 +210,11 @@
 (check-equal? (lc-add1 (lc (1 #f) (5 'x))) 
               (lc (2 #f) (5 'x)))
 
-;************************************************
+;**********************************************************************
 ; Linear Inequalities  (leq)
+; a1x1 + a1x2 + ... <= b1y1 + b2y2 + ...
 ;   (and related operations)
-;************************************************
+;**********************************************************************
 
 ; leq def
 (struct leq (lhs rhs) #:transparent
@@ -296,10 +350,13 @@
   (<= lhs-val rhs-val))
 
 
-;************************************************
+;**********************************************************************
 ; Systems of Linear Inequalities
+; a1x1 + a2x2 + ... <= b1y1 + b2y2 + ...
+; c1z1 + c2z2 + ... <= d1q1 + d2q2 + ...
+; ...
 ;   (and related operations)
-;************************************************
+;**********************************************************************
 
 ; sli-vars
 (define (sli-vars sli)
@@ -378,7 +435,7 @@
 ; reduces the system of linear inequalties,
 ; removing x
 (define (sli-elim-var sli x)
-  (unless x
+  (unless (and x (list? sli))
     (error 'sli-elim-var "can't eliminate constant scalars from ineqs"))
   (define-values (xltleqs xgtleqs noxleqs) (sli-partition sli x))
   (append (cartesian-map (λ (leq1 leq2) (simplify-leq-pair leq1 leq2 x)) 
@@ -388,6 +445,8 @@
 
 ; sli-satisfiable?
 (define (sli-satisfiable? sli)
+  (unless (and (list? sli) (not (empty? sli)))
+    (error 'sli-satisfiable? "invalid sli: ~a" sli))
   (define vars (remove #f (sli-vars sli)))
   (define simple-system
     (for/fold ([system sli]) ([x vars])
@@ -413,6 +472,10 @@
                                      (leq (lc (1 #f))
                                           (lc (1 'y))))))
 
+;**********************************************************************
+; Logical Implication for Linear Inequalities
+;**********************************************************************
+
 ; sli-implies-leq
 (define (sli-implies-leq system ineq)
   (not (sli-satisfiable? (cons (leq-negate ineq)
@@ -426,6 +489,18 @@
                              (leq (lc (1 'x))
                                   (lc (1 'z)))))
 
+
+; x  <= x;
+(check-true (sli-implies-leq empty
+                             (leq (lc (1 'x))
+                                  (lc (1 'x)))))
+
+; x  - 1 <= x + 1;
+(check-true (sli-implies-leq empty
+                             (leq (lc (1 'x) (-1 #f))
+                                  (lc (1 'x) (1 #f)))))
+
+
 ; x + y <= z; 1 <= y; 0 <= x --> x + 1 <= z
 (check-true (sli-implies-leq (list (leq (lc (1 'x) (1 'y))
                                         (lc (1 'z)))
@@ -436,10 +511,25 @@
                              (leq (lc (1 'x) (1 #f))
                                   (lc (1 'z)))))
 
+;**********************************************************************
+; Logical Implication for Systems of Linear Inequalities
+;**********************************************************************
+
 ; sli-implies-sli
 (define (sli-implies-sli assumptions goals)
   (andmap (λ (ineq) (sli-implies-leq assumptions ineq))
           goals))
+
+
+; 4 <= 3 is false
+(check-false (sli-implies-sli empty
+                             (list (leq (lc (4 #f))
+                                        (lc (3 #f))))))
+; P and ~P --> false
+(check-true (sli-implies-sli (list (leq (lc) (lc (1 'y)))
+                                    (leq-negate (leq (lc) (lc (1 'y)))))
+                              (list (leq (lc (4 #f))
+                                         (lc (3 #f))))))
 
 
 ; x + y <= z; 0 <= y; 0 <= x --> x <= z /\ y <= z
@@ -453,3 +543,26 @@
                                         (lc (1 'z)))
                                    (leq (lc (1 'y))
                                         (lc (1 'z))))))
+
+; 7x <= 29 --> x <= 4
+(check-true (sli-implies-sli (list (leq (lc (7 'x))
+                                        (lc (29 #f))))
+                             (list (leq (lc (1 'x))
+                                        (lc (4 #f))))))
+; 7x <= 28 --> x <= 4
+(check-true (sli-implies-sli (list (leq (lc (7 'x))
+                                        (lc (28 #f))))
+                             (list (leq (lc (1 'x))
+                                        (lc (4 #f))))))
+; 7x <= 28 does not --> x <= 3
+(check-false (sli-implies-sli (list (leq (lc (7 'x))
+                                        (lc (28 #f))))
+                             (list (leq (lc (1 'x))
+                                        (lc (3 #f))))))
+
+
+; 7x <= 27 --> x <= 3
+(check-true (sli-implies-sli (list (leq (lc (7 'x))
+                                        (lc (27 #f))))
+                             (list (leq (lc (1 'x))
+                                        (lc (3 #f))))))

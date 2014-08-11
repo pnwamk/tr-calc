@@ -33,15 +33,16 @@
 \newcommand{\Fval}{\# \textrm{f}}
 \newcommand{\Tprop}{\mathbb{T}}
 \newcommand{\Fprop}{\mathbb{F}}
+\newcommand{\Uprop}{\mathbb{U}}
 \newcommand{\Ntype}{\mathbf{N}}
 \newcommand{\Btype}{\mathbf{B}}
 \newcommand{\NOT}{\overline}
-\newcommand{\TypeOf}[6]{#1 \vdash #2 : #3 \: ; \: #4 \mid #5 \: ; \: #6}
+\newcommand{\TypeOf}[5]{#1 \vdash #2 : #3 \: ; \: #4 \: ; \: #5}
 \newcommand{\Proves}[2]{#1 \vdash #2}
 \newcommand{\listof}{\overrightarrow}
 \newcommand{\lvec}{[[}
 \newcommand{\rvec}{]]}
-\newcommand{\funtype}[6]{#1\mathord{:}#2 \xrightarrow[ #5 ]{ #3 \mid #4 } #6 }
+\newcommand{\funtype}[5]{#1\mathord{:}#2 \xrightarrow[ #4 ]{ #3 } #5 }
 \newcommand{\deptype}[1]{\{ \diamond : \Ntype \: | \: #1 \}}
 \newcommand{\pairtype}[2]{\langle #1 , #2 \rangle}
 \newcommand{\U}{\bigcup}
@@ -101,7 +102,7 @@ $\sigma , \tau  ::= $ & $
 	(\U \listof{\tau}) \mid
 	\pairtype{\tau}{\tau} \mid
 	\lvec \listof{\tau} \rvec \mid
-	\funtype{x}{\sigma}{\psi}{\psi}{o}{\tau} $ & Types \\
+	\funtype{x}{\sigma}{\psi}{o}{\tau} $ & Types \\
 $\psi ::= $ & $ 
 	\tau_{\pi(x)} \mid 
 	\NOT{\tau}_{\pi(x)} \mid  
@@ -110,7 +111,8 @@ $\psi ::= $ & $
 	\psi \vee \psi \mid
     \Phi \mid
 	\Tprop \mid
-	\Fprop  $ & Propositions \\
+	\Fprop \mid
+    \Uprop $ & Propositions \\
 $ \Gamma ::= $ & $ 
 	\listof{\psi} $ & Environments \\	
 \end{tabular}
@@ -122,92 +124,87 @@ $ \Gamma ::= $ & $
 \begin{figure}
 \begin{mathpar}
   \inferrule[T-Num]
-  {}{\TypeOf{\Gamma}{n}{\deptype{\diamond = n}}{\Tprop}{\Fprop}{\NullO}}
+  {}{\TypeOf{\Gamma}{n}{\deptype{\diamond = n}}{\Tprop}{\NullO}}
 
 \and
   \inferrule[T-Const]
-  {}{\TypeOf{\Gamma}{c}{\delta_{\tau}(c)}{\Tprop}{\Fprop}{\NullO}}
+  {}{\TypeOf{\Gamma}{c}{\delta_{\tau}(c)}{\Tprop}{\NullO}}
 
 \and
   \inferrule[T-True]
-  {}{\TypeOf{\Gamma}{\Tval}{\Ttype}{\Tprop}{\Fprop}{\NullO}}
+  {}{\TypeOf{\Gamma}{\Tval}{\Ttype}{\Tprop}{\NullO}}
 
 \and
   \inferrule[T-False]
-  {}{\TypeOf{\Gamma}{\Fval}{\Ftype}{\Fprop}{\Tprop}{\NullO}}
+  {}{\TypeOf{\Gamma}{\Fval}{\Ftype}{\Fprop}{\NullO}}
 
 \and
   \inferrule[T-Var]
   {\Proves{\Gamma}{\tau_{x}}}
-  {\TypeOf{\Gamma}{x}{\tau}{\NOT{\Ftype}_x}{\Ftype_x}{x}}
+  {\TypeOf{\Gamma}{x}{\tau}{\NOT{\Ftype}_x}{x}}
 
 \and
   \inferrule[T-Abs]
-  {\TypeOf{\Gamma, \sigma_x}{e}{\tau}{\psi_+}{\psi_-}{o}}
-  {\TypeOf{\Gamma}{\lambda x^\sigma . e}{\funtype{x}{\sigma}{\psi_+}{\psi_-}{o}{\tau}}{\Tprop}{\Fprop}{\NullO}}
+  {\TypeOf{\Gamma, \sigma_x}{e}{\tau}{\psi}{o}}
+  {\TypeOf{\Gamma}{\lambda x^\sigma . e}{\funtype{x}{\sigma}{\psi}{o}{\tau}}{\Tprop}{\NullO}}
 
 
 \and
   \inferrule[T-App]
-  {\TypeOf{\Gamma}{e}{\funtype{x}{\sigma}{\psi_{f+}}{\psi_{f-}}{o_f}{\tau}}{\psi_+}{\psi_-}{o} \\\\
-    \TypeOf{\Gamma}{e'}{\sigma}{\psi'_+}{} \mid \psi'_- \: ; \: o'}
-  {\TypeOf{\Gamma} {(e \: e')}{\tau [o' / x]}{\psi_{f+}}{\psi_{f-}[o' / x]}{o_f[o' / x]}}
+  {\TypeOf{\Gamma}{e}{\funtype{x}{\sigma}{\psi_{f}}{o_f}{\tau}}{\psi}{o} \\\\
+    \TypeOf{\Gamma}{e'}{\sigma}{\psi'}{o'}}
+  {\TypeOf{\Gamma} {(e \: e')}{\tau [o' / x]}{\psi_{f}[o' / x]}{o_f[o' / x]}}
 
 
 \and
   \inferrule[T-If]
-  {\TypeOf{\Gamma}{e_1}{\tau_1}{\psi_{1+}}{\psi_{1-}}{o_1} \\\\
-    \TypeOf{\Gamma}{e_2}{\tau}{\psi_{2+}}{\psi_{2-}}{o} \\\\
-    \TypeOf{\Gamma}{e_3}{\tau}{\psi_{3+}}{\psi_{3-}}{o}}
-  {\TypeOf{\Gamma}{(\mathbf{if} \: e_1 \: e_2 \: e_3)}{ \tau}{\psi_{2+} \vee \psi_{3+}}{\psi_{2-} \vee \psi_{3-}}{o}}
+  {\TypeOf{\Gamma}{e_1}{\tau_1}{\psi_{1}}{o_1} \\\\
+    \TypeOf{\Gamma}{e_2}{\tau}{\psi_{2}}{o} \\\\
+    \TypeOf{\Gamma}{e_3}{\tau}{\psi_{3}}{o}}
+  {\TypeOf{\Gamma}{(\mathbf{if} \: e_1 \: e_2 \: e_3)}{ \tau}{\psi_{2} \vee \psi_{3}}{o}}
 
 \and
   \inferrule[T-Let]
-  {\TypeOf{\Gamma}{e_0}{\tau}{\psi_{0+}}{\psi_{0-}}{o_0} \\\\
-    \TypeOf{\Gamma, \tau_x, \NOT{\Ftype}_x \supset \psi_{0+}, \Ftype_x \supset \psi_{0-}}{e_1}{\sigma}{\psi_{1+}}{\psi_{1-}}{o_1}}
-  {\TypeOf{\Gamma}{(\mathbf{let} \: (x \: e_0) \: e_1)}{\sigma [o_0 / x]}{\psi_{1+}}{\psi_{1-} [o_0 / x]} {o_1 [o_0 / x]}}
+  {\TypeOf{\Gamma}{e_0}{\tau}{\psi_{0}}{o_0} \\\\
+    \TypeOf{\Gamma, \tau_x, \NOT{\Ftype}_x \supset \psi_{0}, \Ftype_x \supset \neg\psi_{0}}{e_1}{\sigma}{\psi_{1}}{o_1}}
+  {\TypeOf{\Gamma}{(\mathbf{let} \: (x \: e_0) \: e_1)}{\sigma [o_0 / x]}{\psi_{1}[o_0 / x]} {o_1 [o_0 / x]}}
 
 
 \and
   \inferrule[T-Cons]
-  {\TypeOf{\Gamma}{e_1}{\tau_1}{\psi_{1+}}{\psi_{1-}}{o_1} \\\\
-    \TypeOf{\Gamma}{e_2}{\tau_2}{\psi_{2+}}{\psi_{2-}}{o_2}}
-  {\TypeOf{\Gamma}{(cons \: e_1 \: e_2)}{\pairtype{\tau_1}{\tau_2}}{\Tprop}{\Fprop}{\NullO}}
+  {\TypeOf{\Gamma}{e_1}{\tau_1}{\psi_{1}}{o_1} \\\\
+    \TypeOf{\Gamma}{e_2}{\tau_2}{\psi_{2}}{o_2}}
+  {\TypeOf{\Gamma}{(cons \: e_1 \: e_2)}{\pairtype{\tau_1}{\tau_2}}{\Tprop}{\NullO}}
 
 \and
   \inferrule[T-Car]
-  {\TypeOf{\Gamma}{e}{\pairtype{\tau_1}{\tau_2}}{\psi_{+}}{\psi_{-}}{o} \\\\
-  \psi_{r+} \mid \psi_{r-} = \NOT{\Ftype}_{\mathbf{car}(x)} \mid \Ftype_{\mathbf{car}(x)} [o / x]}
-  {\TypeOf{\Gamma}{(car \: e)}{\tau_1}{\psi_{r+}}{\psi_{r-}}{\mathbf{car}(x) [o / x]}}
+  {\TypeOf{\Gamma}{e}{\pairtype{\tau_1}{\tau_2}}{\psi}{o}}
+  {\TypeOf{\Gamma}{(car \: e)}{\tau_1}{\NOT{\Ftype}_{\mathbf{car}(x)}[o / x]}{\mathbf{car}(x) [o / x]}}
 
 \and
   \inferrule[T-Cdr]
-  {\TypeOf{\Gamma}{e}{\pairtype{\tau_1}{\tau_2}}{\psi_{+}}{\psi_{-}}{o} \\\\
-  \psi_{r+} \mid \psi_{r-} = \NOT{\Ftype}_{\mathbf{cdr}(x)} \mid \Ftype_{\mathbf{cdr}(x)} [o / x]}
-  {\TypeOf{\Gamma}{(cdr \: e)}{\tau_2}{\psi_{r+}}{\psi_{r-}}{\mathbf{cdr}(x) [o / x]}}
+  {\TypeOf{\Gamma}{e}{\pairtype{\tau_1}{\tau_2}}{\psi}{o}}
+  {\TypeOf{\Gamma}{(cdr \: e)}{\tau_2}{\NOT{\Ftype}_{\mathbf{cdr}(x)}[o / x]}{\mathbf{cdr}(x) [o / x]}}
 
 \and
   \inferrule[T-Vec]
-  {\TypeOf{\Gamma}{e_1}{\tau_1}{\psi_{1+}}{\psi_{1-}}{o_1} \\\\
+  {\TypeOf{\Gamma}{e_1}{\tau_1}{\psi_{1}}{o_1} \\\\
     \dots \\\\
-    \TypeOf{\Gamma}{e_n}{\tau_n}{\psi_{n+}}{\psi_{n-}}{o_n}}
-  {\TypeOf{\Gamma}{(vec \: e_1 \: \dots \: e_n)}{ \lvec \tau_1 \: \dots \: \tau_n \rvec}{\Tprop}{\Fprop}{\NullO}}
+    \TypeOf{\Gamma}{e_n}{\tau_n}{\psi_{n}}{o_n}}
+  {\TypeOf{\Gamma}{(vec \: e_1 \: \dots \: e_n)}{ \lvec \tau_1 \: \dots \: \tau_n \rvec}{\Tprop}{\NullO}}
 
 \and
   \inferrule[T-Ref]
-  {\TypeOf{\Gamma}{e}{\lvec \dots \tau_i \dots \rvec}{\psi_{i+}}{\psi_{i-}}{o_i} \\\\
-    \psi_{r+} \mid \psi_{r-} = \NOT{\Ftype}_{\mathbf{ref_i}(x)} \mid \Ftype_{\mathbf{ref_i}(x)} [o / x]}
-  {\TypeOf{\Gamma}{(ref_i \: \: e)}{ \tau_i}{\psi_{r+}}{\psi_{r-}}{\mathbf{ref_i}(x) [o / x]}}
+  {\TypeOf{\Gamma}{e}{\lvec \dots \tau_i \dots \rvec}{\psi_{i}}{o_i}}
+  {\TypeOf{\Gamma}{(ref_i \: \: e)}{ \tau_i}{\NOT{\Ftype}_{\mathbf{ref_i}(x)}[o / x]}{\mathbf{ref_i}(x) [o / x]}}
 
 
 \and
   \inferrule[T-Subsume]
-  {\TypeOf{\Gamma}{e}{\tau}{\psi_+}{\psi_-}{o} \\\\
-    \Proves{\Gamma, \psi_+}{\psi'_+} \\
-    \Proves{\Gamma, \psi_-}{\psi'_-} \\\\
-    \tau <: \tau' \\
-    o <: o'}
-  {\TypeOf{\Gamma}{e}{\tau'}{\psi'_+}{\psi'_-}{o'}}
+  {\TypeOf{\Gamma}{e}{\tau}{\psi}{o} \\\\
+    \Proves{\Gamma, \psi}{\psi'} \\
+    \tau <: \tau' \\ o <: o'}
+  {\TypeOf{\Gamma}{e}{\tau'}{\psi'}{o'}}
 
 \end{mathpar}
 \caption{Typing Rules}
@@ -242,10 +239,10 @@ $ \Gamma ::= $ & $
 \and
   \inferrule[S-Fun]
   {\vdash \sigma' <: \sigma \\ \vdash \tau <: \tau' \\\\
-  \psi_+ \vdash \psi'_+ \\ \psi_- \vdash \psi'_- \\ \vdash o <: o' \\ }
-  {\vdash \funtype{x}{\sigma}{\psi_{+}}{\psi_{-}}{o}{\tau} 
+  \psi \vdash \psi' \\ \vdash o <: o' \\ }
+  {\vdash \funtype{x}{\sigma}{\psi}{o}{\tau} 
     <: 
-   \funtype{x}{\sigma'}{\psi'_{+}}{\psi'_{-}}{o'}{\tau'}}
+   \funtype{x}{\sigma'}{\psi'}{o'}{\tau'}}
 
 \and
   \inferrule[S-Vec]
@@ -275,8 +272,8 @@ $ \Gamma ::= $ & $
 \begin{mathpar}
 
   \inferrule[L-Atom]
-  {\psi \in \Gamma}
-  {\Gamma \vdash \psi}
+  {\nu_{\pi(x)} \in \Gamma}
+  {\Gamma \vdash \nu_{\pi(x)}}
 
 \and
   \inferrule[L-True]
@@ -368,19 +365,40 @@ $ \Gamma ::= $ & $
 
 \end{figure}
 
+
+\begin{figure}
+\begin{tabular}{r  c  l }
+
+$ \neg \Tprop $ & $ = $ & $ \Fprop $ \\
+$ \neg \Fprop $ & $ = $ & $ \Tprop $ \\
+$ \neg \Uprop $ & $ = $ & $ \Uprop $ \\
+$ \neg \tau_{\pi(x)}$ & $ = $ & $\NOT{\tau}_{\pi(x)} $ \\ 
+$ \neg \NOT\tau_{\pi(x)}$ & $ = $ & ${\tau}_{\pi(x)} $ \\ 
+$ \neg (P \vee Q) $ & $ = $ & $ \neg P \wedge \neg Q $ \\
+$ \neg (P \wedge Q) $ & $ = $ & $ \neg P \vee \neg Q $ \\
+$ \neg (P \supset Q) $ & $ = $ & $ \neg P \wedge Q $ 
+
+
+\end{tabular}
+
+\caption{Proposition Negation}
+
+\end{figure}
+
+
+
 \begin{figure}
 \begin{tabular}{l  l  r}
 
-$ \psi_1 \mid \psi_2 [o / x] $ & $ = \psi_1 [o / x] \mid \psi_2 [o / x] $ & \\
-\\
 $ \nu_{\pi(x)}[\pi'(y)/x] $ & $ = (\nu[\pi'(y)/x])_{\pi(\pi'(y))} $ & \\
 $ \nu_{\pi(x)}[\NullO/x]^+ $ & $ = \Tprop $ & \\
 $ \nu_{\pi(x)}[\NullO/x]^- $ & $ = \Fprop $ & \\
 $ \nu_{\pi(x)}[o/z] $ & $ = \nu_{\pi(x)} $ & $ x \neq z $ and $ z \not\in \textrm{fv}(\nu) $ \\
 $ \nu_{\pi(x)}[o/z]^+ $ & $ = \Tprop $ & $ x \neq z $ and $ z \in \textrm{fv}(\nu) $ \\
 $ \nu_{\pi(x)}[o/z]^- $ & $ = \Fprop $ & $ x \neq z $ and $ z \in \textrm{fv}(\nu) $ \\
-$ \Tprop[o/x] $ & $ = \Tprop $ & \\
-$ \Fprop[o/x] $ & $ = \Fprop $ & \\
+$ \Tprop [o/x] $ & $ = \Tprop $ & \\
+$ \Fprop [o/x] $ & $ = \Fprop $ & \\
+$ \Uprop [o/x] $ & $ = \Uprop $ & \\
 $ (\psi_1 \supset \psi_2)[o/x]^+ $ & $ = \psi_1[o/x]^- \supset \psi_2[o/x]^+ $ & \\
 $ (\psi_1 \supset \psi_2)[o/x]^- $ & $ = \psi_1[o/x]^+ \supset \psi_2[o/x]^- $ & \\
 $ (\psi_1 \vee \psi_2)[o/x] $ & $ = \psi_1[o/x] \vee \psi_2[o/x] $ & \\

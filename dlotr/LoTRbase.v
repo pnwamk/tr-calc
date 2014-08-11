@@ -26,6 +26,7 @@ THE SOFTWARE.
 Require Export CpdtTactics.
 Require Export List.
 Require Export Arith.
+Require Import ZArith.
 Require Export Relations.
 Require Export Bool.
 Require Export Coq.Program.Wf.
@@ -49,10 +50,11 @@ Notation Yes := (left _).
 Inductive id : Set :=
   Id : nat -> id.
 
-Inductive value : Set :=
-  Val : nat -> value.
-
-Inductive step : Set := car | cdr.
+Inductive step : Set := 
+| car : step
+| cdr : step
+| ref : nat -> step
+| len : step.
 Hint Constructors step.
 
 Definition path : Set := list step.
@@ -63,59 +65,111 @@ Hint Constructors object.
 
 Notation var := (obj []).
 
+Inductive term :=
+| Term : Z -> object -> term.
+
+Inductive linexp :=
+| LinExp : list term -> Z -> linexp.
+
+Definition linexp_add1 (l:linexp) : linexp :=
+  match l with
+    | LinExp ts c => LinExp ts (1 + c)
+  end.
+
+Inductive lineq :=
+| LIneq : linexp -> linexp -> lineq.
+
+Definition not_lineq (l:lineq) : lineq :=
+  match l with
+      | LIneq lhs rhs => 
+        LIneq (linexp_add1 rhs) lhs
+  end.
+
+Definition sli := list lineq.
+
+Variable sli_satisfiable : sli -> bool.
+
 (** Types and propositions: *)
 Inductive type : Set :=
-| tTop : type
-| tBot : type
-| tVal : value -> type
-| tU   : type -> type -> type
-| tP   : type -> type -> type
-| tλ   : id -> type -> type -> prop -> prop -> opt object -> type
+| tTop    : type
+| tNum    : type
+| tDNum   : object -> sli -> type
+| tTrue   : type
+| tFalse  : type
+| tCons   : type
+| tArray  : type
+| tUnion  : tlist -> type
+| tPair   : type -> type -> type
+| tVec    : tlist -> type
+| tλ      : id -> type -> type -> prop -> opt object -> type
 
 with prop : Set :=
-| Is      : object -> type -> prop
-| Not     : object -> type -> prop
-| And     : prop -> prop -> prop
-| Or      : prop -> prop -> prop
-| Imp     : prop -> prop -> prop
-| TT      : prop
-| FF      : prop.
-Hint Constructors type prop.
+| IS    : object -> type -> prop
+| ISNT  : object -> type -> prop
+| AND   : prop -> prop -> prop
+| OR    : prop -> prop -> prop
+| IMP   : prop -> prop -> prop
+| SLI   : sli -> prop
+| TRUE  : prop
+| FALSE : prop
+| UNK   : prop
+
+with tlist : Set :=
+| tnil : tlist
+| tcons : type -> tlist -> tlist.
+Hint Constructors type prop tlist.
+
+Fixpoint not_sli (s:sli) : prop :=
+  match s with
+    | nil => FALSE
+    | l::ls => (OR (SLI ((not_lineq l)::nil)) (not_sli ls))
+  end.
+
+Fixpoint not (P:prop) : prop :=
+  match P with
+    | IS o t => ISNT o t
+    | ISNT o t => IS o t
+    | AND p q => OR (not p) (not q)
+    | OR p q => AND (not p) (not q)
+    | IMP p q => AND (not p) q
+    | SLI sys => not_sli sys
+    | TRUE => FALSE
+    | FALSE => TRUE
+    | UNK => UNK
+  end.
 
 Inductive CompoundType : type -> Prop :=
 | CT_U :
-    forall t1 t2,
-      CompoundType (tU t1 t2)
+    forall ts,
+      CompoundType (tUnion ts)
 | CT_P :
     forall t1 t2,
-      CompoundType (tP t1 t2).
+      CompoundType (tPair t1 t2)
+| CT_V :
+    forall ts,
+      CompoundType (tVec ts).
 
 Inductive CompoundProp : prop -> Prop :=
 | CP_Is :
     forall o t,
       CompoundType t
-      -> CompoundProp (Is o t)
+      -> CompoundProp (IS o t)
 | CP_Not :
     forall o t,
       CompoundType t
-      -> CompoundProp (Not o t).
+      -> CompoundProp (ISNT o t).
 Hint Constructors CompoundProp.
 
-Notation tT := (tVal (Val 0)).
-Notation tF := (tVal (Val 1)).
-Notation tNat := (tVal (Val 2)).
-Notation tStr := (tVal (Val 3)).
-Notation tCons := (tVal (Val 4)).
+Notation tBool := (tUnion (tcons tTrue (tcons tFalse tnil))).
+Notation tBot := (tUnion tnil).
 
-Notation tBool := (tU tT tF).
-
-Infix "::=" := Is 
+Infix "::=" := IS 
                  (at level 30, right associativity).
-Infix "::~" := Not
+Infix "::~" := ISNT
                  (at level 30, right associativity).
-Notation "P '&&' Q" := (And P Q) (at level 40, left associativity).
-Notation "P '||' Q" := (Or P Q) (at level 50, left associativity).
-Notation "P '=->' Q" := (Imp P Q) (at level 51).
+Notation "P '&&' Q" := (AND P Q) (at level 40, left associativity).
+Notation "P '||' Q" := (OR P Q) (at level 50, left associativity).
+Notation "P '=->' Q" := (IMP P Q) (at level 51).
 
 Definition car_at (o:object) : object :=
   match o with
@@ -127,40 +181,65 @@ Definition cdr_at (o:object) : object :=
     | obj π x => obj (π++[cdr]) x
   end.
 
-Fixpoint reduce_Is (o:object) (t:type) : prop :=
-  match t with
-    | tU t1 t2 => ((o ::= t1) || (o ::= t2))
-    | tP t1 t2 => ((o ::= tCons) 
-                     && (reduce_Is (car_at o) t1) 
-                     && (reduce_Is (cdr_at o) t2))
-    | _ => (Is o t)
+Definition ref_at (i:nat) (o:object) : object :=
+  match o with
+    | obj π x => obj (π++[(ref i)]) x
   end.
 
-Fixpoint reduce_Not (o:object) (t:type) : prop :=
-  match t with
-    | tU t1 t2 => ((o ::~ t1) && (o ::~ t2))
-    | tP t1 t2 => ((o ::~ tCons) 
-                     || (reduce_Not (car_at o) t1) 
-                     || (reduce_Not (cdr_at o) t2))
-    | _ => (Is o t)
+Fixpoint reduce_UnionList (o:object) (l:tlist) : prop :=
+  match l with
+    | tnil => FALSE
+    | tcons t ts => (OR (o ::= t) (reduce_UnionList o ts)) 
   end.
+
+Fixpoint reduce_VecList_refs (o:object) (i:nat) (l:tlist) : prop :=
+  match l with
+    | tnil => TRUE
+    | tcons t ts => (AND ((ref_at i o) ::= t) 
+                    (reduce_VecList_refs o (1 + i) ts)) 
+  end.
+
+Fixpoint reduce_IS (o:object) (t:type) : prop :=
+  match t with
+    | tUnion ts => (reduce_UnionList o ts)
+    | tVec ts => (o ::= tArray) && (reduce_VecList_refs o 0 ts)
+    | tPair t1 t2 => ((o ::= tCons) 
+                      && (reduce_IS (car_at o) t1) 
+                      && (reduce_IS (cdr_at o) t2))
+    | _ => (IS o t)
+  end.
+
+Definition reduce_ISNT (o:object) (t:type) : prop :=
+not (reduce_IS o t).
+
 
 Fixpoint reduce (p:prop) : prop :=
   match p with
-    | Is o t => (reduce_Is o t)
-    | Not o t => (reduce_Not o t)
+    | IS o t => (reduce_IS o t)
+    | ISNT o t => (reduce_ISNT o t)
     | _ => p
   end.
 
 
 (** Expressions and primitive operations: *)
 Inductive const_op :=
-  opAdd1 | opIsZero | opIsNat | opIsBool | opIsProc | 
-  opIsCons | opIsStr | opStrLen | opPlus.
+| opEq  : Z -> const_op
+| opLEq : Z -> const_op
+| opAdd1 : const_op
+| opIsZero : const_op 
+| opIsNum : const_op
+| opIsBool : const_op
+| opIsProc : const_op
+| opIsCons : const_op
+| opPlus : const_op
+| opIsVec : const_op
+| opLen : const_op.
 Hint Constructors const_op.
 
 Inductive poly_op :=
- opCar | opCdr.
+| opCar : poly_op
+| opCdr : poly_op
+| opRef : nat -> poly_op.
 Hint Constructors poly_op.
 
 Inductive op : Type :=
@@ -168,130 +247,48 @@ Inductive op : Type :=
 | p_op : poly_op -> op.
 Hint Constructors op.
 
-Inductive exp : Type :=
-| eNat : nat -> exp
+Inductive exp : Set :=
+| eNum   : Z -> exp
 | eTrue  : exp
 | eFalse : exp
-| eStr : string -> exp
-| eVar : id -> exp
-| eTVar : id -> type -> exp
-| eOp  : op -> exp
-| eIf  : exp -> exp -> exp -> exp
-| eλ : id -> type -> exp -> exp
-| eApp : exp -> exp -> exp
-| eLet : id -> exp -> exp -> exp
-| eCons : exp -> exp -> exp.
-Hint Constructors exp.
+| eVar   : id -> exp
+| eOp    : op -> exp
+| eIf    : exp -> exp -> exp -> exp
+| eλ     : id -> type -> exp -> exp
+| eApp   : exp -> exp -> exp
+| eLet   : id -> exp -> exp -> exp
+| eCons  : exp -> exp -> exp
+| eVec   : elist -> exp
 
-Inductive TypedExp : exp -> Prop :=
-| TNat n : TypedExp (eNat n)
-| TTrue : TypedExp eTrue
-| TFalse : TypedExp eFalse
-| TStr s : TypedExp (eStr s)
-| TVar x t : TypedExp (eTVar x t)
-| TIf e1 e2 e3 : TypedExp e1
-                 -> TypedExp e2
-                 -> TypedExp e3
-                 -> TypedExp (eIf e1 e2 e3)
-| Tλ x t e : TypedExp e -> TypedExp (eλ x t e)
-| TApp e1 e2 : TypedExp e1
-               -> TypedExp e2
-               -> TypedExp (eApp e1 e2)
-| TLet x e1 e2 : TypedExp e1
-                 -> TypedExp e2
-                 -> TypedExp (eLet x e1 e2)
-| TCons e1 e2 : TypedExp e1
-                -> TypedExp e2
-                -> TypedExp (eCons e1 e2).
-
-Inductive LTEq : exp -> exp -> Prop :=
-| LTEq_Refl e  : LTEq e e
-| LTEq_Var x t : LTEq (eTVar x t) (eVar x)
-| LTEq_If e1 e2 e3 e1' e2' e3' : 
-    LTEq e1 e1'
-    -> LTEq e2 e2'
-    -> LTEq e3 e3'
-    -> LTEq (eIf e1 e2 e3) (eIf e1' e2' e3')
-| LTEq_λ x t e e' : 
-    LTEq e e'
-    -> LTEq (eλ x t e) (eλ x t e')
-| LTEq_App e1 e2 e1' e2' : 
-    LTEq e1 e1'
-    -> LTEq e2 e2'
-    -> LTEq (eApp e1 e2) (eApp e1' e2')
-| LTEq_Let x e1 e2 e1' e2' : 
-    LTEq e1 e1'
-    -> LTEq e2 e2'
-    -> LTEq (eLet x e1 e2) (eLet x e1' e2')
-| LTEq_Cons e1 e2 e1' e2' : 
-    LTEq e1 e1'
-    -> LTEq e2 e2'
-    -> LTEq (eCons e1 e2) (eCons e1' e2').
-
+with elist : Set :=
+| enil : elist
+| econs : exp -> elist -> elist.
+Hint Constructors exp elist.
 
 Notation "$" := eVar.
-Notation "t$" := eTVar.
 Notation "#t" := eTrue.
 Notation "#f" := eFalse.
-Notation "#" := eNat.
+Notation "#" := eNum.
 Notation λ := eλ.
-Notation Str := eStr.
 Notation If := eIf.
 Notation Let := eLet.
 Notation Apply := eApp.
 Notation Car  := (eApp (eOp (p_op opCar))).
 Notation Cdr := (eApp (eOp (p_op opCdr))).
+Notation "Ref[ n ]" := (eApp (eOp (p_op (opRef n)))).
+Notation "Eq[ z ]" := (eApp (eOp (c_op (opEq z)))).
+Notation "LEq[ z ]" := (eApp (eOp (c_op (opLEq z)))).
 Notation Add1 := (eApp (eOp (c_op opAdd1))).
 Notation "Zero?" := (eApp (eOp (c_op opIsZero))).
-Notation "Nat?" := (eApp (eOp (c_op opIsNat))).
+Notation "Num?" := (eApp (eOp (c_op opIsNum))).
 Notation "Bool?" := (eApp (eOp (c_op opIsBool))).
 Notation "Proc?" := (eApp (eOp (c_op opIsProc))).
 Notation "Cons?" := (eApp (eOp (c_op opIsCons))).
+Notation "Vec?" := (eApp (eOp (c_op opIsCons))).
 Notation Cons := eCons.
-Notation "Str?" := (eApp (eOp (c_op opIsStr))).
-Notation StrLen := (eApp (eOp (c_op opStrLen))).
+Notation Vec := eVec.
 Notation Plus := (fun x y =>
                     (eApp (eApp (eOp (c_op opPlus)) x) y)).
-
-
-(** Weighting for types/props *)
-Fixpoint type_weight (t:type) : nat :=
-  match t with
-    | tU t1 t2 =>
-      2 + (plus (type_weight t1) (type_weight t2))
-    | tλ x t1 t2 p1 p2 _ => 
-      2 + (type_weight t1) 
-      + (type_weight t2)
-      + (prop_weight p1)
-      + (prop_weight p2)
-                                               
-    | tP t1 t2 => 4 + (plus (type_weight t1) (type_weight t2))
-    | _ => 1
-  end
-
-with prop_weight (p:prop) : nat :=
-  match p with
-    | Is o t => type_weight t
-    | Not o t => type_weight t
-    | And P Q => 1 + (prop_weight P) + (prop_weight Q)
-    | Or P Q => 1 + (prop_weight P) + (prop_weight Q)
-    | Imp P Q => 1 + (prop_weight P) + (prop_weight Q)
-    | TT => 1
-    | FF => 0
-  end.
-Hint Unfold type_weight prop_weight.
-
-Fixpoint env_weight (l:list prop) : nat :=
-  match l with
-    | nil => 0
-    | p :: ps => (prop_weight p) + (env_weight ps)
-  end.
-Hint Unfold env_weight.
-
-Definition proof_weight (p:(list prop) * prop) : nat :=
-plus (env_weight (fst p)) (prop_weight (snd p)).
-Hint Unfold proof_weight.
-
 
 (** Decidable equality of defined types thus far: *)
 
@@ -324,16 +321,21 @@ Proof. decide equality. Defined.
 Hint Resolve obj_eqdec.
 
 Fixpoint type_eqdec (x y : type) : {x=y}+{x<>y}
-with prop_eqdec (x y : prop) : {x=y}+{x<>y}.
+with prop_eqdec (x y : prop) : {x=y}+{x<>y}
+with tlist_eqdec (x y : tlist) : {x=y}+{x<>y}.
 Proof.
+repeat decide equality.
 repeat decide equality.
 repeat decide equality.
 Defined.
-Hint Resolve type_eqdec prop_eqdec.
+Hint Resolve type_eqdec prop_eqdec tlist_eqdec.
 
-Theorem exp_eqdec : forall e1 e2 : exp,
-{e1 = e2} + {e1 <> e2}.
+Hint Resolve Z_eq_dec.
+
+Fixpoint exp_eqdec (x y : exp) : {x=y}+{x<>y}
+with elist_eqdec (x y : elist) : {x=y}+{x<>y}.
 Proof.
+  repeat decide equality.
   repeat decide equality.
 Defined.
 (** Environment Functions *)
@@ -342,62 +344,70 @@ Defined.
 Definition const_type (c : const_op) : type :=
 let x := (Id 0) in
   match c with
-    | opIsNat =>
+    | opEq n =>
+      (tλ x 
+          tNum tBool
+          ((var x) ::= (tDNum (var x) 
+                              [(LIneq (LinExp [] n)
+                                      (LinExp [(Term 1 (var x))] 0));
+                                (LIneq (LinExp [(Term 1 (var x))] 0)
+                                       (LinExp [] n))]))
+          None)
+    | opLEq n =>
+      (tλ x 
+          tNum tBool
+          ((var x) ::= (tDNum (var x) 
+                              [(LIneq (LinExp [(Term 1 (var x))] 0)
+                                      (LinExp [] n))]))
+          None)
+    | opIsNum =>
       (tλ x 
           tTop tBool
-          ((var x) ::= tNat)
-          ((var x) ::~ tNat)
+          ((var x) ::= tNum)
           None)
     | opIsProc =>
       (tλ x 
           tTop tBool
-          ((var x) ::= (tλ x tBot tTop) TT FF None)
-          ((var x) ::~ (tλ x tBot tTop) TT FF None)
+          ((var x) ::= (tλ x tBot tTop) TRUE None)
           None)
     | opIsBool =>
       (tλ x 
           tTop tBool
           ((var x) ::= tBool)
-          ((var x) ::= tBool)
           None)
     | opIsCons =>
       (tλ x 
           tTop tBool
-          ((var x) ::= (tP tTop tTop))
-          ((var x) ::~ (tP tTop tTop))
+          ((var x) ::= (tPair tTop tTop))
+          None)
+    | opIsVec =>
+      (tλ x 
+          tTop tBool
+          ((var x) ::= tArray)
+          None)
+    | opLen =>
+      (tλ x 
+          tArray tNum
+          TRUE
           None)
     | opAdd1 =>
       (tλ x 
-          tNat tNat
-          TT 
-          FF
+          tNum tNum
+          TRUE
           None)
     | opIsZero =>
       (tλ x 
-          tNat tBool
-          TT 
-          FF
-          None)
-    | opIsStr =>
-      (tλ x 
-          tTop tBool
-          ((var x) ::= tStr)
-          ((var x) ::~ tStr)
-          None)
-    | opStrLen =>
-      (tλ x 
-          tStr tNat
-          TT 
-          FF
+          tNum tBool
+          TRUE
           None)
     | opPlus =>
       (tλ x 
-          tNat
+          tNum
           (tλ x 
-              tNat tNat
-              TT FF
+              tNum tNum
+              TRUE
               None)
-          TT FF
+          TRUE
           None)
   end.
 
@@ -417,14 +427,14 @@ Definition id_remove := remove id_eqdec.
 
 Definition id_In_dec := In_dec id_eqdec.
 
-Definition propify (b:bool) : prop := if b then TT else FF.
+Definition propify (b:bool) : prop := if b then TRUE else FALSE.
 
 Fixpoint fv_set_opto (o : opt object) : list id :=
   match o with
     | None => []
     | Some (obj _ x) => [x]
   end.
-
+(* BOOKMARK *)
 Fixpoint fv_set_t (t : type) : list id :=
   match t with
     | tU lhs rhs =>

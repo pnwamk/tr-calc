@@ -434,22 +434,32 @@ Fixpoint fv_set_opto (o : opt object) : list id :=
     | None => []
     | Some (obj _ x) => [x]
   end.
-(* BOOKMARK *)
+
 Fixpoint fv_set_t (t : type) : list id :=
   match t with
-    | tU lhs rhs =>
-      app (fv_set_t lhs) 
-          (fv_set_t rhs)
-    | tλ x t1 t2 p1 p2 o =>
+    | tUnion typelist =>
+      ((fix ts_fv_set (types : tlist) : list id :=
+        match types with
+          | tnil => nil
+          | tcons t ts =>
+            (fv_set_t t) ++ (ts_fv_set ts)
+        end) typelist)
+    | tVec typelist =>
+      ((fix ts_fv_set (types : tlist) : list id :=
+        match types with
+          | tnil => nil
+          | tcons t ts =>
+            (fv_set_t t) ++ (ts_fv_set ts)
+        end) typelist)
+    | tλ x t1 t2 p o =>
       app (fv_set_t t1)
           (id_remove
              x 
              (app_all 
                 [(fv_set_t t2);
-                  (fv_set_p p1);
-                  (fv_set_p p2);
+                  (fv_set_p p);
                   (fv_set_opto o)]))
-    | tP t1 t2 =>
+    | tPair t1 t2 =>
       app (fv_set_t t1)
           (fv_set_t t2)
     | _ => nil
@@ -458,8 +468,8 @@ Fixpoint fv_set_t (t : type) : list id :=
 (* free variables in propositions *)
 with fv_set_p (p: prop) : list id :=
   match p with
-    | Is (obj _ x) t =>  x::(fv_set_t t)
-    | Not (obj _ x) t => x::(fv_set_t t)
+    | IS (obj _ x) t =>  x::(fv_set_t t)
+    | ISNT (obj _ x) t => x::(fv_set_t t)
     | p && q => app (fv_set_p p) (fv_set_p q)
     | p || q => app (fv_set_p p) (fv_set_p q)
     | p =-> q => app (fv_set_p p) (fv_set_p q)
@@ -479,32 +489,55 @@ Definition subst_o (newobj: opt object) (z:id) (o: opt object) : opt object :=
   end.
 
 
+Definition subst_term (newo:opt object) (x:id) (t:term) : term :=
+  match t with
+    | Term z o => Term z (subst_o newo x o)
+  end.
+
+Inductive linexp :=
+| LinExp : list term -> Z -> linexp.
+
+
+Definition subst_leq (newo:opt object) (x:id) (ineq:leq) : leq :=
+  match ineq with
+    | LIneq lhs rhs =>
+      LIneq (subst_linexp newo x lhs) (subst_linexp newo x rhs)
+  end.
+
+Fixpoint subst_sli  (newo:opt object) (x:id) (sys:sli) : sli :=
+  match sys with
+    | nil => nil
+    | ineq::ineqs =>
+      (subst_leq ineq)::(subst_sli newo x ineqs)
+  end.
+
 (** Substitution functions: *)
+
 Fixpoint subst_p'
          (newo:opt object)
          (x:id) 
          (p:prop)
          (b:bool) : prop :=
   match p with
-    | Is (obj pth1 z) t => 
+    | IS (obj pth1 z) t => 
       match id_eqdec x z with
         | Yes =>
           match newo with
             | None => propify b
             | Some (obj pth2 y) =>
-              Is (obj (pth1 ++ pth2) y) (subst_t' newo x t b)
+              IS (obj (pth1 ++ pth2) y) (subst_t' newo x t b)
           end
         | No => if id_In_dec z (fv_set_t t)
                 then propify b
                 else p
       end
-    | Not (obj pth1 z) t => 
+    | ISNT (obj pth1 z) t => 
       match id_eqdec x z with
         | Yes =>
           match newo with
             | None => propify b
             | Some (obj pth2 y) =>
-              Not (obj (pth1 ++ pth2) y) (subst_t' newo x t b)
+              ISNT (obj (pth1 ++ pth2) y) (subst_t' newo x t b)
           end
         | No => if id_In_dec z (fv_set_t t)
                 then propify b
@@ -522,9 +555,21 @@ with subst_t'
        (t:type)
        (b:bool): type :=
   match t with
-    | tU lhs rhs => tU (subst_t' newo x lhs b) 
-                       (subst_t' newo x rhs b)
-    | tλ y t1 t2 p1 p2 opto =>
+    | tUnion typelist => 
+      tUnion ((fix ts_subst_t (types : tlist) : list id :=
+                 match types with
+                   | tnil => nil
+                   | tcons t ts =>
+                     (subst_t' newo x t b)::(ts_subst_t ts)
+                 end) typelist)
+    | tVec typelist => 
+      tVec ((fix ts_subst_t (types : tlist) : list id :=
+                 match types with
+                   | tnil => nil
+                   | tcons t ts =>
+                     (subst_t' newo x t b)::(ts_subst_t ts)
+                 end) typelist)
+    | tλ y t1 t2 p opto =>
       if id_eqdec x y
       then tλ y
               (subst_t' newo x t1 b) 
@@ -534,11 +579,11 @@ with subst_t'
       else tλ y
               (subst_t' newo x t1 b)
               (subst_t' newo x t2 b)
-              (subst_p' newo x p1 b)
-              (subst_p' newo x p2 b)
+              (subst_p' newo x p b)
               (subst_o newo x opto)
-    | tP t1 t2 => tP (subst_t' newo x t1 b)
-                     (subst_t' newo x t2 b)
+    | tPair t1 t2 => tPair (subst_t' newo x t1 b)
+                           (subst_t' newo x t2 b)
+    | tDNum
     | _ => t
   end.
 

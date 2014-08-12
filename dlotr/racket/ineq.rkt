@@ -54,6 +54,7 @@
 
 (require racket/list racket/bool)
 (require rackunit)
+(provide (all-defined-out))
 
 ; swap cons cell values car/cdr
 (define (cons-swap c)

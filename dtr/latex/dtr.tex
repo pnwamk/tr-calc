@@ -380,6 +380,18 @@ $ \bot $ is defined as $(\U)$, $\Btype$ is defined as $(\U \: \Ttype \: \: \Ftyp
   {\Gamma \vdash \tau_{\pi'(x)} \\ \Gamma \vdash \nu_{\pi(\pi'(x))}}
   {\Gamma \vdash \update{\tau}{\nu}{\pi}_{\pi'(x)}}
 
+
+\and
+  \inferrule[L-Dep]
+  {\Proves{\Gamma}{\tau_{\pi(x)}} \\ \Proves{\Gamma}{\psi}}
+  {\Proves{\Gamma}{\deptype{y}{\tau}{\psi}_{\pi(x)}}}
+
+\and
+  \inferrule[L-DepWeak]
+  {\Proves{\Gamma}{\deptype{y}{\tau}{\psi}_{\pi(x)}}}
+  {\Proves{\Gamma}{\psi[\pi(x) / y]}}
+
+
 \and
   \inferrule[L-IneqImpl]
   {\Proves{\Gamma}{\Phi_1} \\\\ 

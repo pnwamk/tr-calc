@@ -229,6 +229,29 @@ $ \Gamma ::= $ & $
 % Subtyping Rules
 \begin{figure}
 \begin{mathpar}
+
+  \inferrule[SP-Impl]
+  {\Gamma, \psi \vdash \psi'}
+  {\Gamma \vdash \psi <: \psi'}
+
+\and
+  \inferrule[SP-Refl]
+  {}{\Gamma \vdash \psi <: \psi}
+
+\and
+  \inferrule[SP-Top]
+  {}{\Gamma \vdash \psi <: \Uprop}
+
+
+\and
+  \inferrule[SO-Refl]
+  {}{\vdash o <: o}
+
+\and
+  \inferrule[SO-Top]
+  {}{\vdash o <: \NullO}
+
+\and
   \inferrule[S-Refl]
   {}{\vdash \tau <: \tau}
 
@@ -255,17 +278,15 @@ $ \Gamma ::= $ & $
 \and
   \inferrule[S-Fun]
   {\vdash \sigma' <: \sigma \\ \vdash \tau <: \tau' \\\\
-  \psi_+ \vdash \psi'_+ \\ \psi_- \vdash \psi'_- \\ \vdash o <: o' \\ }
-  {\vdash \funtype{x}{\sigma}{\psi_{+}}{\psi_{-}}{o}{\tau} 
+  \vdash \psi <: \psi' \\  \vdash o <: o' \\ }
+  {\vdash \funtype{x}{\sigma}{\psi}{o}{\tau} 
     <: 
-   \funtype{x}{\sigma'}{\psi'_{+}}{\psi'_{-}}{o'}{\tau'}}
+   \funtype{x}{\sigma'}{\psi'}{o'}{\tau'}}
 
 \and
   \inferrule[S-Vec]
-  {\forall i, \vdash \sigma_i <: \tau_i}
-  {\vdash \lvec \sigma_o \dots \sigma_i \rvec 
-    <: 
-  \lvec \tau_o \dots \tau_i \rvec}
+  {\vdash \sigma <: \tau}
+  {\vdash \vectype{\sigma} <: \vectype{\tau}}
 
 
 \and

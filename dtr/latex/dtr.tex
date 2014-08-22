@@ -37,21 +37,21 @@
 \newcommand{\Ntype}{\mathbf{N}}
 \newcommand{\Btype}{\mathbf{B}}
 \newcommand{\NOT}[1]{\overline{#1}}
-\newcommand{\TypeOf}[6]{#1 \vdash #2 : #3 \: ; \: #4 \mid #5 \: ; \: #6}
+\newcommand{\TypeOf}[5]{#1 \vdash #2 : #3 \: ; \: #4 \: ; \: #5}
 \newcommand{\Proves}[2]{#1 \vdash #2}
 \newcommand{\listof}{\overrightarrow}
 \newcommand{\lvec}{[[}
 \newcommand{\rvec}{]]}
 \newcommand{\vectype}[1]{\lvec #1 \rvec}
 \newcommand{\funtype}[5]{#1\mathord{:}#2 \xrightarrow[ #4 ]{ #3 } #5 }
-\newcommand{\deptype}[3]{\{ #1 : #2 \: | \: #2 \}}
+\newcommand{\deptype}[3]{\{ #1 : #2 \: | \: #3 \}}
 \newcommand{\pairtype}[2]{\langle #1 , #2 \rangle}
 \newcommand{\U}{\bigcup}
 \newcommand{\NullO}{\emptyset}
-\newcommand{\update}[3]{\mathbf{update}(#1, #2, #3)}
+\newcommand{\update}[3]{\textrm{update}(#1, #2, #3)}
 \newcommand{\carpe}{\mathbf{car}}
 \newcommand{\cdrpe}{\mathbf{cdr}}
-\newcommand{\refpe}[1]{\mathbf{ref}_{#1}}
+% \newcommand{\refpe}[1]{\mathbf{ref}_{#1}}
 \newcommand{\lenpe}{\mathbf{len}}
 \newcommand{\lexp}{\mathfrak{L}}
 
@@ -89,7 +89,7 @@ $c  ::= $ & $
 $ pe ::= $ & $ 
 	\carpe \mid 
 	\cdrpe \mid
-	\refpe{\lexp} \mid
+%	\refpe{\lexp} \mid
 	\lenpe $ & Path Elements \\
 $ \pi ::= $ & $ 
 	\listof{pe} $ & Paths \\
@@ -118,16 +118,20 @@ $\sigma , \tau  ::= $ & $
 	\funtype{x}{\sigma}{\psi}{o}{\tau} $ & Types \\
 $\psi ::= $ & $ 
 	\tau_{\pi(x)} \mid 
-	\NOT{\tau}_{\pi(x)} \mid  
+	\NOT{\tau}_{\pi(x)} \mid 
 	\psi \supset \psi \mid 
 	\psi \wedge \psi \mid 
-	\psi \vee \psi \mid
-    \Phi \mid
-	\Tprop \mid
-	\Fprop  $ & Propositions \\
+	\psi \vee \psi \mid 
+    \Phi \mid 
+	\Tprop \mid 
+	\Fprop \mid 
+    \Uprop $ & Propositions \\
 $ \Gamma ::= $ & $ 
 	\listof{\psi} $ & Environments \\	
 \end{tabular}
+\\
+\\
+$ \bot $ is defined as $(\U)$, $\Btype$ is defined as $(\U \: \Ttype \: \: \Ftype)$.
 \caption{Syntax of Types, Propositions, Terms, etc...}
 \end{figure}
 
@@ -135,6 +139,7 @@ $ \Gamma ::= $ & $
 % Typing Rules
 \begin{figure}
 \begin{mathpar}
+
   \inferrule[T-Num]
   {}{\TypeOf{\Gamma}{n}{\deptype{x}{\Ntype}{x = n}}{\Tprop}{n}}
 
@@ -210,9 +215,9 @@ $ \Gamma ::= $ & $
 \and
   \inferrule[T-Ref]
   {\TypeOf{\Gamma}{e_1}{\vectype{\tau}}{\psi_1}{o_1} \\\\
-    \TypeOf{\Gamma}{e_2}{\deptype{x}{\Ntype}{0 \leq x \leq \lenpe(o_1)}}{\psi_2}{o_2}} \\\\
-  o_{r} = (\refpe{x}(y)[o_2 / x])[o_1 / y] \: where y \notin o_2
-  {\TypeOf{\Gamma}{(ref \: e_1 \: e_2)}{\tau}{\NOT{\Ftype_{x}}[o_r / x]}{o_r}}
+    \TypeOf{\Gamma}{e_2}{\deptype{x}{\Ntype}{0 \leq x \leq \lenpe(o_1)}}{\psi_2}{o_2}}
+%  o_r = \textrm{refobject}(\refpe{x}[o_2 / x], o_1)}
+  {\TypeOf{\Gamma}{(ref \: e_1 \: e_2)}{\tau}{\textrm{prop}(\tau)}{\NullO}}
 
 
 \and
@@ -290,14 +295,14 @@ $ \Gamma ::= $ & $
 
 
 \and
-  \inferrule[S-Ineq]
-  {\textrm{unsatisfiable}(\Phi \Join \NOT{\Phi'})}
-  {\vdash \deptype{\Phi} <: \deptype{\Phi'}}
+  \inferrule[S-Dep]
+  {\vdash \tau <: \sigma \\ \psi \vdash \psi'}
+  {\vdash \deptype{x}{\tau}{\psi} <: \deptype{x}{\sigma}{\psi'}}
 
 \and
-  \inferrule[S-IneqNum]
-  {\vdash \Ntype <: \tau}
-  {\vdash \deptype{\Phi} <: \tau}
+  \inferrule[S-DepWeak]
+  {\vdash \tau <: \sigma}
+  {\vdash \deptype{x}{\tau}{\psi} <: \sigma}
 
 
 \end{mathpar}
@@ -309,8 +314,8 @@ $ \Gamma ::= $ & $
 \begin{mathpar}
 
   \inferrule[L-Atom]
-  {\psi \in \Gamma}
-  {\Gamma \vdash \psi}
+  {\chi \in \Gamma}
+  {\Gamma \vdash \chi}
 
 \and
   \inferrule[L-True]
@@ -373,18 +378,13 @@ $ \Gamma ::= $ & $
 \and
   \inferrule[L-Update]
   {\Gamma \vdash \tau_{\pi'(x)} \\ \Gamma \vdash \nu_{\pi(\pi'(x))}}
-  {\Gamma \vdash \update(\tau, \nu, \pi)_{\pi(x)}}
+  {\Gamma \vdash \update{\tau}{\nu}{\pi}_{\pi'(x)}}
 
 \and
-  \inferrule[L-Ineq]
-  {\Gamma \vdash \Ntype_{\pi(x)} \\ \Gamma \vdash \Phi' \\\\ 
-    \textrm{unsatisfiable}(\Phi' \Join (\Phi[x / \diamond]))}
-  {\Gamma \vdash \deptype{\Phi}_{\pi(x)}}
-
-\and
-  \inferrule[L-IneqSimple]
-  {\Gamma, \Ntype_{\pi(x)}, \Phi[x / \diamond] \vdash \psi}
-  {\Gamma, \deptype{\Phi}_{\pi(x)} \vdash \psi}
+  \inferrule[L-IneqImpl]
+  {\Proves{\Gamma}{\Phi_1} \\\\ 
+  \textrm{unsatisfiable}(\Phi_1 \Join \NOT{\Phi}_2)}
+  {\Proves{\Gamma}{\Phi_2}}
 
 \and
   \inferrule[L-IneqJoin]
@@ -398,6 +398,8 @@ $ \Gamma ::= $ & $
   {\Gamma \vdash \psi}
 
 \end{mathpar}
+Where $ \chi $ ranges over propositions of the form $ \tau_{\pi(x)} $,
+$ \NOT{\tau}_{\pi(x)} $, and $ \Phi $.
 \caption{Logic Rules}
 
 \end{figure}
@@ -423,11 +425,10 @@ $ \Phi[o/x] $ & $ = \Phi $ & $ x \not\in \Phi $ \\
 $ \Phi[\pi'(y)/x] $ & $ = \forall \phi \in \Phi,\: \phi[x \mapsto \pi'(y)] $ & $ x \in \Phi $ \\
 $ \Phi[\NullO/x]^{\pm} $ & $ = \textrm{FMelim}(\Phi, \: x, \: \pm) $ & $ x \in \Phi $ \\
 \\
-$ \pi(x)[\pi'(y)/x]$ & $ =\pi(\pi(y)) $ & \\
+$ \pi(x)[\pi'(y)/x]$ & $ =\pi[\pi'(y)/x](\pi'(y)) $ & \\
 $ \pi(x)[\NullO/x]$ & $ =\NullO $ & \\
-$ \pi(x)[o/z]$ & $ =\pi(x) $ & $ x \neq z $ \\
+$ \pi(x)[o/z]$ & $ =\pi[o/z](x) $ & $ x \neq z $ \\
 $ \NullO[o/x]$ & $ =\NullO $ & 
-
 
 \end{tabular}
 

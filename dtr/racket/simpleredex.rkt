@@ -12,8 +12,9 @@
   [o   ::= null x L]
   [φ   ::= (L <= L)]
   [Φ   ::= [LI ...]]
-  [τ   ::= Any Int ([x : τ] where ψ) True False (U τ ...) (λ ([x : τ] ψ o) : τ)]
-  [ψ   ::= (b τ x) SLI (ψ AND ψ) (ψ OR ψ) TT FF UNK]
+  [τ   ::= Any Int ([x : τ] where ψ) True False (U τ ...) (λ ([x : τ] ψ^ o) : τ)]
+  [ψ   ::= (b τ x) SLI (ψ AND ψ) (ψ OR ψ) TT FF]
+  [ψ^   ::= ψ UNK ERR]
   [Γ   ::= [ψ ...]])
 
 
@@ -30,6 +31,7 @@
   [(NOT (ψ_1 AND ψ_2)) ((NOT ψ_1) OR (NOT ψ_2))]
   [(NOT (ψ_1 OR ψ_2)) ((NOT ψ_1) AND (NOT ψ_2))]
   [(NOT TT) FF]
+<<<<<<< HEAD
   [(NOT FF) TT]
   [(NOT UNK) UNK])
 
@@ -40,6 +42,43 @@
   ; L-Atom
   [------------------- "L-Atom"
    (proves [ψ_1 ... (b_1 τ_1 x_1) ψ_2 ...] (b_1 τ_1 x_1))]
+=======
+  [(NOT FF) TT])
+
+(define-metafunction λDTR
+  property : ψ^ -> ψ
+  [(property ψ_1) ψ_1]
+  [(property UNK) TT]
+  [(property ERR) FF])
+
+(define-metafunction λDTR
+  negation : ψ^ -> ψ
+  [(negation ψ_1) (NOT ψ_1)]
+  [(negation UNK) TT]
+  [(negation ERR) FF])
+
+(define-judgment-form λDTR
+  #:mode (not-equal I I)
+  #:contract (not-equal ψ ψ)
+  [------------------- "Neq"
+   (not-equal e_!_1 e_!_1)])
+
+(define-judgment-form λDTR
+  #:mode (not-in I I)
+  #:contract (not-in ψ Γ)
+  [------------------- "Not-In-Empty"
+   (not-in [ ] ψ_1)]
+  [(not-equal ψ_1 ψ_2)
+   (not-in [ψ_3 ...] ψ_1)
+   ------------------- "Not-In-Cons"
+   (not-in [ψ_2 ψ_3 ...] ψ_1)])
+
+(define-judgment-form λDTR
+  #:mode (proves I I)
+  #:contract (proves Γ ψ)
+  ; L-Atom
+  [------------------- "L-Atom"
+   (proves [ψ_1 ... ψ_2 ψ_3 ...] ψ_2)]
   ; L-True
   [------------------- "L-True"
    (proves Γ_1 TT)]
@@ -62,6 +101,7 @@
   [(proves Γ_1 ψ_1)
    ------------------- "L-OrI-lhs"
    (proves Γ_1 (ψ_1 OR ψ_2))]
+  ; L-OrI-rhs
   [(proves Γ_1 ψ_2)
    ------------------- "L-OrI-rhs"
    (proves Γ_1 (ψ_1 OR ψ_2))]
@@ -78,23 +118,40 @@
   [(subtype τ_2 τ_1)
    ------------------- "L-SubNot"
    (proves [ψ_1 ... (#f τ_1 x_1) ψ_2 ...] (#f τ_2 x_1))]
-  ; L-Update
-  [(proves [ψ_1 ... ψ_2 ... (b_1 τ_1 x_1) ψ_3 ... (#t (update τ_1 b_1 τ_2) x_1)] ψ_4)
+  ; L-Update-lhs
+  [(not-in (#t (update τ_1 b_1 τ_2) x_1) [ψ_1 ... (#t τ_1 x_1) ψ_2 ... (b_1 τ_2 x_1) ψ_3 ...])
+   (proves [ψ_1 ... ψ_2 ... ψ_3 ... (b_1 τ_1 x_1) (#t (update τ_1 b_1 τ_2) x_1)] ψ_4)
    ------------------- "L-Update-lhs"
-  (proves [ψ_1 ... (#t τ_1 x_1) ψ_2 ... (b_1 τ_2 x_1) ψ_3 ...] ψ_4)])
+  (proves [ψ_1 ... (#t τ_1 x_1) ψ_2 ... (b_1 τ_2 x_1) ψ_3 ...] ψ_4)]
+  ; L-Update-rhs
+  [(not-in (#t (update τ_1 b_1 τ_2) x_1) [ψ_1 ...  (b_1 τ_2 x_1) ψ_2 ... (#t τ_1 x_1) ψ_3 ...])
+   (proves [ψ_1 ... ψ_2 ... ψ_3 ... (b_1 τ_1 x_1) (#t (update τ_1 b_1 τ_2) x_1)] ψ_4)
+   ------------------- "L-Update-rhs"
+  (proves [ψ_1 ...  (b_1 τ_2 x_1) ψ_2 ... (#t τ_1 x_1) ψ_3 ...] ψ_4)])
 
 
 (define-judgment-form λDTR
   #:mode (subtype I I)
   #:contract (subtype τ τ)
   [------------------- "S-Refl"
-   (subtype τ τ)])
+   (subtype τ_1 τ_1)]
+  [(subtype τ_1 τ_2) ...
+   ------------------- "S-UnionSub"
+   (subtype (U τ_1 ...) τ_2)]
+  [(subtype τ_1 τ_3)
+   ------------------- "S-UnionSuper"
+   (subtype τ_1 (U τ_2 ... τ_3 τ_4 ...))])
+
+(check-true (judgment-holds (subtype Int Int)))
+(check-true (judgment-holds (subtype (U) Int)))
+(check-true (judgment-holds (subtype Int (U Int False))))
+(check-true (judgment-holds (subtype (U True False) (U Int False True))))
+(check-true (judgment-holds (subtype Int Int)))
 
 
 (define-metafunction λDTR
   update : τ b τ -> τ
   [(update τ_1 b_1 τ_2) τ_1]) ;TODO
-
 
 ; To-Do's
 ; 1. How do we make sure update doesn't infinite loop?

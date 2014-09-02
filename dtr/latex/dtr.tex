@@ -210,12 +210,12 @@ $ \bot $ is defined as $(\U)$, $\Btype$ is defined as $(\U \: \Ttype \: \: \Ftyp
   {\TypeOf{\Gamma}{e_1}{\tau}{\psi_{1}}{o_1} \\\\
     \dots \\\\
     \TypeOf{\Gamma}{e_n}{\tau}{\psi_{n}}{o_n}}
-  {\TypeOf{\Gamma}{(vec \: e_1 \: \dots \: e_n)}{\vectype{\tau}}{\Tprop}{\NullO}}
+  {\TypeOf{\Gamma}{(vec \: e_1 \: \dots \: e_n)}{\deptype{x}{\vectype{\tau}}{n = \lenpe(x)}}{\Tprop}{\NullO}}
 
 \and
   \inferrule[T-Ref]
   {\TypeOf{\Gamma}{e_1}{\vectype{\tau}}{\psi_1}{o_1} \\\\
-    \TypeOf{\Gamma}{e_2}{\deptype{x}{\Ntype}{0 \leq x \leq \lenpe(o_1)}}{\psi_2}{o_2}}
+    \TypeOf{\Gamma}{e_2}{\deptype{x}{\Ntype}{0 \leq x < \lenpe(o_1)}}{\psi_2}{o_2}}
 %  o_r = \textrm{refobject}(\refpe{x}[o_2 / x], o_1)}
   {\TypeOf{\Gamma}{(ref \: e_1 \: e_2)}{\tau}{\textrm{prop}(\tau)}{\NullO}}
 

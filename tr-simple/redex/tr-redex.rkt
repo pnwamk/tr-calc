@@ -6,11 +6,12 @@
   [n   ::= integer]
   [b   ::= boolean]
   [x   ::= variable-not-otherwise-mentioned]
-  [e   ::= x (e e) (λ (x : τ) e) (if e e e) c true false n]
-  [c   ::= Add1 Zero? Num? Bool? Proc?]
+  [e   ::= (ann x τ) (e e) (λ (x : τ) e) (if e e e) 
+           c true false n (let (x e) e)]
+  [c   ::= add1 zero? num? bool? proc?]
   [o   ::= x]
   [oo  ::= o Null]
-  [τ   ::= Top Int T F (U τ ...) (λ ([x : τ] ψ ψ oo) : τ)]
+  [τ   ::= Top Int T F (U τ ...) (λ x τ τ ψ ψ oo)]
   [ψ   ::= (o -: τ) (o -! τ) (ψ AND ψ) (ψ OR ψ) TT FF]
   [Γ   ::= [ψ ...]])
 
@@ -233,8 +234,8 @@
    (subobj (subst-oo x_2 x_1 oo_1) oo_2)
    (proves [(subst-ψ x_2 x_1 ψ_1)] ψ_3) (proves [(subst-ψ x_2 x_1 ψ_2)] ψ_4)
    ------------------------------------------ "S-Fun"
-   (subtype (λ ([x_1 : τ_1] ψ_1 ψ_2 oo_1) : τ_2)
-            (λ ([x_2 : τ_3] ψ_3 ψ_4 oo_2) : τ_4))])
+   (subtype (λ x_1 τ_1 τ_2 ψ_1 ψ_2 oo_1)
+            (λ x_2 τ_3 τ_4 ψ_3 ψ_4 oo_2))])
 
 (define-judgment-form λTR
     #:mode (common-val I I)
@@ -252,8 +253,8 @@
      ------------------ "CS-U-rhs"
      (common-val τ_4 (U τ_1 ... τ_2 τ_3 ...))]
     [------------------ "CS-Abs"
-     (common-val (λ ([x_1 : τ_1] ψ_1 ψ_2 oo_1) : τ_2) 
-                     (λ ([x_2 : τ_3] ψ_3 ψ_4 oo_2) : τ_4))])
+     (common-val (λ x_1 τ_1 τ_2 ψ_1 ψ_2 oo_1) 
+                 (λ x_2 τ_3 τ_4 ψ_3 ψ_4 oo_2))])
 
 
 (check-true (judgment-holds (common-val Int Int)))
@@ -330,7 +331,7 @@
   [(free-vars (U)) (vars)]
   [(free-vars (U τ_1 τ_2 ...)) (app (free-vars τ_1) 
                                     (free-vars (U τ_2 ...)))]
-  [(free-vars (λ ([x_1 : τ_1] ψ_1 ψ_2 oo_1) : τ_2))
+  [(free-vars (λ x_1 τ_1 τ_2 ψ_1 ψ_2 oo_1))
    (app (free-vars τ_1)
         (remove-var x_1 (app (free-vars τ_2)
                              (free-vars ψ_1)
@@ -362,18 +363,18 @@
   [(subst-ψ Null x_1 (x_1 -! τ_1)) TT]
   [(subst-ψ o_1 x_1 (x_1 -: τ_1)) (o_1 -: (subst-τ o_1 x τ_1))]
   [(subst-ψ o_1 x_1 (x_1 -! τ_1)) (o_1 -! (subst-τ o_1 x τ_1))]
-  [(subst-ψ o_1 x_1 (x_2 -: τ_1)) TT
+  [(subst-ψ oo_1 x_1 (x_2 -: τ_1)) (x_2 -: τ_1)
    (judgment-holds (!= x_1 x_2))
-   (judgment-holds (in-vl x_2 τ_1))]
-  [(subst-ψ o_1 x_1 (x_2 -! τ_1)) TT
+   (where #f (in-vl x_2 (free-vars τ_1)))]
+  [(subst-ψ oo_1 x_1 (x_2 -! τ_1)) (x_2 -! τ_1)
    (judgment-holds (!= x_1 x_2))
-   (judgment-holds (in-vl x_2 τ_1))]
-  [(subst-ψ o_1 x_1 (x_2 -: τ_1)) (x_2 -: τ_1)
+   (where #f (in-vl x_2 (free-vars τ_1)))]
+  [(subst-ψ oo_1 x_1 (x_2 -: τ_1)) TT
    (judgment-holds (!= x_1 x_2))
-   (where #f (in-vl x_2 τ_1))]
-  [(subst-ψ o_1 x_1 (x_2 -! τ_1)) (x_2 -! τ_1)
+   (judgment-holds (in-vl x_2 (free-vars τ_1)))]
+  [(subst-ψ oo_1 x_1 (x_2 -! τ_1)) TT
    (judgment-holds (!= x_1 x_2))
-   (where #f (in-vl x_2 τ_1))]
+   (judgment-holds (in-vl x_2 (free-vars τ_1)))]
   [(subst-ψ oo_1 x_1 (ψ_1 AND ψ_2)) 
    ((subst-ψ oo_1 x_1 ψ_1) AND (subst-ψ oo_1 x_1 ψ_2))]
   [(subst-ψ oo_1 x_1 (ψ_1 OR ψ_2)) 
@@ -393,14 +394,22 @@
   [(subst-τ oo_1 x_1 (U τ_1 τ_2 τ_3 ...)) 
    (U (subst-τ oo_1 x_1 τ_1)
       (subst-τ oo_1 x_1 (U τ_2 τ_3 ...)))]
-  [(subst-τ oo_1 x_1 (λ ([x_1 : τ_1] ψ_1 ψ_2 oo_2) : τ_2))
-   (λ ([x_2 : (subst-τ oo_1 x_1 τ_1)] ψ_1 ψ_2 oo_2) : τ_2)]
-  [(subst-τ oo_1 x_1 (λ ([x_2 : τ_1] ψ_1 ψ_2 oo_2) : τ_2))
-   (λ ([x_2 : (subst-τ oo_1 x_1 τ_1)] 
-       (subst-ψ oo_1 x_1 ψ_1) 
-       (subst-ψ oo_1 x_1 ψ_2) 
-       (subst-oo oo_1 x_1 oo_2)) : (subst-τ oo_1 x_1 τ_2))])
+  [(subst-τ oo_1 x_1 (λ x_1 τ_1 τ_2 ψ_1 ψ_2 oo_2))
+   (λ x_1 (subst-τ oo_1 x_1 τ_1) τ_2 ψ_1 ψ_2 oo_2)]
+  [(subst-τ oo_1 x_1 (λ x_2 τ_1 τ_2 ψ_1 ψ_2 oo_2))
+   (λ x_2 
+     (subst-τ oo_1 x_1 τ_1)
+     (subst-τ oo_1 x_1 τ_2)
+     (subst-ψ oo_1 x_1 ψ_1) 
+     (subst-ψ oo_1 x_1 ψ_2) 
+     (subst-oo oo_1 x_1 oo_2))])
 
+
+(check-equal? (term (subst-oo Null x x)) (term Null))
+(check-equal? (term (subst-ψ x x (x -: Int))) (term (x -: Int)))
+(check-equal? (term (subst-ψ x y (y -: Int))) (term (x -: Int)))
+(check-equal? (term (subst-ψ Null x (y -: Int))) (term (y -: Int)))
+(check-equal? (term (subst-ψ Null y (y -: Int))) (term TT))
 
 
 (check-true (judgment-holds (subtype Int Int)))
@@ -413,11 +422,14 @@
 (check-true (judgment-holds (subtype (U Int Int) Int)))
 (check-true (judgment-holds (subtype (U Int Int) (U Int T))))
 (check-true (judgment-holds 
-             (subtype (λ ([x : Top] (x -: Int) (x -! Int) Null) : (U T F)) 
-                      (λ ([y : Top] (y -: Int) (y -! Int) Null) : (U T F)))))
+             (subtype (λ x Top (U T F) (x -: Int) (x -! Int) Null) 
+                      (λ x Top (U T F) (x -: Int) (x -! Int) Null))))
 (check-true (judgment-holds 
-             (subtype (λ ([x : Top] TT TT Null) : Int) 
-                      (λ ([y : Int] TT TT Null) : (U Int T F)))))
+             (subtype (λ x Top (U T F) (x -: Int) (x -! Int) Null) 
+                      (λ y Top (U T F) (y -: Int) (y -! Int) Null))))
+(check-true (judgment-holds 
+             (subtype (λ x Top Int TT TT Null) 
+                      (λ y Int (U Int T F) TT TT Null))))
 
 
 (check-false (judgment-holds (proves [ ] FF)))
@@ -466,3 +478,95 @@
 
 (check-equal? (term (reduce-ψ [] ((x -: Int) AND (x -! Int))))
               (term (FF AND FF)))
+
+(define-metafunction λTR
+    simplify-ψ : ψ -> ψ
+    [(simplify-ψ ψ_1) (reduce-ψ [] ψ_1)])
+
+(define-metafunction λTR
+  δτ : c -> τ
+  [(δτ add1) (λ x Int Int TT FF Null)]
+  [(δτ zero?) (λ x Int (U T F) TT TT x)]
+  [(δτ num?) (λ x Top (U T F) (x -: Int) (x -! Int) x)]
+  [(δτ bool?) (λ x Top (U T F) (x -: (U T F)) (x -! (U T F)) x)]
+  [(δτ proc?) (λ x Top (U T F) 
+                 (x -: (λ y Top (U) TT TT Null))
+                 (x -! (λ y Top (U) TT TT Null))
+                 x)])
+
+
+(define-metafunction λTR
+  oo-join : oo oo -> oo
+  [(oo-join oo_1 Null) Null]
+  [(oo-join Null oo_2) Null]
+  [(oo-join x_!_1 x_!_1) Null]
+  [(oo-join x_1 x_1) x_1])
+
+(define-metafunction λTR
+  τ-join : τ τ -> τ
+  [(τ-join τ_1 τ_2) τ_2
+   (judgment-holds (subtype τ_1 τ_2))]
+  [(τ-join τ_1 τ_2) τ_1
+   (judgment-holds (subtype τ_2 τ_1))]
+  [(τ-join τ_1 τ_2) (U τ_1 τ_2)
+   (where #f (subtype τ_1 τ_2))
+   (where #f (subtype τ_2 τ_1))])
+
+(define-judgment-form λTR
+  #:mode (typeof I I O O O O)
+  #:contract (typeof Γ e τ ψ ψ oo)
+  [-------------- "T-Num"
+   (typeof Γ_1 n_1 Int TT FF Null)]
+  [-------------- "T-Const"
+   (typeof Γ_1 c_1 (δτ c_1) TT FF Null)]
+  [-------------- "T-True"
+   (typeof Γ_1 #t T TT FF Null)]
+  [-------------- "T-False"
+   (typeof Γ_1 #f F FF TT Null)]
+  [(proves Γ_1 (x_1 -: τ_1))
+   -------------- "T-AnnVar"
+   (typeof Γ_1 (ann x_1 τ_1) τ_1 (x_1 -! F) (x_1 -: F) x_1)]
+  [(typeof [(x_1 -: τ_1) ψ_1 ...] e_1 τ_2 ψ_2 ψ_3 oo_1)
+   -------------- "T-Abs"
+   (typeof [ψ_1 ...]
+           (λ (x_1 : τ_1) e_1) 
+           (λ x_1 τ_1 τ_2 (simplify-ψ ψ_2) (simplify-ψ ψ_3) oo_1)
+           TT FF
+           Null)]
+  [(typeof Γ_1 e_1 (λ x_1 τ_1 τ_2 ψ_1 ψ_2 oo_0) ψ_3 ψ_4 oo_1)
+   (typeof Γ_1 e_2 τ_3 ψ_5 ψ_6 oo_2)
+   (subtype τ_3 τ_1)
+   -------------- "T-App"
+   (typeof Γ_1
+           (e_1 e_2)
+           (subst-τ oo_2 x_1 τ_2)
+           (subst-ψ oo_2 x_1 (simplify-ψ ψ_1))
+           (subst-ψ oo_2 x_1 (simplify-ψ ψ_2))
+           (subst-oo oo_2 x_1 oo_0))]
+  [(typeof [ψ_1 ...]     e_1 τ_1 ψ_2 ψ_3 oo_1)
+   (typeof [ψ_2 ψ_1 ...] e_2 τ_2 ψ_4 ψ_5 oo_2)
+   (typeof [ψ_3 ψ_1 ...] e_3 τ_3 ψ_6 ψ_7 oo_3)
+   ------------------------------------------- "T-If"
+   (typeof [ψ_1 ...] 
+           (if e_1 e_2 e_3)
+           (τ-join τ_2 τ_3)
+           (simplify-ψ ((ψ_2 AND ψ_4) OR (ψ_3 AND ψ_6))) 
+           (simplify-ψ ((ψ_2 AND ψ_5) OR (ψ_3 AND ψ_7)))
+           (oo-join oo_2 oo_3))]
+  [(typeof [ψ_0 ...] e_1 τ_1 ψ_1 ψ_2 oo_1)
+   (typeof [(x_1 -: τ_1) (((x_1 -! F) AND ψ_1) OR ((x_1 -: F) AND ψ_2)) ψ_0 ...] 
+           e_2
+           τ_2
+           ψ_3 ψ_4 
+           oo_2)
+   (where ψ_5 ((x_1 -: τ_1) AND (((x_1 -! F) AND ψ_1) OR ((x_1 -: F) AND ψ_2))))
+   -------------------------- "T-Let"
+   (typeof [ψ_0 ...]
+           (let (x_1 e_1) e_2)
+           (subst-τ oo_1 x_1 τ_2)
+           (subst-ψ oo_1 x_1 
+                    (simplify-ψ (ψ_3 AND ψ_5)))
+           (subst-ψ oo_1 x_1 
+                    (simplify-ψ (ψ_4 AND ψ_5)))
+           (subst-τ oo_1 x_1 oo_2))])
+

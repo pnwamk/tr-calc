@@ -3,15 +3,14 @@
 (require redex rackunit)
 
 (define-language λTR
-  [n   ::= integer]
   [b   ::= boolean]
   [x   ::= variable-not-otherwise-mentioned]
   [e   ::= (ann x τ) (e e) (λ (x : τ) e) (if e e e) 
-           c true false n (let (x e) e)]
-  [c   ::= add1 zero? num? bool? proc?]
+           c boolean integer string (let (x e) e)]
+  [c   ::= add1 zero? int? str? bool? proc? str-len + error]
   [o   ::= x]
   [oo  ::= o Null]
-  [τ   ::= Top Int T F (U τ ...) (λ x τ τ ψ ψ oo)]
+  [τ   ::= Top T F Int Str (U τ ...) (λ x τ τ ψ ψ oo)]
   [ψ   ::= (o -: τ) (o -! τ) (ψ AND ψ) (ψ OR ψ) TT FF]
   [Γ   ::= [ψ ...]])
 
@@ -192,19 +191,19 @@
   ; L-Restrict
   [(where #f (in (o_1 -: (update τ_1 #t τ_2)) 
                  [ψ_1 ... (o_1 -: τ_1) ψ_2 ... (o_1 -: τ_2) ψ_3 ...]))
-   (proves [ψ_1 ... ψ_2 ... ψ_3 ... (o_1 -: τ_1) (o_1 -: (update τ_1 #t τ_2))] ψ_4)
+   (proves [ψ_1 ... ψ_2 ... ψ_3 ... (o_1 -: τ_2) (o_1 -: τ_1) (o_1 -: (update τ_1 #t τ_2))] ψ_4)
    ------------------- "L-Restrict"
   (proves [ψ_1 ... (o_1 -: τ_1) ψ_2 ... (o_1 -: τ_2) ψ_3 ...] ψ_4)]
   ; L-Remove-lhs
   [(where #f (in (o_1 -: (update τ_1 #f τ_2)) 
-                 [ψ_1 ... (o_1 -! τ_2) ψ_2 ... (o_1 -: τ_2) ψ_3 ...]))
-   (proves [ψ_1 ... ψ_2 ... ψ_3 ... (o_1 -: τ_1) (o_1 -: (update τ_1 #f τ_2))] ψ_4)
+                 [ψ_1 ... (o_1 -! τ_2) ψ_2 ... (o_1 -: τ_1) ψ_3 ...]))
+   (proves [ψ_1 ... ψ_2 ... ψ_3 ... (o_1 -: τ_1) (o_1 -! τ_2) (o_1 -: (update τ_1 #f τ_2))] ψ_4)
    ------------------- "L-Remove-lhs"
   (proves [ψ_1 ... (o_1 -! τ_2) ψ_2 ... (o_1 -: τ_1) ψ_3 ...] ψ_4)]
     ; L-Remove-rhs
   [(where #f (in (o_1 -: (update τ_1 #f τ_2)) 
                  [ψ_1 ...  (o_1 -: τ_1) ψ_2 ... (o_1 -! τ_2) ψ_3 ...]))
-   (proves [ψ_1 ... ψ_2 ... ψ_3 ... (o_1 -: τ_1) (o_1 -: (update τ_1 #f τ_2))] ψ_4)
+   (proves [ψ_1 ... ψ_2 ... ψ_3 ... (o_1 -: τ_1) (o_1 -! τ_2) (o_1 -: (update τ_1 #f τ_2))] ψ_4)
    ------------------- "L-Remove-rhs"
   (proves [ψ_1 ...  (o_1 -: τ_1) ψ_2 ... (o_1 -! τ_2) ψ_3 ...] ψ_4)])
 
@@ -301,6 +300,7 @@
   [(remove τ_1 τ_2) τ_1
    (where #f (subtype τ_1 τ_2))
    (judgment-holds (non-U τ_1))]
+  [(remove (U) τ_2) (U)]
   [(remove (U τ_1) τ_2) (remove τ_1 τ_2)]
   [(remove (U τ_1 τ_2 ...) τ_3) (U (remove τ_1 τ_3) (remove (U τ_2 ...) τ_3))])
 
@@ -326,6 +326,7 @@
   ; types
   [(free-vars Top) (vars)]
   [(free-vars Int) (vars)]
+  [(free-vars Str) (vars)]
   [(free-vars T) (vars)]
   [(free-vars F) (vars)]
   [(free-vars (U)) (vars)]
@@ -387,6 +388,7 @@
   subst-τ : oo x τ -> τ
   [(subst-τ oo_1 x_1 Top) Top]
   [(subst-τ oo_1 x_1 Int) Int]
+  [(subst-τ oo_1 x_1 Str) Str]
   [(subst-τ oo_1 x_1 T) T]
   [(subst-τ oo_1 x_1 F) F]
   [(subst-τ oo_1 x_1 (U)) (U)]
@@ -445,49 +447,42 @@
 
 (define-metafunction λTR
     reduce-ψ : Γ ψ -> ψ
-    [(reduce-ψ [ψ_1 ...] (x_1 -: τ_1)) FF
-     (judgment-holds (proves [(x_1 -: τ_1) ψ_1 ...] FF))]
-    [(reduce-ψ [ψ_1 ...] (x_1 -: τ_1)) (x_1 -: τ_1)
-     (where #f (proves [(x_1 -: τ_1) ψ_1 ...] FF))]
-    [(reduce-ψ [ψ_1 ...] (x_1 -! τ_1)) FF
-     (judgment-holds (proves [(x_1 -! τ_1) ψ_1 ...] FF))]
-    [(reduce-ψ [ψ_1 ...] (x_1 -! τ_1)) (x_1 -! τ_1)
-     (where #f (proves [(x_1 -! τ_1) ψ_1 ...] FF))]
+    [(reduce-ψ Γ_1 (x_1 -: τ_1)) FF
+     (judgment-holds (proves Γ_1 (x_1 -! τ_1)))]
+    [(reduce-ψ Γ_1 (x_1 -: τ_1)) (x_1 -: τ_1)
+     (where #f (proves Γ_1 (x_1 -! τ_1)))]
+    [(reduce-ψ Γ_1 (x_1 -! τ_1)) FF
+     (judgment-holds (proves Γ_1 (x_1 -: τ_1)))]
+    [(reduce-ψ Γ_1 (x_1 -! τ_1)) (x_1 -! τ_1)
+     (where #f (proves Γ_1 (x_1 -: τ_1)))]
     [(reduce-ψ Γ_1 TT) TT]
     [(reduce-ψ Γ_1 FF) FF]
     [(reduce-ψ [ψ_1 ...] (ψ_2 AND ψ_3))
      ((reduce-ψ [ψ_3 ψ_1 ...] ψ_2) AND (reduce-ψ [ψ_2 ψ_1 ...] ψ_3))]
-    [(reduce-ψ [ψ_1 ...] (ψ_2 OR ψ_3)) FF
-     (judgment-holds (proves [ψ_3 ψ_1 ...] FF))
-     (judgment-holds (proves [ψ_2 ψ_1 ...] FF))]
-    [(reduce-ψ [ψ_1 ...] (ψ_2 OR ψ_3)) (reduce-ψ [ψ_1 ...] ψ_2)
-     (judgment-holds (proves [ψ_3 ψ_1 ...] FF))
-     (where #f (proves [ψ_2 ψ_1 ...] FF))]
-    [(reduce-ψ [ψ_1 ...] (ψ_2 OR ψ_3)) (reduce-ψ [ψ_1 ...] ψ_3)
-     (where #f (proves [ψ_3 ψ_1 ...] FF))
-     (judgment-holds (proves [ψ_2 ψ_1 ...] FF))]
-    [(reduce-ψ [ψ_1 ...] (ψ_2 OR ψ_3))
-     ((reduce-ψ [ψ_1 ...] ψ_2) OR (reduce-ψ [ψ_1 ...] ψ_3))
-     (where #f (proves [ψ_3 ψ_1 ...] FF))
-     (where #f (proves [ψ_2 ψ_1 ...] FF))])
+    [(reduce-ψ Γ_1 (ψ_2 OR ψ_3))
+     ((reduce-ψ Γ_1 ψ_2) OR (reduce-ψ Γ_1 ψ_3))])
 
 
 (check-equal? (term (reduce-ψ [] (((x -: Int) OR (x -: (U T F)))
                                AND (x -! Int))))
-              (term ((x -: (U T F)) AND (x -! Int))))
+              (term ((FF OR (x -: (U T F))) AND (x -! Int))))
 
 (check-equal? (term (reduce-ψ [] ((x -: Int) AND (x -! Int))))
               (term (FF AND FF)))
 
 (define-metafunction λTR
     simplify-ψ : ψ -> ψ
-    [(simplify-ψ ψ_1) (reduce-ψ [] ψ_1)])
+    [(simplify-ψ ψ_1) ψ_1])  ;(reduce-ψ [] ψ_1)])
 
 (define-metafunction λTR
   δτ : c -> τ
   [(δτ add1) (λ x Int Int TT FF Null)]
+  [(δτ +) (λ x Int (λ y Int Int TT FF Null) TT FF Null)]
   [(δτ zero?) (λ x Int (U T F) TT TT x)]
-  [(δτ num?) (λ x Top (U T F) (x -: Int) (x -! Int) x)]
+  [(δτ int?) (λ x Top (U T F) (x -: Int) (x -! Int) x)]
+  [(δτ str?) (λ x Top (U T F) (x -: Str) (x -! Str) x)]
+  [(δτ str-len) (λ x Str Int TT FF Null)]
+  [(δτ error) (λ x Str (U) FF FF Null)]
   [(δτ bool?) (λ x Top (U T F) (x -: (U T F)) (x -! (U T F)) x)]
   [(δτ proc?) (λ x Top (U T F) 
                  (x -: (λ y Top (U) TT TT Null))
@@ -516,7 +511,9 @@
   #:mode (typeof I I O O O O)
   #:contract (typeof Γ e τ ψ ψ oo)
   [-------------- "T-Num"
-   (typeof Γ_1 n_1 Int TT FF Null)]
+   (typeof Γ_1 number_1 Int TT FF Null)]
+  [-------------- "T-Str"
+   (typeof Γ_1 string_1 Str TT FF Null)]
   [-------------- "T-Const"
    (typeof Γ_1 c_1 (δτ c_1) TT FF Null)]
   [-------------- "T-True"
@@ -553,20 +550,125 @@
            (simplify-ψ ((ψ_2 AND ψ_4) OR (ψ_3 AND ψ_6))) 
            (simplify-ψ ((ψ_2 AND ψ_5) OR (ψ_3 AND ψ_7)))
            (oo-join oo_2 oo_3))]
-  [(typeof [ψ_0 ...] e_1 τ_1 ψ_1 ψ_2 oo_1)
-   (typeof [(x_1 -: τ_1) (((x_1 -! F) AND ψ_1) OR ((x_1 -: F) AND ψ_2)) ψ_0 ...] 
-           e_2
-           τ_2
-           ψ_3 ψ_4 
-           oo_2)
-   (where ψ_5 ((x_1 -: τ_1) AND (((x_1 -! F) AND ψ_1) OR ((x_1 -: F) AND ψ_2))))
+  [(typeof [ψ_2 ...] e_0 τ_0 ψ_0+ ψ_0- oo_0)
+   (typeof [(x_1 -: τ_0) (((x_1 -! F) AND ψ_0+) 
+                          OR ((x_1 -: F) AND ψ_0-)) ψ_2 ...] 
+           e_1
+           τ_1
+           ψ_1+ ψ_1- 
+           oo_1)
+   (where ψ_5 ((x_1 -: τ_0) AND (((x_1 -! F) AND ψ_0+) 
+                                 OR ((x_1 -: F) AND ψ_0-))))
    -------------------------- "T-Let"
-   (typeof [ψ_0 ...]
-           (let (x_1 e_1) e_2)
-           (subst-τ oo_1 x_1 τ_2)
-           (subst-ψ oo_1 x_1 
-                    (simplify-ψ (ψ_3 AND ψ_5)))
-           (subst-ψ oo_1 x_1 
-                    (simplify-ψ (ψ_4 AND ψ_5)))
-           (subst-τ oo_1 x_1 oo_2))])
+   (typeof [ψ_2 ...]
+           (let (x_1 e_0) e_1)
+           (subst-τ oo_0 x_1 τ_1)
+           (subst-ψ oo_0 x_1 
+                    (simplify-ψ (ψ_1+ AND ψ_5)))
+           (subst-ψ oo_0 x_1 
+                    (simplify-ψ (ψ_1- AND ψ_5)))
+           (subst-oo oo_0 x_1 oo_1))])
 
+
+(define-judgment-form λTR
+  #:mode (typeof* I I I I I I)
+  #:contract (typeof* Γ e τ ψ ψ oo)
+  [(typeof Γ_1 e_1 τ_2 ψ_3 ψ_4 oo_2)
+   (subtype τ_2 τ_1)
+   (proves [ψ_3] ψ_1) (proves [ψ_4] ψ_2)
+   (subobj oo_2 oo_1)
+   -------------- "T-Subsume"
+   (typeof* Γ_1 e_1 τ_1 ψ_1 ψ_2 oo_1)])
+
+(define-metafunction λTR
+  and : e e -> e
+  [(and e_1 e_2) (if e_1 e_2 #f)])
+
+(define-metafunction λTR
+  or : e e -> e
+  [(or e_1 e_2) (let (x_42 e_1) 
+                  (if (ann x_42 Top)
+                      (ann x_42 Top)
+                      e_2))])
+
+(define-metafunction λTR
+  Option : τ -> τ
+  [(Option τ_1) (U τ_1 F)])
+
+; Example 1
+(check-true (judgment-holds (typeof* [(x -: Top)] 
+                                     (if (int? (ann x Top))
+                                         (add1 (ann x Int))
+                                         0) 
+                                     Int 
+                                     TT FF 
+                                     Null)))
+; Example 2
+(check-true (judgment-holds (typeof* []
+                                    (λ (x : (U Str Int))
+                                      (if (int? (ann x Top))
+                                          (add1 (ann x Int))
+                                          (str-len (ann x Str))))
+                                     (λ x (U Str Int) Int TT FF Null)
+                                     TT FF
+                                     Null)))
+; Example 3
+(check-true (judgment-holds (typeof* [(x -: (Option Str))]
+                                     (if (ann x Top)
+                                         (str-len (ann x Str))
+                                         (error "string not found"))
+                                     Int
+                                     TT FF
+                                     Null)))
+; Example 4
+#;(check-true (judgment-holds (typeof* [(f -: (λ x (U Int Str) Int TT FF Null))
+                                      (x -: Top)]
+                                     (if (or (int? (ann x Top))
+                                             (str? (ann x Top)))
+                                         ((ann f (λ x (U Int Str) Int TT FF Null))
+                                          (ann x (U Int Str)))
+                                         0)
+                                     Int
+                                     TT FF
+                                     Null)))
+; Example 5
+(check-true (judgment-holds (typeof* [(x -: Top) (y -: Top)]
+                                     (if (and (int? (ann x Top)) (str? (ann y Top)))
+                                         ((+ (ann x Int)) (str-len (ann y Str)))
+                                         0)
+                                     Int
+                                     TT FF
+                                     Null)))
+; Example 6
+(check-false (judgment-holds (typeof* [(x -: Top) (y -: Top)]
+                                     (if (and (int? (ann x Top)) (str? (ann y Top)))
+                                         ((+ (ann x Int)) (str-len (ann y Str)))
+                                         (str-len (ann y Str)))
+                                     Int
+                                     TT FF
+                                     Null)))
+; Example 7
+(check-true (judgment-holds (typeof* [(x -: Top) (y -: Top)]
+                                     (if (if (int? (ann x Top)) (str? (ann y Top)) #f)
+                                         ((+ (ann x Int)) (str-len (ann y Str)))
+                                         0)
+                                     Int
+                                     TT FF
+                                     Null)))
+; Example 8
+#;(check-true (judgment-holds (typeof* [(x -: Top)]
+                                     (let (tmp (str? (ann x Top)))
+                                       (if (ann tmp Top)
+                                           (ann tmp Top)
+                                           (int? (ann x Top))))
+                                     Top
+                                     TT TT;(x -: (U Str Int)) (x -! (U Str Int))
+                                     Null)))
+
+#;(check-true (judgment-holds (typeof* [(x -: Top)]
+                          (let (tmp (str? (ann x Top)))
+                            tmp)
+                          (U T F)
+                          (x -: Str)
+                          (x -! Str)
+                          Null)))

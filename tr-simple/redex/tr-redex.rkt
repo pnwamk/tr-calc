@@ -180,13 +180,10 @@
   [(proves* is*_1 not*_1 (P_2 ...) P_1)
    ------------------- "L-True-skip"
    (proves* is*_1 not*_1 (TT P_2 ...) P_1)]
-  ; L-Unk
-  [------------------- "L-Unk"
-   (proves* is*_1 not*_1 () Unk)]
   ; L-False
   [------------------- "L-False"
    (proves* is*_1 not*_1 (FF P_2 ...) P_1)]
-    ; L-Unk-skip
+    ; L-Unk
   [(proves* is*_1 not*_1 (P_2 ...) P_1)
    ------------------- "L-Unk-skip"
    (proves* is*_1 not*_1 (Unk P_2 ...) P_1)]
@@ -265,6 +262,17 @@
    (subobj oo_1 Null)])
 
 (define-judgment-form λTR
+  #:mode (subP I I)
+  #:contract (subP P P)
+  [------------------- "SP-Top"
+   (subP P_1 Unk)]
+  [(proves [P_1] P_2)
+   (proves [(NOT P_1)] (NOT P_2))
+   ------------------- "SP-Impl"
+   (subP P_1 P_2)])
+
+
+(define-judgment-form λTR
   #:mode (subtype I I)
   #:contract (subtype t t)
   [------------------- "S-Refl"
@@ -280,8 +288,7 @@
   [(subtype t_3 (subst-t x_2 x_1 t_1)) 
    (subtype (subst-t x_2 x_1 t_2) t_4) 
    (subobj (subst-oo x_2 x_1 oo_1) oo_2)
-   (proves [(subst-P x_2 x_1 P_1)] P_2)
-   (proves [(subst-P x_2 x_1 (NOT P_1))] (NOT P_2))
+   (subP (subst-P x_2 x_1 P_1) P_2)
    ------------------------------------------ "S-Fun"
    (subtype (λ x_1 t_1 t_2 P_1 oo_1)
             (λ x_2 t_3 t_4 P_2 oo_2))])

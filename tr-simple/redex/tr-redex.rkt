@@ -24,6 +24,12 @@
   λTR
   [vl  ::= (vars x ...)])
 
+(define-judgment-form λTR
+  #:mode (!= I I)
+  #:contract (!= any any)
+  [------------ "Equal"
+   (!= any_!_1 any_!_1)])
+
 (define-metafunction λTR-vl 
   app : vl ... vl -> vl
   [(app (vars x_1 ...) (vars x_2 ...))
@@ -31,15 +37,17 @@
   [(app (vars x_1 ...) (vars x_2 ...) (vars x_3 ...) ...)
    (app (app (vars x_1 ...) (vars x_2 ...)) (vars x_3 ...) ...)])
 
+(define-judgment-form λTR-vl
+  #:mode (in-vl I I)
+  #:contract (in-vl x vl)
+  [------------------- "In-vl"
+   (in-vl x_2 (vars x_1 ... x_2 x_3 ...))])
+
 (define-judgment-form λTR
   #:mode (is-U I)
   #:contract (is-U t)
   [-------------- "IsUnion"
    (is-U (U t_1 ...))])
-
-(check-false (judgment-holds (is-U Int)))
-(check-true (judgment-holds (is-U (U))))
-(check-true (judgment-holds (is-U (U Int))))
 
 (define-judgment-form λTR
   #:mode (non-U I)
@@ -47,84 +55,6 @@
   [(where #f (is-U t_1))
    -------------- "NonU"
    (non-U t_1)])
-
-(define-judgment-form λTR
-  #:mode (nested-U I)
-  #:contract (nested-U t)
-  [-------------- "IsUnion"
-   (nested-U (U t_1 ... (U t_2 ...) t_3 ...))])
-
-(check-false (judgment-holds (nested-U Int)))
-(check-false (judgment-holds (nested-U (U))))
-(check-false (judgment-holds (nested-U (U T F))))
-(check-true (judgment-holds (nested-U (U T F (U)))))
-(check-true (judgment-holds (nested-U (U T (U F)))))
-
-(define-judgment-form λTR
-  #:mode (atomic-U I)
-  #:contract (atomic-U t)
-  [-------------- "Atomic-U"
-   (atomic-U (U t_1))])
-
-(define-judgment-form λTR
-  #:mode (redundant-U I)
-  #:contract (redundant-U t)
-  [-------------- "Redundant-U"
-   (redundant-U (U t_1 ... t_2 t_3 ... t_2 t_4 ...))])
-
-(check-false (judgment-holds (redundant-U (U))))
-
-(define-judgment-form λTR
-  #:mode (flat-type I)
-  #:contract (flat-type t)
-  [(where #f (nested-U t_1))
-   -------------- "IsFlat"
-   (flat-type t_1)])
-
-(check-true (judgment-holds (flat-type (U))))
-
-(define-judgment-form λTR
-  #:mode (unique-type I)
-  #:contract (unique-type t)
-  [(where #f (redundant-U t_1))
-   -------------- "IsFlat"
-   (unique-type t_1)])
-
-(check-true (judgment-holds (unique-type (U))))
-
-(define-judgment-form λTR
-  #:mode (not-atomic-U I)
-  #:contract (not-atomic-U t)
-  [(where #f (atomic-U t_1))
-   -------------- "IsNotAtomic"
-   (not-atomic-U t_1)])
-
-(check-true (judgment-holds (not-atomic-U (U))))
-
-(define-metafunction λTR
-  flatten-type : t -> t
-  [(flatten-type t_1) t_1
-   (judgment-holds (unique-type t_1))
-   (judgment-holds (flat-type t_1))
-   (judgment-holds (not-atomic-U t_1))]
-  [(flatten-type (U t_1)) (flatten-type t_1)
-   (judgment-holds (non-U t_1))]
-  [(flatten-type (U t_1 ... t_2 t_3 ... t_2 t_4 ...))
-   (flatten-type (U t_1 ... t_2 t_3 ... t_4 ...))
-   (judgment-holds (flat-type (U t_1 ... t_2 t_3 ... t_2 t_4 ...)))]
-  [(flatten-type (U t_1 ... (U t_2 ... ) t_3 ...)) 
-   (flatten-type (U t_1 ... t_2 ... t_3 ...))])
-
-(check-equal? (term (flatten-type (U))) (term (U)))
-(check-equal? (term (flatten-type (U T (U F)))) (term (U T F)))
-(check-equal? (term (flatten-type (U (U (U (U T))) (U F) (U (U (U)))))) (term (U T F)))
-
-
-(define-judgment-form λTR-vl
-  #:mode (in-vl I I)
-  #:contract (in-vl x vl)
-  [------------------- "In-vl"
-   (in-vl x_2 (vars x_1 ... x_2 x_3 ...))])
 
 (define-metafunction λTR-vl 
   remove-var : x vl -> vl
@@ -175,7 +105,7 @@
            (o_1 -! t_2))]
   ; L-True
   [------------------- "L-True"
-   (proves* is*_1 not*_1 () TT)]
+   (proves* is*_1 not*_1 (P_1 ...) TT)]
   ; L-True-skip
   [(proves* is*_1 not*_1 (P_2 ...) P_1)
    ------------------- "L-True-skip"
@@ -249,7 +179,7 @@
   #:mode (proves I I)
   #:contract (proves E P)
   [(proves* () () E_1 P_1)
-   ---------------------- "Proves!"
+   ---------------------- "Proves"
    (proves E_1 P_1)])
 
 
@@ -262,14 +192,14 @@
    (subobj oo_1 Null)])
 
 (define-judgment-form λTR
-  #:mode (subP I I)
-  #:contract (subP P P)
+  #:mode (subprop I I)
+  #:contract (subprop P P)
   [------------------- "SP-Top"
-   (subP P_1 Unk)]
+   (subprop P_1 Unk)]
   [(proves [P_1] P_2)
    (proves [(NOT P_1)] (NOT P_2))
    ------------------- "SP-Impl"
-   (subP P_1 P_2)])
+   (subprop P_1 P_2)])
 
 
 (define-judgment-form λTR
@@ -288,7 +218,7 @@
   [(subtype t_3 (subst-t x_2 x_1 t_1)) 
    (subtype (subst-t x_2 x_1 t_2) t_4) 
    (subobj (subst-oo x_2 x_1 oo_1) oo_2)
-   (subP (subst-P x_2 x_1 P_1) P_2)
+   (subprop (subst-P x_2 x_1 P_1) P_2)
    ------------------------------------------ "S-Fun"
    (subtype (λ x_1 t_1 t_2 P_1 oo_1)
             (λ x_2 t_3 t_4 P_2 oo_2))])
@@ -328,8 +258,8 @@
 
 (define-metafunction λTR
   update : t b t -> t
-  [(update t_1 #t t_2) (flatten-type (restrict t_1 t_2))]
-  [(update t_1 #f t_2) (flatten-type (remove t_1 t_2))])
+  [(update t_1 #t t_2) (restrict t_1 t_2)]
+  [(update t_1 #f t_2) (remove t_1 t_2)])
 
 ; fix judgment-holds common-val clauses
 (define-metafunction λTR
@@ -361,18 +291,30 @@
   [(remove (U t_1) t_2) (remove t_1 t_2)]
   [(remove (U t_1 t_2 ...) t_3) (U (remove t_1 t_3) (remove (U t_2 ...) t_3))])
 
-(check-equal? (term (update Int #t Int)) (term Int))
-(check-equal? (term (update Int #t Top)) (term Int))
-(check-equal? (term (update Int #t (U))) (term (U)))
-(check-equal? (term (update Int #t (U T F Int))) (term Int))
-(check-equal? (term (update (U T F) #t (U T Int))) (term T))
-(check-equal? (term (update (U (U (U T) F)) #t (U T Int))) (term T))
-(check-equal? (term (update Int #f Int)) (term (U)))
-(check-equal? (term (update Int #f Top)) (term (U)))
-(check-equal? (term (update Int #f (U))) (term Int))
-(check-equal? (term (update (U T F Int) #f Int)) (term (U T F)))
-(check-equal? (term (update (U T F Int) #f (U T F))) (term Int))
-(check-equal? (term (update (U (U (U T F)) (U Int) Int) #f (U (U (U T) F) T F))) (term Int))
+(define-judgment-form λTR
+  #:mode (eqv-type? I I)
+  #:contract (eqv-type? t t)
+  [(subtype t_1 t_2)
+   (subtype t_2 t_1)
+   ----------------- "Equiv-Type"
+   (eqv-type? t_1 t_2)])
+
+; restrict tests
+(check-true (judgment-holds (eqv-type? (restrict Int Int) Int)))
+(check-true (judgment-holds (eqv-type? (restrict Int Top) Int)))
+(check-true (judgment-holds (eqv-type? (restrict Int (U)) (U))))
+(check-true (judgment-holds (eqv-type? (restrict Int (U T F Int)) Int)))
+(check-true (judgment-holds (eqv-type? (restrict (U T F) (U T Int)) T)))
+(check-true (judgment-holds (eqv-type? (restrict (U (U (U T) F)) (U T Int Str)) T)))
+
+; remove tests
+(check-true (judgment-holds (eqv-type? (remove Int Int) (U))))
+(check-true (judgment-holds (eqv-type? (remove Int Str) Int)))
+(check-true (judgment-holds (eqv-type? (remove Int (U Int Str)) (U))))
+(check-true (judgment-holds (eqv-type? (remove (U Int Str) Int) Str)))
+(check-true (judgment-holds (eqv-type? (remove (U (U (U T F)) (U Int) Int) 
+                                               (U (U (U T) F) T F)) 
+                                       Int)))
 
 
 (define-metafunction λTR-vl
@@ -404,11 +346,6 @@
   [(free-vars (p_1 AND p_2)) (app (free-vars p_1) (free-vars p_2))]
   [(free-vars (p_1 OR  p_2)) (app (free-vars p_1) (free-vars p_2))])
 
-(define-judgment-form λTR
-  #:mode (!= I I)
-  #:contract (!= any any)
-  [------------ "Equal"
-   (!= any_!_1 any_!_1)])
 
 (define-metafunction λTR
   subst-oo : oo x oo -> oo
@@ -469,13 +406,11 @@
      (subst-P oo_1 x_1 P_1)
      (subst-oo oo_1 x_1 oo_2))])
 
-
 (check-equal? (term (subst-oo Null x x)) (term Null))
 (check-equal? (term (subst-p x x (x -: Int))) (term (x -: Int)))
 (check-equal? (term (subst-p x y (y -: Int))) (term (x -: Int)))
 (check-equal? (term (subst-p Null x (y -: Int))) (term (y -: Int)))
 (check-equal? (term (subst-p Null y (y -: Int))) (term TT))
-
 
 (check-true (judgment-holds (subtype Int Int)))
 (check-true (judgment-holds (subtype Int Top)))
@@ -512,34 +447,35 @@
                                      ((y -: Int) OR (z -: (U T F)))] 
                                     (z -: (U T F)))))
 
-;; (define-metafunction λTR
-;;     reduce-ψ : Γ ψ -> ψ
-;;     [(reduce-ψ Γ_1 (x_1 -: t_1)) FF
-;;      (judgment-holds (proves Γ_1 (x_1 -! t_1)))]
-;;     [(reduce-ψ Γ_1 (x_1 -: t_1)) (x_1 -: t_1)
-;;      (where #f (proves Γ_1 (x_1 -! t_1)))]
-;;     [(reduce-ψ Γ_1 (x_1 -! t_1)) FF
-;;      (judgment-holds (proves Γ_1 (x_1 -: t_1)))]
-;;     [(reduce-ψ Γ_1 (x_1 -! t_1)) (x_1 -! t_1)
-;;      (where #f (proves Γ_1 (x_1 -: t_1)))]
-;;     [(reduce-ψ Γ_1 TT) TT]
-;;     [(reduce-ψ Γ_1 FF) FF]
-;;     [(reduce-ψ [ψ_1 ...] (ψ_2 AND ψ_3))
-;;      ((reduce-ψ [ψ_3 ψ_1 ...] ψ_2) AND (reduce-ψ [ψ_2 ψ_1 ...] ψ_3))]
-;;     [(reduce-ψ Γ_1 (ψ_2 OR ψ_3))
-;;      ((reduce-ψ Γ_1 ψ_2) OR (reduce-ψ Γ_1 ψ_3))])
+(define-metafunction λTR
+    reduce-P : E P -> P
+    [(reduce-P E_1 TT) TT]
+    [(reduce-P E_1 FF) FF]
+    [(reduce-P E_1 Unk) Unk]
+    [(reduce-P E_1 Err) Err]
+    [(reduce-P E_1 (x_1 -: t_1)) FF
+     (judgment-holds (proves E_1 (x_1 -! t_1)))]
+    [(reduce-P E_1 (x_1 -: t_1)) (x_1 -: t_1)
+     (where #f (proves E_1 (x_1 -! t_1)))]
+    [(reduce-P E_1 (x_1 -! t_1)) FF
+     (judgment-holds (proves E_1 (x_1 -: t_1)))]
+    [(reduce-P E_1 (x_1 -! t_1)) (x_1 -! t_1)
+     (where #f (proves E_1 (x_1 -: t_1)))]
+    [(reduce-P [P_1 ...] (p_1 AND p_2))
+     ((reduce-P [p_2 P_1 ...] p_1) AND (reduce-P [p_1 P_1 ...] p_2))]
+    [(reduce-P E_1 (p_1 OR p_2))
+     ((reduce-P E_1 p_1) OR (reduce-P E_1 p_2))])
 
+(check-equal? (term (reduce-P [] (((x -: Int) OR (x -: (U T F)))
+                               AND (x -! Int))))
+              (term ((FF OR (x -: (U T F))) AND (x -! Int))))
 
-;; (check-equal? (term (reduce-ψ [] (((x -: Int) OR (x -: (U T F)))
-;;                                AND (x -! Int))))
-;;               (term ((FF OR (x -: (U T F))) AND (x -! Int))))
+(check-equal? (term (reduce-P [] ((x -: Int) AND (x -! Int))))
+              (term (FF AND FF)))
 
-;; (check-equal? (term (reduce-ψ [] ((x -: Int) AND (x -! Int))))
-;;               (term (FF AND FF)))
-
-;; (define-metafunction λTR
-;;     simplify-ψ : ψ -> ψ
-;;     [(simplify-ψ ψ_1) ψ_1])  ;(reduce-ψ [] ψ_1)])
+(define-metafunction λTR
+    simplify-P : P -> P
+    [(simplify-P P_1) (reduce-P [] P_1)])
 
 ;; (define-metafunction λTR
 ;;   δt : c -> t

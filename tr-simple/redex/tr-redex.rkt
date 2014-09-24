@@ -783,3 +783,42 @@
                                      Top
                                      (x -: (U Str Int)) (x -! (U Str Int))
                                      Null)))
+
+; Example 9
+(check-true (judgment-holds (typeof* [(x -: Top)]
+                                     (if (let ([tmp (int? (ann x Top))])
+                                           (if (ann tmp Top)
+                                               (ann tmp Top)
+                                               (str? (ann x Top))))
+                                         ((λ ([x : (U Str Int)])
+                                            (if (int? (ann x Top))
+                                                (add1 (ann x Int))
+                                                (str-len (ann x Str))))
+                                          (ann x (U Int Str)))
+                                         0)
+                                     Int
+                                     TT FF
+                                     Null)))
+
+; Example 13
+(check-true (judgment-holds (typeof* [(x -: Top) (y -: (U Int Str))]
+                                     (if (and (int? (ann x Top)) (str? (ann y Top)))
+                                         ((+ (ann x Int)) (str-len (ann y Str)))
+                                         (if (int? (ann x Top))
+                                             ((+ (ann x Int)) (ann y Int))
+                                             0))
+                                     Int
+                                     TT FF
+                                     Null)))
+
+; Example 14
+(check-true (judgment-holds (typeof* [(x -: Top)]
+                                     (λ ([y : (U Int Str)])
+                                       (if (and (int? (ann x Top)) (str? (ann y Top)))
+                                         ((+ (ann x Int)) (str-len (ann y Str)))
+                                         (if (int? (ann x Top))
+                                             ((+ (ann x Int)) (ann y Int))
+                                             0)))
+                                     (λ x (U Str Int) Int TT FF Null)
+                                     TT FF
+                                     Null)))

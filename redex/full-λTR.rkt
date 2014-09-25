@@ -78,9 +78,9 @@
             (o_1 -: t_2))]
   
   ; L-Atom Neg
-  [(proves* ((o_1 -: t_2) is_1 ...)
+  [(proves* (is_1 ...)
             (neg_1 ...)
-            ()
+            ((o_1 -: t_2))
             FF)
    ------------------- "L-Atom-Neg"
    (proves* (is_1 ...)

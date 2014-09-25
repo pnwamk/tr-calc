@@ -192,6 +192,7 @@
   #:contract (subobj oo oo)
   [------------------- "SO-Refl"
    (subobj oo_1 oo_1)]
+  
   [------------------- "SO-Top"
    (subobj oo_1 Null)])
 
@@ -200,14 +201,23 @@
   #:contract (subtype t t)
   [------------------- "S-Refl"
    (subtype t_1 t_1)]
+  
   [------------------- "S-Top"
    (subtype t_1 Top)]
+  
   [(subtype t_1 t_2) ...
    ------------------- "S-UnionSub"
    (subtype (U t_1 ...) t_2)]
+  
   [(subtype t_1 t_3)
    ------------------- "S-UnionSuper"
    (subtype t_1 (U t_2 ... t_3 t_4 ...))]
+  
+  [(subtype t_1 t_3)
+   (subtype t_2 t_4)
+   ----------------- "S-Pair"
+   (subtype (t_1 * t_2) (t_3 * t_4))]
+  
   [(subtype t_3 (subst-t (var x_2) x_1 t_1)) 
    (subtype (subst-t (var x_2) x_1 t_2) t_4) 
    (subobj (subst-oo (var x_2) x_1 oo_1) oo_2)
@@ -417,7 +427,7 @@
    (U (subst-t oo_1 x_1 t_1)
       (subst-t oo_1 x_1 (U t_2 t_3 ...)))]
   [(subst-t oo_1 x_1 (t_1 * t_2)) 
-   ((subst-t oo_1 x_1 t_1) * (subst-t oo_1 x_1 t-2))]
+   ((subst-t oo_1 x_1 t_1) * (subst-t oo_1 x_1 t_2))]
   [(subst-t oo_1 x_1 (λ x_1 t_1 t_2 P_1 P_2 oo_2))
    (λ x_1 (subst-t oo_1 x_1 t_1) t_2 P_1 P_2 oo_2)]
   [(subst-t oo_1 x_1 (λ x_2 t_1 t_2 P_1 P_2 oo_2))
@@ -561,6 +571,11 @@
   [(δt bool?) (λ x Top (U T F) ((var x) -: (U T F)) ((var x) -! (U T F)) Null)]
   [(δt proc?) (λ x Top (U T F) 
                 ((var x) -: (λ y (U) Top TT TT Null))
+                ((var x) -! (λ y (U) Top TT TT Null))
+                Null)]
+  [(δt cons) (λ x Top (U T F) 
+               ((var x) -: (Top * Top))
+               ((var x) -! (Top * Top))
                 Null)])
 
 (define-metafunction λTR
@@ -611,7 +626,8 @@
            TT FF
            Null)]
   
-  [(typeof E_1 e_1 (λ x_0 t_0- t_0+ P_0+ P_0- oo_0) P_1+ P_1- oo_1)
+  [(where/hidden #f ,(member (term e_1) '(car cdr)))
+   (typeof E_1 e_1 (λ x_0 t_0- t_0+ P_0+ P_0- oo_0) P_1+ P_1- oo_1)
    (typeof E_1 e_2 t_2 P_2+ P_2- oo_2)
    (subtype t_2 t_0-)
    -------------- "T-App"
@@ -649,7 +665,32 @@
                     (simplify-P (AND P_2+ P_let)))
            (subst-P oo_1 x_1 
                     (simplify-P (AND P_2- P_let)))
-           (subst-oo oo_1 x_1 oo_2))])
+           (subst-oo oo_1 x_1 oo_2))]
+  
+  [(typeof E_1 e_1 t_1 P_1+ P_1- oo_1)
+   (typeof E_1 e_2 t_2 P_2+ P_2- oo_2)
+   ------------------------- "T-Cons"
+   (typeof E_1 (cons e_1 e_2) (t_1 * t_2) TT FF Null)]
+  
+  [(typeof E_1 e_1 (t_1 * t_2) P_1+ P_1- oo_1)
+   (where x_1 ,(gensym))
+   ------------------------- "T-Car"
+   (typeof E_1 
+           (car e_1) 
+           t_1 
+           (subst-P oo_1 x_1 ((obj (CAR) x_1) -! F))
+           (subst-P oo_1 x_1 ((obj (CAR) x_1) -: F))
+           (subst-oo oo_1 x_1 (obj (CAR) x_1)))]
+  
+  [(typeof E_1 e_1 (t_1 * t_2) P_1+ P_1- oo_1)
+   (where x_1 ,(gensym))
+   ------------------------- "T-Cdr"
+   (typeof E_1 
+           (cdr e_1) 
+           t_2 
+           (subst-P oo_1 x_1 ((obj (CDR) x_1) -! F))
+           (subst-P oo_1 x_1 ((obj (CDR) x_1) -: F))
+           (subst-oo oo_1 x_1 (obj (CDR) x_1)))])
 
 
 (define-judgment-form λTR
@@ -792,87 +833,161 @@
 
 ; Example 4
 (check-true (judgment-holds 
-               (typeof* [((var f) -: (λ x (U Int Str) Int TT FF Null))
-                         ((var x) -: Top)]
-                        (if (or (int? (ann x Top))
-                                (str? (ann x Top)))
-                            ((ann f (λ x (U Int Str) Int TT FF Null))
-                             (ann x (U Int Str)))
-                            0)
-                        Int
-                        TT FF
-                        Null)))
+             (typeof* [((var f) -: (λ x (U Int Str) Int TT FF Null))
+                       ((var x) -: Top)]
+                      (if (or (int? (ann x Top))
+                              (str? (ann x Top)))
+                          ((ann f (λ x (U Int Str) Int TT FF Null))
+                           (ann x (U Int Str)))
+                          0)
+                      Int
+                      TT FF
+                      Null)))
 
 
 ; Example 5
-(check-true (judgment-holds (typeof* [((var x) -: Top) ((var y) -: Top)]
-                                     (if (and (int? (ann x Top)) (str? (ann y Top)))
-                                         ((+ (ann x Int)) (str-len (ann y Str)))
-                                         0)
-                                     Int
-                                     TT FF
-                                     Null)))
+(check-true 
+ (judgment-holds 
+  (typeof* [((var x) -: Top) ((var y) -: Top)]
+           (if (and (int? (ann x Top)) (str? (ann y Top)))
+               ((+ (ann x Int)) (str-len (ann y Str)))
+               0)
+           Int
+           TT FF
+           Null)))
+
 ; Example 6
-(check-false (judgment-holds (typeof* [((var x) -: Top) ((var y) -: Top)]
-                                      (if (and (int? (ann x Top)) (str? (ann y Top)))
-                                          ((+ (ann x Int)) (str-len (ann y Str)))
-                                          (str-len (ann y Str)))
-                                      Int
-                                      TT FF
-                                      Null)))
+(check-false 
+ (judgment-holds 
+  (typeof* [((var x) -: Top) ((var y) -: Top)]
+           (if (and (int? (ann x Top)) (str? (ann y Top)))
+               ((+ (ann x Int)) (str-len (ann y Str)))
+               (str-len (ann y Str)))
+           Int
+           TT FF
+           Null)))
+
 ; Example 7
-(check-true (judgment-holds (typeof* [((var x) -: Top) ((var y) -: Top)]
-                                     (if (if (int? (ann x Top)) (str? (ann y Top)) #f)
-                                         ((+ (ann x Int)) (str-len (ann y Str)))
-                                         0)
-                                     Int
-                                     TT FF
-                                     Null)))
+(check-true 
+ (judgment-holds 
+  (typeof* [((var x) -: Top) ((var y) -: Top)]
+           (if (if (int? (ann x Top)) (str? (ann y Top)) #f)
+               ((+ (ann x Int)) (str-len (ann y Str)))
+               0)
+           Int
+           TT FF
+           Null)))
+
 ; Example 8
-(check-true (judgment-holds (typeof* [((var x) -: Top)]
-                                     (let ([tmp (str? (ann x Top))])
-                                       (if (ann tmp Top)
-                                           (ann tmp Top)
-                                           (int? (ann x Top))))
-                                     Top
-                                     ((var x) -: (U Str Int)) ((var x) -! (U Str Int))
-                                     Null)))
+(check-true 
+ (judgment-holds 
+  (typeof* [((var x) -: Top)]
+           (let ([tmp (str? (ann x Top))])
+             (if (ann tmp Top)
+                 (ann tmp Top)
+                 (int? (ann x Top))))
+           Top
+           ((var x) -: (U Str Int)) ((var x) -! (U Str Int))
+           Null)))
 
 ; Example 9
-(check-true (judgment-holds (typeof* [((var x) -: Top)]
-                                     (if (let ([tmp (int? (ann x Top))])
-                                           (if (ann tmp Top)
-                                               (ann tmp Top)
-                                               (str? (ann x Top))))
-                                         ((λ ([x : (U Str Int)])
-                                            (if (int? (ann x Top))
-                                                (add1 (ann x Int))
-                                                (str-len (ann x Str))))
-                                          (ann x (U Int Str)))
-                                         0)
-                                     Int
-                                     TT FF
-                                     Null)))
+(check-true 
+ (judgment-holds 
+  (typeof* [((var x) -: Top)]
+           (if (let ([tmp (int? (ann x Top))])
+                 (if (ann tmp Top)
+                     (ann tmp Top)
+                     (str? (ann x Top))))
+               ((λ ([x : (U Str Int)])
+                  (if (int? (ann x Top))
+                      (add1 (ann x Int))
+                      (str-len (ann x Str))))
+                (ann x (U Int Str)))
+               0)
+           Int
+           TT FF
+           Null)))
+
+
+; Example 10
+(check-true 
+ (judgment-holds 
+  (typeof* [((var p) -: (Top * Top))]
+           (if (int? (car (ann p (Top * Top))))
+               (add1 (car (ann p (Int * Top))))
+               7)
+           Int
+           TT FF
+           Null)))
+
+; Example 11
+(check-true 
+ (judgment-holds 
+  (typeof* [((var p) -: (Top * Top))
+            ((var g) -: (λ x (Int * Int) Int TT FF Null))]
+           (if (and (int? (car (ann p (Top * Top))))
+                    (int? (cdr (ann p (Top * Top)))))
+               ((ann g (λ x (Int * Int) Int TT FF Null))
+                (ann p (Int * Int)))
+               42)
+           Int
+           TT FF
+           Null)))
+
+;Example 12
+(check-true 
+ (judgment-holds 
+  (typeof* []
+           (λ ([p : (Top * Top)])
+             (int? (car (ann p (Top * Top)))))
+           (λ x 
+             (Top * Top) 
+             (U T F)
+             ((obj (CAR) x) -: Int)
+             ((obj (CAR) x) -! Int)
+             Null)
+           TT
+           FF
+           Null)))
+
+(check-true 
+ (judgment-holds 
+  (typeof* []
+           (λ ([p : (Top * Top)])
+             (int? (cdr (ann p (Top * Top)))))
+           (λ x 
+             (Top * Top) 
+             (U T F)
+             ((obj (CDR) x) -: Int)
+             ((obj (CDR) x) -! Int)
+             Null)
+           TT
+           FF
+           Null)))
 
 ; Example 13
-(check-true (judgment-holds (typeof* [((var x) -: Top) ((var y) -: (U Int Str))]
-                                     (if (and (int? (ann x Top)) (str? (ann y Top)))
-                                         ((+ (ann x Int)) (str-len (ann y Str)))
-                                         (if (int? (ann x Top))
-                                             ((+ (ann x Int)) (ann y Int))
-                                             0))
-                                     Int
-                                     TT FF
-                                     Null)))
+(check-true 
+ (judgment-holds 
+  (typeof* [((var x) -: Top) ((var y) -: (U Int Str))]
+           (if (and (int? (ann x Top)) (str? (ann y Top)))
+               ((+ (ann x Int)) (str-len (ann y Str)))
+               (if (int? (ann x Top))
+                   ((+ (ann x Int)) (ann y Int))
+                   0))
+           Int
+           TT FF
+           Null)))
 
 ; Example 14
-(check-true (judgment-holds (typeof* [((var x) -: Top)]
-                                     (λ ([y : (U Int Str)])
-                                       (if (and (int? (ann x Top)) (str? (ann y Top)))
-                                         ((+ (ann x Int)) (str-len (ann y Str)))
-                                         (if (int? (ann x Top))
-                                             ((+ (ann x Int)) (ann y Int))
-                                             0)))
-                                     (λ x (U Str Int) Int TT FF Null)
-                                     TT FF
-                                     Null)))
+(check-true 
+ (judgment-holds 
+  (typeof* [((var x) -: Top)]
+           (λ ([y : (U Int Str)])
+             (if (and (int? (ann x Top)) (str? (ann y Top)))
+                 ((+ (ann x Int)) (str-len (ann y Str)))
+                 (if (int? (ann x Top))
+                     ((+ (ann x Int)) (ann y Int))
+                     0)))
+           (λ x (U Str Int) Int TT FF Null)
+           TT FF
+           Null)))

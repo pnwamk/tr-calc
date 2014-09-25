@@ -12,9 +12,9 @@
   [o   ::= x]
   [oo  ::= o Null]
   [t   ::= Top T F Int Str (U t ...) (λ x t t P P oo)]
-  [>>  ::= -: -!]
-  [is  ::= (o >> t)]
-  [P   ::= is (OR P P) (AND P P) TT FF]
+  [is  ::= (o -: t)]
+  [neg ::= (o -! t)]
+  [P   ::= is neg (OR P P) (AND P P) TT FF]
   [E   ::= (P ...)])
 
 (define-judgment-form λTR
@@ -57,86 +57,112 @@
 
 
 (define-judgment-form λTR
-  #:mode (proves* I I I)
-  #:contract (proves* (is ...) E P)
+  #:mode (proves* I I I I)
+  #:contract (proves* (is ...) (neg ...) E P)
   ; L-Atom Is
   [(subtype t_1 t_2)
    ------------------- "L-Atom-Is"
    (proves* (is_1 ... (o_1 -: t_1) is_2 ...)
+            (neg ...)
             ()
             (o_1 -: t_2))]
   
-  ; L-Atom Not
-  [(subtype t_2 t_1)
-   ------------------- "L-Atom-Not"
-   (proves* (is_1 ... (o_1 -! t_1) is_2 ...)
+  ; L-Atom Neg
+  [(proves* ((o_1 -: t_2) is_1 ...)
+            (neg_1 ...)
+            ()
+            FF)
+   ------------------- "L-Atom-Neg"
+   (proves* (is_1 ...)
+            (neg_1 ...)
             ()
             (o_1 -! t_2))]
   
   ; L-True
   [------------------- "L-True"
-   (proves* (is_1 ...)  (P_1 ...) TT)]
+   (proves* (is ...) (neg ...) (P_1 ...) TT)]
   
   ; L-True-skip
-  [(proves* (is_1 ...) (P_2 ...) P_1)
+  [(proves* (is_1 ...) (neg_1 ...) (P_2 ...) P_1)
    ------------------- "L-True-skip"
-   (proves* (is_1 ...) (TT P_2 ...) P_1)]
+   (proves* (is_1 ...) (neg_1 ...) (TT P_2 ...) P_1)]
   
   ; L-False
   [------------------- "L-False"
-   (proves* (is_1 ...) (FF P_2 ...) P_1)]
+   (proves* (is_1 ...) (neg_1 ...) (FF P_2 ...) P_1)]
   
   ; L-Bot
-  [------------------- "L-Bot"
-   (proves* (is_1 ... (o_1 -: (U)) is_2 ...) () P_1)]
+  [(subtype t_1 (U))
+   ------------------- "L-Bot"
+   (proves* (is_1 ... (o_1 -: t_1) is_2 ...) (neg_1 ...) () P_1)]
   
   ; L-Is-move
-  [(proves* ((o_1 >> t_1) is_1 ...) (P_1 ...) P_2)
+  [(proves* ((o_1 -: t_1) is_1 ...) (neg_1 ...) (P_1 ...) P_2)
    ------------------- "L-Is-move"
-   (proves* (is_1 ...) ((o_1 >> t_1) P_1 ...) P_2)]
+   (proves* (is_1 ...) (neg_1 ...) ((o_1 -: t_1) P_1 ...) P_2)]
+  
+  ; L-Neg-move
+  [(proves* (is_1 ...) ((o_1 -! t_1) neg_1 ...) (P_1 ...) P_2)
+   ------------------- "L-Neg-move"
+   (proves* (is_1 ...) (neg_1 ...) ((o_1 -! t_1) P_1 ...) P_2)]
   
   ; L-AndE
-  [(proves* (is_1 ...) (P_1 P_2 P_3 ...) P_4)
+  [(proves* (is_1 ...) (neg_1 ...) (P_1 P_2 P_3 ...) P_4)
    ------------------- "L-AndE"
-   (proves* (is_1 ...) ((AND P_1 P_2) P_3 ...) P_4)]
+   (proves* (is_1 ...) (neg_1 ...) ((AND P_1 P_2) P_3 ...) P_4)]
   
   ; L-AndI
-  [(proves* (is_1 ...) () P_1)
-   (proves* (is_1 ...) () P_2)
+  [(proves* (is_1 ...) (neg_1 ...) () P_1)
+   (proves* (is_1 ...) (neg_1 ...) () P_2)
    ------------------- "L-AndI"
-   (proves* (is_1 ...) () (AND P_1 P_2))]
+   (proves* (is_1 ...) (neg_1 ...) () (AND P_1 P_2))]
   
   ; L-OrI-lhs
-  [(proves* (is_1 ...) () P_1)
+  [(proves* (is_1 ...) (neg_1 ...) () P_1)
    ------------------- "L-OrI-lhs"
-   (proves* (is_1 ...) () (OR P_1 P_2))]
+   (proves* (is_1 ...) (neg_1 ...) () (OR P_1 P_2))]
   
   ; L-OrI-rhs
-  [(proves* (is_1 ...) () P_2)
+  [(proves* (is_1 ...) (neg_1 ...) () P_2)
    ------------------- "L-OrI-rhs"
-   (proves* (is_1 ...) () (OR P_1 P_2))]
+   (proves* (is_1 ...) (neg_1 ...) () (OR P_1 P_2))]
   
   ; L-OrE
-  [(proves* (is_1 ...) (P_1 P_3 ...) P_4)
-   (proves* (is_1 ...) (P_2 P_3 ...) P_4)
+  [(proves* (is_1 ...) (neg_1 ...) (P_1 P_3 ...) P_4)
+   (proves* (is_1 ...) (neg_1 ...) (P_2 P_3 ...) P_4)
    ------------------- "L-OrE"
-   (proves* (is_1 ...) ((OR P_1 P_2) P_3 ...) P_4)]
+   (proves* (is_1 ...) (neg_1 ...) ((OR P_1 P_2) P_3 ...) P_4)]
   
-  ; L-Update
-  [(where is_new (update o_1 >>_1 t_1 >>_2 t_2))
-   (not-in is_new (is_1 ... (o_1 >>_1 t_1) is_2 ... (o_1 >>_2 t_2) is_3 ...))
-   (proves* (is_new is_1 ... is_2 ... is_3 ... (o_1 >>_1 t_1) (o_1 >>_2 t_2))
+  ; L-Update-Is
+  [(where t_new (update t_1 #t t_2))
+   (not-in (o_1 -: t_new) (is_1 ... (o_1 -: t_1) is_2 ... (o_1 -: t_2) is_3 ...))
+   (proves* ((o_1 -: t_new) is_1 ... is_2 ... is_3 ... (o_1 -: t_2) (o_1 -: t_1))
+            (neg_1 ...)
             ()
             P_1)
-  ------------------- "L-Update"
-   (proves* (is_1 ... (o_1 >>_1 t_1) is_2 ... (o_1 >>_2 t_2) is_3 ...) 
+  ------------------- "L-Update-Is"
+   (proves* (is_1 ... (o_1 -: t_1) is_2 ... (o_1 -: t_2) is_3 ...)
+            (neg_1 ...)
+            ()
+            P_1)]
+  
+  ;L-Update-Neg
+  [(where t_new (update t_1 #f t_2))
+   (not-in (o_1 -: t_new) (is_1 ... (o_1 -: t_1) is_2 ...))
+   (proves* ((o_1 -: t_new) is_1 ... is_2 ... (o_1 -: t_1))
+            (neg_1 ... (o_1 -! t_2) neg_2 ...)
+            ()
+            P_1)
+  ------------------- "L-Update-Neg"
+   (proves* (is_1 ... (o_1 -: t_1) is_2 ...)
+            (neg_1 ... (o_1 -! t_2) neg_2 ...)
             ()
             P_1)])
 
 (define-judgment-form λTR
   #:mode (proves I I)
   #:contract (proves E P)
-  [(proves* () E_1 P_1)
+  [(proves* () () E_1 P_1)
    ---------------------- "Proves"
    (proves E_1 P_1)])
 
@@ -205,11 +231,9 @@
 
 
 (define-metafunction λTR
-  update : o >> t >> t -> is
-  [(update o_1 -: t_1 -: t_2) (o_1 -: (restrict t_1 t_2))]
-  [(update o_1 -: t_1 -! t_2) (o_1 -: (remove t_1 t_2))]
-  [(update o_1 -! t_1 -: t_2) (o_1 -: (remove t_2 t_1))]
-  [(update o_1 -! t_1 -! t_2) (o_1 -! (t-join t_1 t_2))])
+  update : t b t -> t
+  [(update t_1 #t t_2) (restrict t_1 t_2)]
+  [(update t_1 #f t_2) (remove t_1 t_2)])
 
 ; fix judgment-holds common-val clauses
 (define-metafunction λTR
@@ -287,8 +311,8 @@
                           (free-vars P_2)
                           (free-vars oo_1))))]
   ; props
-  [(free-vars TT) (vars)]
-  [(free-vars FF) (vars)]
+  [(free-vars TT) ()]
+  [(free-vars FF) ()]
   [(free-vars (x_1 -: t_1)) (app (x_1) (free-vars t_1))]
   [(free-vars (x_1 -! t_1)) (app (x_1) (free-vars t_1))]
   [(free-vars (AND P_1 P_2)) (app (free-vars P_1) (free-vars P_2))]
@@ -409,7 +433,8 @@
   normalize-P : P -> P
   [(normalize-P TT) TT]
   [(normalize-P FF) FF]
-  [(normalize-P (o_1 >> t_1)) (o_1 >> t_1)]
+  [(normalize-P (o_1 -: t_1)) (o_1 -: t_1)]
+  [(normalize-P (o_1 -! t_1)) (o_1 -! t_1)]
   [(normalize-P (AND P_1 P_2)) 
    (AND (normalize-P P_1) 
         (normalize-P P_2))

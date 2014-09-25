@@ -28,9 +28,12 @@
   [(app (any_1 ...)) (any_1 ...)]
   [(app (any_1 ...) (any_2 ...) ...) (app (any_1 ... any_2 ...) ...)])
 
-(define-metafunction λTR
-  in : any (any ...) -> boolean
-  [(in any_1 (any_2 ...)) ,(list? (member (term any_1) (term (any_2 ...))))])
+(define-judgment-form λTR
+  #:mode (in I I)
+  #:contract (in any any)
+  [(side-condition ,(list? (member (term any_1) (term (any_2 ...)))))
+   --------------------- "In"
+   (in any_1 (any_2 ...))])
 
 (define-judgment-form λTR
   #:mode (is-U I)
@@ -119,42 +122,14 @@
    ------------------- "L-OrE"
    (proves* (is_1 ...) ((OR P_1 P_2) P_3 ...) P_4)]
   
-  ; L-Restrict
-  [(not-in (o_1 -: (restrict t_1 t_2)) 
-           (is_1 ... (o_1 -: t_1) is_2 ... (o_1 -: t_2) is_3 ...))
-   (proves* ((o_1 -: (restrict t_1 t_2)) is_1 ... (o_1 -: t_1) is_2 ... (o_1 -: t_2) is_3 ...)
+  ; L-Update
+  [(where is_new (update o_1 >>_1 t_1 >>_2 t_2))
+   (not-in is_new (is_1 ... (o_1 >>_1 t_1) is_2 ... (o_1 >>_2 t_2) is_3 ...))
+   (proves* (is_new is_1 ... is_2 ... is_3 ... (o_1 >>_1 t_1) (o_1 >>_2 t_2))
             ()
             P_1)
-   ------------------- "L-Restrict"
-   (proves* (is_1 ... (o_1 -: t_1) is_2 ... (o_1 -: t_2) is_3 ...) 
-            ()
-            P_1)]
-  ;L-Remove-rhs
-  [(not-in (o_1 -: (remove t_1 t_2)) 
-           (is_1 ... (o_1 -: t_1) is_2 ... (o_1 -! t_2) is_3 ...))
-   (proves* ((o_1 -: (remove t_1 t_2)) is_1 ... is_2 ... (o_1 -! t_2) is_3 ...)
-            ()
-            P_1)
-   ------------------- "L-Remove-rhs"
-   (proves* (is_1 ... (o_1 -: t_1) is_2 ... (o_1 -! t_2) is_3 ...) 
-            ()
-            P_1)]
-  ;L-Remove-lhs
-  [(not-in (o_1 -: (remove t_2 t_1)) 
-           (is_1 ... (o_1 -! t_1) is_2 ... (o_1 -: t_2) is_3 ...))
-   (proves* ((o_1 -: (remove t_2 t_1)) is_1 ... is_2 ... (o_1 -! t_1) is_3 ...)
-            ()
-            P_1)
-   ------------------- "L-Remove-lhs"
-   (proves* (is_1 ...  (o_1 -! t_1) is_2 ... (o_1 -: t_2) is_3 ...) 
-            ()
-            P_1)]
-  ;L-NegUnion
-  [(proves* ((o_1 -! (U t_1 t_2)) is_1 ... is_2 ... is_3 ...)
-            ()
-            P_1)
-   ------------------- "L-NegUnion"
-   (proves* (is_1 ...  (o_1 -! t_1) is_2 ... (o_1 -! t_2) is_3 ...) 
+  ------------------- "L-Update"
+   (proves* (is_1 ... (o_1 >>_1 t_1) is_2 ... (o_1 >>_2 t_2) is_3 ...) 
             ()
             P_1)])
 
@@ -230,11 +205,11 @@
 
 
 (define-metafunction λTR
-  update : o >> t >> t -> P
+  update : o >> t >> t -> is
   [(update o_1 -: t_1 -: t_2) (o_1 -: (restrict t_1 t_2))]
   [(update o_1 -: t_1 -! t_2) (o_1 -: (remove t_1 t_2))]
   [(update o_1 -! t_1 -: t_2) (o_1 -: (remove t_2 t_1))]
-  [(update o_1 -! t_1 -! t_2) (o_1 -! (U t_1 t_2))])
+  [(update o_1 -! t_1 -! t_2) (o_1 -! (t-join t_1 t_2))])
 
 ; fix judgment-holds common-val clauses
 (define-metafunction λTR
@@ -334,16 +309,16 @@
   [(subst-P o_1 x_1 (x_1 -! t_1)) (o_1 -! (subst-t o_1 x t_1))]
   [(subst-P oo_1 x_1 (x_2 -: t_1)) (x_2 -: t_1)
    (judgment-holds (<> x_1 x_2))
-   (where #f (in x_2 (free-vars t_1)))]
+   (judgment-holds (not-in x_2 (free-vars t_1)))]
   [(subst-P oo_1 x_1 (x_2 -! t_1)) (x_2 -! t_1)
    (judgment-holds (<> x_1 x_2))
-   (where #f (in x_2 (free-vars t_1)))]
+   (judgment-holds (not-in x_2 (free-vars t_1)))]
   [(subst-P oo_1 x_1 (x_2 -: t_1)) TT
    (judgment-holds (<> x_1 x_2))
-   (where #t (in x_2 (free-vars t_1)))]
+   (judgment-holds (in x_2 (free-vars t_1)))]
   [(subst-P oo_1 x_1 (x_2 -! t_1)) TT
    (judgment-holds (<> x_1 x_2))
-   (where #t (in x_2 (free-vars t_1)))]
+   (judgment-holds (in x_2 (free-vars t_1)))]
   [(subst-P oo_1 x_1 (AND P_1 P_2)) 
    (AND (subst-P oo_1 x_1 P_1) (subst-P oo_1 x_1 P_2))]
   [(subst-P oo_1 x_1 (OR P_1 P_2)) 

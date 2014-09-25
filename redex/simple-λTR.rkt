@@ -1,6 +1,10 @@
 #lang racket
 
-(require redex rackunit)
+(require redex)
+
+(module+ test
+  (require redex)
+  (require rackunit))
 
 (define-language λTR
   [x   ::= variable-not-otherwise-mentioned]
@@ -216,11 +220,11 @@
    (common-val (λ x_1 t_1 t_2 P_1 oo_1) 
                (λ x_2 t_3 t_4 P_2 oo_2))])
 
-
-(check-true (judgment-holds (common-val Int Int)))
-(check-true (judgment-holds (common-val (U T Int) Int)))
-(check-true (judgment-holds (common-val Top Int)))
-(check-false (judgment-holds (common-val T Int)))
+(module+ test
+  (check-true (judgment-holds (common-val Int Int)))
+  (check-true (judgment-holds (common-val (U T Int) Int)))
+  (check-true (judgment-holds (common-val Top Int)))
+  (check-false (judgment-holds (common-val T Int))))
 
 (define-judgment-form λTR
   #:mode (type-conflict I I)
@@ -265,14 +269,9 @@
   [(remove (U t_1) t_2) (remove t_1 t_2)]
   [(remove (U t_1 t_2 ...) t_3) (U (remove t_1 t_3) (remove (U t_2 ...) t_3))])
 
-(define-judgment-form λTR
-  #:mode (eqv-type? I I)
-  #:contract (eqv-type? t t)
-  [(subtype t_1 t_2)
-   (subtype t_2 t_1)
-   ----------------- "Equiv-Type"
-   (eqv-type? t_1 t_2)])
 
+(module+ test
+  
 ; restrict tests
 (check-true (judgment-holds (eqv-type? (restrict Int Int) Int)))
 (check-true (judgment-holds (eqv-type? (restrict Int Top) Int)))
@@ -288,7 +287,18 @@
 (check-true (judgment-holds (eqv-type? (remove (U Int Str) Int) Str)))
 (check-true (judgment-holds (eqv-type? (remove (U (U (U T F)) (U Int) Int) 
                                                (U (U (U T) F) T F)) 
-                                       Int)))
+                                       Int))))
+
+
+
+(define-judgment-form λTR
+  #:mode (eqv-type? I I)
+  #:contract (eqv-type? t t)
+  [(subtype t_1 t_2)
+   (subtype t_2 t_1)
+   ----------------- "Equiv-Type"
+   (eqv-type? t_1 t_2)])
+
 
 (define-metafunction λTR
   free-vars : any -> (x ...)
@@ -375,45 +385,47 @@
      (subst-oo oo_1 x_1 oo_2))
    (judgment-holds (<> x_1 x_2))])
 
-(check-equal? (term (subst-oo Null x x)) (term Null))
-(check-equal? (term (subst-P x x (x -: Int))) (term (x -: Int)))
-(check-equal? (term (subst-P x y (y -: Int))) (term (x -: Int)))
-(check-equal? (term (subst-P Null x (y -: Int))) (term (y -: Int)))
-(check-equal? (term (subst-P Null y (y -: Int))) (term TT))
 
-(check-true (judgment-holds (subtype Int Int)))
-(check-true (judgment-holds (subtype Int Top)))
-(check-true (judgment-holds (subtype (U) Int)))
-(check-true (judgment-holds (subtype Int (U Int F))))
-(check-true (judgment-holds (subtype (U T F) (U Int T F))))
-(check-true (judgment-holds (subtype Int Int)))
-(check-false (judgment-holds (subtype (U Int T) Int)))
-(check-true (judgment-holds (subtype (U Int Int) Int)))
-(check-true (judgment-holds (subtype (U Int Int) (U Int T))))
-(check-true (judgment-holds 
-             (subtype (λ x Top (U T F) (x -: Int) (x -! Int) Null) 
-                      (λ x Top (U T F) (x -: Int) (x -! Int) Null))))
-(check-true (judgment-holds 
-             (subtype (λ x Top (U T F) (x -: Int) (x -! Int) Null) 
-                      (λ y Top (U T F) (y -: Int) (y -! Int) Null))))
-(check-true (judgment-holds 
-             (subtype (λ x Top Int TT TT Null)
-                      (λ y Int (U Int T F) TT TT Null))))
+(module+ test
+  (check-equal? (term (subst-oo Null x x)) (term Null))
+  (check-equal? (term (subst-P x x (x -: Int))) (term (x -: Int)))
+  (check-equal? (term (subst-P x y (y -: Int))) (term (x -: Int)))
+  (check-equal? (term (subst-P Null x (y -: Int))) (term (y -: Int)))
+  (check-equal? (term (subst-P Null y (y -: Int))) (term TT))
 
-(check-false (judgment-holds (proves [ ] FF)))
-(check-true (judgment-holds (proves [(x -: Int)] (x -: Int))))
-(check-true (judgment-holds (proves [(AND (x -: Int) (y -: F))] 
-                                    (AND (y -: F) (x -: Int)))))
-(check-true (judgment-holds (proves [(x -: Int)] (OR (x -: Int) (x -: (U T F))))))
-(check-true (judgment-holds (proves [(x -: Int) (x -! Int)] FF)))
-(check-true (judgment-holds (proves [(x -: Int) (x -: Str)] FF)))
-(check-true (judgment-holds (proves [(x -: (U T F Int)) 
-                                     (AND (x -! T) (x -: (U T Int)))] 
-                                    (x -: Int))))
-(check-true (judgment-holds (proves [(OR (OR (z -: (U)) FF) (x -: Int))
-                                     (OR (x -! Int) (y -: (U T F)))
-                                     (OR (y -: Int) (z -: (U T F)))] 
-                                    (z -: (U T F)))))
+  (check-true (judgment-holds (subtype Int Int)))
+  (check-true (judgment-holds (subtype Int Top)))
+  (check-true (judgment-holds (subtype (U) Int)))
+  (check-true (judgment-holds (subtype Int (U Int F))))
+  (check-true (judgment-holds (subtype (U T F) (U Int T F))))
+  (check-true (judgment-holds (subtype Int Int)))
+  (check-false (judgment-holds (subtype (U Int T) Int)))
+  (check-true (judgment-holds (subtype (U Int Int) Int)))
+  (check-true (judgment-holds (subtype (U Int Int) (U Int T))))
+  (check-true (judgment-holds 
+               (subtype (λ x Top (U T F) (x -: Int) (x -! Int) Null) 
+                        (λ x Top (U T F) (x -: Int) (x -! Int) Null))))
+  (check-true (judgment-holds 
+               (subtype (λ x Top (U T F) (x -: Int) (x -! Int) Null) 
+                        (λ y Top (U T F) (y -: Int) (y -! Int) Null))))
+  (check-true (judgment-holds 
+               (subtype (λ x Top Int TT TT Null)
+                        (λ y Int (U Int T F) TT TT Null))))
+
+  (check-false (judgment-holds (proves [ ] FF)))
+  (check-true (judgment-holds (proves [(x -: Int)] (x -: Int))))
+  (check-true (judgment-holds (proves [(AND (x -: Int) (y -: F))] 
+                                      (AND (y -: F) (x -: Int)))))
+  (check-true (judgment-holds (proves [(x -: Int)] (OR (x -: Int) (x -: (U T F))))))
+  (check-true (judgment-holds (proves [(x -: Int) (x -! Int)] FF)))
+  (check-true (judgment-holds (proves [(x -: Int) (x -: Str)] FF)))
+  (check-true (judgment-holds (proves [(x -: (U T F Int)) 
+                                       (AND (x -! T) (x -: (U T Int)))] 
+                                      (x -: Int))))
+  (check-true (judgment-holds (proves [(OR (OR (z -: (U)) FF) (x -: Int))
+                                       (OR (x -! Int) (y -: (U T F)))
+                                       (OR (y -: Int) (z -: (U T F)))] 
+                                      (z -: (U T F))))))
 
 (define-judgment-form λTR
   #:mode (disj I)
@@ -478,22 +490,23 @@
      (OR (reduce-P E_1 P_1)
          (reduce-P E_1 P_2))])
 
-(check-equal? (term (reduce-P [] (AND (OR (x -: Int) 
-                                          (x -: (U T F)))
-                                      (x -! Int))))
-              (term (AND (OR FF 
-                             (x -: (U T F))) 
-                         (x -! Int))))
-
-(check-equal? (term (reduce-P [] (AND (x -: Int) 
-                                      (x -! Int))))
-              (term (AND FF FF)))
 
 (define-metafunction λTR
     simplify-P : P -> P
     [(simplify-P P_1) (reduce-P [] (norm-P P_1))])
 
 
+(module+ test
+  (check-equal? (term (reduce-P [] (AND (OR (x -: Int) 
+                                            (x -: (U T F)))
+                                        (x -! Int))))
+                (term (AND (OR FF 
+                               (x -: (U T F))) 
+                           (x -! Int))))
+
+  (check-equal? (term (reduce-P [] (AND (x -: Int) 
+                                        (x -! Int))))
+                (term (AND FF FF))))
 
 (define-metafunction λTR
   δt : c -> t
@@ -624,6 +637,9 @@
 (define-metafunction λTR
   Option : t -> t
   [(Option t_1) (U t_1 F)])
+
+
+(module+ test
 
 ; Example 1
 (check-true 
@@ -822,3 +838,4 @@
                                      (λ x (U Str Int) Int TT FF Null)
                                      TT FF
                                      Null)))
+) ; endof test

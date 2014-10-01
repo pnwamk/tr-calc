@@ -65,6 +65,21 @@
    ------------------------ "Not-In"
    (not-in any_1 (any_2 ...))])
 
+(define-judgment-form λTR
+  #:mode (contains-Bot I)
+  #:contract (contains-Bot)
+  [(subtype t_1 (U))
+   ------------------- "Bot-Subtype"
+   (contains-Bot t_1)]
+
+  [(contains-Bot t_1)
+   ------------------- "Bot-Pair-lhs"
+   (contains-Bot (t_1 * t_2))]
+
+  [(contains-Bot t_2)
+   ------------------- "Bot-Pair-rhs"
+   (contains-Bot (t_1 * t_2))])
+
 
 (define-judgment-form λTR
   #:mode (proves* I I I I)
@@ -103,7 +118,7 @@
   
   ;TODO this will not work for Bot nested in Pairs... will it?
   ; L-Bot
-  [(subtype t_1 (U))
+  [(contains-Bot t_1)
    ------------------- "L-Bot"
    (proves* (is_1 ... (o_1 -: t_1) is_2 ...) (neg_1 ...) () P_1)]
   

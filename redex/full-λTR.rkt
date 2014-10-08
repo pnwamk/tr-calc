@@ -176,11 +176,11 @@
   
   ; L-Update-Is
   [(where is_new ((obj (pe_1 ...) x_1) -: (update t_1 #t t_2 (pe_2 ...))))
-   (not-in is_new (is_1 ... 
-                  ((obj (pe_1 ...) x_1) -: t_1) 
-                  is_2 ... 
-                  ((obj (pe_2 ... pe_1 ...) x_1) -: t_2) 
-                  is_3 ...))
+   (not-in is_new (((obj (pe_1 ...) x_1) -: t_1) 
+                   ((obj (pe_2 ... pe_1 ...) x_1) -: t_2)
+                   is_1 ...
+                   is_2 ... 
+                   is_3 ...))
    (proves* (is_new is_1 ... 
                     ((obj (pe_1 ...) x_1) -: t_1) 
                     is_2 ... 
@@ -202,7 +202,7 @@
   
   ;L-Update-Neg
   [(where is_new ((obj (pe_1 ...) x_1) -: (update t_1 #f t_2 (pe_2 ...)))) 
-   (not-in is_new (is_1 ... ((obj (pe_1 ...) x_1) -: t_1) is_2 ...))
+   (not-in is_new (((obj (pe_1 ...) x_1) -: t_1) is_1 ... is_2 ...))
    (proves* (is_new is_1 ... is_2 ... ((obj (pe_1 ...) x_1) -: t_1))
             (neg_1 ... ((obj (pe_2 ... pe_1 ...) x_1) -! t_2) neg_2 ...)
             ()

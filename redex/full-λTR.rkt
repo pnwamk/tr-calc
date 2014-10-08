@@ -67,7 +67,7 @@
 
 (define-judgment-form λTR
   #:mode (contains-Bot I)
-  #:contract (contains-Bot)
+  #:contract (contains-Bot t)
   [(subtype t_1 (U))
    ------------------- "Bot-Subtype"
    (contains-Bot t_1)]
@@ -116,7 +116,7 @@
   [------------------- "L-False"
    (proves* (is_1 ...) (neg_1 ...) (FF P_2 ...) P_1)]
   
-  ;TODO this will not work for Bot nested in Pairs... will it?
+
   ; L-Bot
   [(contains-Bot t_1)
    ------------------- "L-Bot"

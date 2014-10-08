@@ -6,29 +6,21 @@
   (require redex rackunit))
 
 (define-language λTR
-  [x      ::= variable-not-otherwise-mentioned]
-  [b      ::= boolean]
-  [z      ::= integer]
-  [comp   ::= < > <= >= =]
-  [intop  ::= * +]
-  [consop ::= car cdr]
-  [binop  ::= intop comp]
-  [op     ::= add1 zero? int? str? bool? proc? str-len error cons?]
-  [c      ::= consop op]
-  [e      ::= (ann x t) (e e) (λ ([x : t]) e) (if e e e) 
-          op b z string (let ([x e]) e) (cons e e) (binop e e)]
+  [x   ::= variable-not-otherwise-mentioned]
+  [b   ::= boolean]
+  [z   ::= integer]
+  [e   ::= (ann x t) (e e) (λ ([x : t]) e) (if e e e) 
+       c b z string (let ([x e]) e) (cons e e)]
+  [c   ::= add1 zero? int? str? bool? proc? 
+       str-len + error cons? car cdr]
   [pe  ::= CAR CDR]
   [π   ::= (pe ...)]
   [o   ::= (obj π x)]
-  [L   ::= z o (z L) (L + L)]
-  [oo  ::= L Null]
-  [LI  ::= (<= L L)]
-  [SLI  ::= (LI ...)]
-  [t   ::= Top T F Int Str (U t ...)
-       (λ x t t P P oo) (t * t) (x : t [P])]
+  [oo  ::= o Null]
+  [t   ::= Top T F Int Str (U t ...) (λ x t t P P oo) (t * t)]
   [is  ::= (o -: t)]
   [neg ::= (o -! t)]
-  [P   ::= is neg (OR P P) (AND P P) SLI TT FF]
+  [P   ::= is neg (OR P P) (AND P P) TT FF]
   [E   ::= (P ...)])
 
 (define-metafunction λTR
@@ -67,58 +59,15 @@
    (non-U t_1)])
 
 (define-judgment-form λTR
-  #:mode (is-Dep I)
-  #:contract (is-Dep t)
-  [-------------- "IsDep"
-   (is-Dep (x : t [P]))])
-
-(define-judgment-form λTR
-  #:mode (non-Dep I)
-  #:contract (non-Dep t)
-  [(where #f (is-Dep t_1))
-   -------------- "NonDep"
-   (non-Dep t_1)])
-
-(define-judgment-form λTR
   #:mode (not-in I I)
   #:contract (not-in any any) 
   [(side-condition ,(not (member (term any_1) (term (any_2 ...)))))
    ------------------------ "Not-In"
    (not-in any_1 (any_2 ...))])
 
-
-;; TODO
-(define-judgment-form λTR
-  #:mode (SLI-unsat I)
-  #:contract (SLI-unsat SLI)
-  [------------- "SLI-Unsat"
-   (SLI-unsat SLI_1)])
-
-;; TODO
-(define-judgment-form λTR
-  #:mode (SLI-implies I I)
-  #:contract (SLI-implies SLI SLI)
-  [------------- "SLI-Implies"
-   (SLI-implies SLI_1 SLI_2)])
-
-;; TODO
-(define-metafunction λTR
-  SLI-elim : o SLI -> SLI
-  [(SLI-elim o_1 SLI_1) SLI_1])
-
-;; TODO
-(define-metafunction λTR
-  SLI-subst : o x SLI -> SLI
-  [(SLI-elim o_1 x_1 SLI_1) SLI_1])
-
-
-(define-metafunction λTR
-  SLI-join : SLI SLI -> SLI
-  [(SLI-join (LI_1 ...) (LI_2 ...)) (LI_1 ... LI_2 ...)])
-
 (define-judgment-form λTR
   #:mode (contains-Bot I)
-  #:contract (contains-Bot)
+  #:contract (contains-Bot t)
   [(subtype t_1 (U))
    ------------------- "Bot-Subtype"
    (contains-Bot t_1)]
@@ -131,112 +80,84 @@
    ------------------- "Bot-Pair-rhs"
    (contains-Bot (t_1 * t_2))])
 
+
 (define-judgment-form λTR
-  #:mode (proves* I I I I I)
-  #:contract (proves* SLI (is ...) (neg ...) E P)
+  #:mode (proves* I I I I)
+  #:contract (proves* (is ...) (neg ...) E P)
   ; L-Atom Is
   [(subtype t_1 t_2)
    ------------------- "L-Atom-Is"
-   (proves* SLI_1
-            (is_1 ... (o_1 -: t_1) is_2 ...)
+   (proves* (is_1 ... (o_1 -: t_1) is_2 ...)
             (neg ...)
             ()
             (o_1 -: t_2))]
   
   ; L-Atom Neg
-  [(proves* SLI_1
-            (is_1 ...)
+  [(proves* (is_1 ...)
             (neg_1 ...)
             ((o_1 -: t_2))
             FF)
    ------------------- "L-Atom-Neg"
-   (proves* SLI_1
-            (is_1 ...)
+   (proves* (is_1 ...)
             (neg_1 ...)
             ()
             (o_1 -! t_2))]
-
-  ; L-Dep
-  [(proves* SLI_1 (is_1 ...) (neg_1 ...) () (o_1 -: t_2))
-   (proves* SLI_1 (is_1 ...) (neg_1 ...) () (subst-P o_1 x_1 P_1))
-   ------------------- "L-Dep"
-   (proves* SLI_1 (is_1 ...) (neg_1 ...) () (o_1 -: (x_1 : t_2 [P_1])))]
-  
-  ;; L-SLI
-  [(SLI-implies SLI_1 SLI_2)
-   ------------------- "L-SLI"
-   (proves* SLI_1 (is ...) (neg ...) () SLI_2)]
   
   ; L-True
   [------------------- "L-True"
-   (proves* SLI_1 (is ...) (neg ...) (P_1 ...) TT)]
+   (proves* (is ...) (neg ...) (P_1 ...) TT)]
   
   ; L-True-skip
-  [(proves* SLI_1 (is_1 ...) (neg_1 ...) (P_2 ...) P_1)
+  [(proves* (is_1 ...) (neg_1 ...) (P_2 ...) P_1)
    ------------------- "L-True-skip"
-   (proves* SLI_1 (is_1 ...) (neg_1 ...) (TT P_2 ...) P_1)]
+   (proves* (is_1 ...) (neg_1 ...) (TT P_2 ...) P_1)]
   
   ; L-False
   [------------------- "L-False"
-   (proves* SLI_1 (is_1 ...) (neg_1 ...) (FF P_2 ...) P_1)]
+   (proves* (is_1 ...) (neg_1 ...) (FF P_2 ...) P_1)]
   
+
   ; L-Bot
   [(contains-Bot t_1)
    ------------------- "L-Bot"
-   (proves* SLI_1 (is_1 ... (o_1 -: t_1) is_2 ...) (neg_1 ...) () P_1)]
-  
-  ; L-SLI-Unsat
-  [(SLI-unsat SLI_1)
-   ------------------- "L-SLI-unsat"
-   (proves* SLI_1 (is_1 ...) (neg_1 ...) () P_1)]
+   (proves* (is_1 ... (o_1 -: t_1) is_2 ...) (neg_1 ...) () P_1)]
   
   ; L-Is-move
-  [(non-Dep t_1)
-   (proves* SLI_1 ((o_1 -: t_1) is_1 ...) (neg_1 ...) (P_1 ...) P_2)
+  [(proves* ((o_1 -: t_1) is_1 ...) (neg_1 ...) (P_1 ...) P_2)
    ------------------- "L-Is-move"
-   (proves* SLI_1 (is_1 ...) (neg_1 ...) ((o_1 -: t_1) P_1 ...) P_2)]
-
-  ;; L-DepE
-  [(proves* SLI_1 (is_1 ...) (neg_1 ...) ((o_1 -: t_1) (subst-P o_1 x_1 P_3) P_1 ...) P_2)
-   ------------------- "L-DepE"
-   (proves* SLI_1 (is_1 ...) (neg_1 ...) ((o_1 -: (x_1 : t_1 [P_3])) P_1 ...) P_2)]
-  
-  ; L-SLI-move
-  [(proves* SLI_1 (is_1 ...) ((o_1 -! t_1) neg_1 ...) (P_1 ...) P_2)
-   ------------------- "L-SLI-move"
-   (proves* SLI_1 (is_1 ...) (neg_1 ...) ((o_1 -! t_1) P_1 ...) P_2)]
+   (proves* (is_1 ...) (neg_1 ...) ((o_1 -: t_1) P_1 ...) P_2)]
   
   ; L-Neg-move
-  [(proves* (SLI-join SLI_1 SLI_2) (is_1 ...) (neg_1 ...) (P_1 ...) P_2)
+  [(proves* (is_1 ...) ((o_1 -! t_1) neg_1 ...) (P_1 ...) P_2)
    ------------------- "L-Neg-move"
-   (proves* SLI_1 (is_1 ...) (neg_1 ...) (SLI_2 P_1 ...) P_2)]
+   (proves* (is_1 ...) (neg_1 ...) ((o_1 -! t_1) P_1 ...) P_2)]
   
   ; L-AndE
-  [(proves* SLI_1 (is_1 ...) (neg_1 ...) (P_1 P_2 P_3 ...) P_4)
+  [(proves* (is_1 ...) (neg_1 ...) (P_1 P_2 P_3 ...) P_4)
    ------------------- "L-AndE"
-   (proves* SLI_1 (is_1 ...) (neg_1 ...) ((AND P_1 P_2) P_3 ...) P_4)]
+   (proves* (is_1 ...) (neg_1 ...) ((AND P_1 P_2) P_3 ...) P_4)]
   
   ; L-AndI
-  [(proves* SLI_1 (is_1 ...) (neg_1 ...) () P_1)
-   (proves* SLI_1 (is_1 ...) (neg_1 ...) () P_2)
+  [(proves* (is_1 ...) (neg_1 ...) () P_1)
+   (proves* (is_1 ...) (neg_1 ...) () P_2)
    ------------------- "L-AndI"
-   (proves* SLI_1 (is_1 ...) (neg_1 ...) () (AND P_1 P_2))]
+   (proves* (is_1 ...) (neg_1 ...) () (AND P_1 P_2))]
   
   ; L-OrI-lhs
-  [(proves* SLI_1 (is_1 ...) (neg_1 ...) () P_1)
+  [(proves* (is_1 ...) (neg_1 ...) () P_1)
    ------------------- "L-OrI-lhs"
-   (proves* SLI_1 (is_1 ...) (neg_1 ...) () (OR P_1 P_2))]
+   (proves* (is_1 ...) (neg_1 ...) () (OR P_1 P_2))]
   
   ; L-OrI-rhs
-  [(proves* SLI_1 (is_1 ...) (neg_1 ...) () P_2)
+  [(proves* (is_1 ...) (neg_1 ...) () P_2)
    ------------------- "L-OrI-rhs"
-   (proves* SLI_1 (is_1 ...) (neg_1 ...) () (OR P_1 P_2))]
+   (proves* (is_1 ...) (neg_1 ...) () (OR P_1 P_2))]
   
   ; L-OrE
-  [(proves* SLI_1 (is_1 ...) (neg_1 ...) (P_1 P_3 ...) P_4)
-   (proves* SLI_1 (is_1 ...) (neg_1 ...) (P_2 P_3 ...) P_4)
+  [(proves* (is_1 ...) (neg_1 ...) (P_1 P_3 ...) P_4)
+   (proves* (is_1 ...) (neg_1 ...) (P_2 P_3 ...) P_4)
    ------------------- "L-OrE"
-   (proves* SLI_1 (is_1 ...) (neg_1 ...) ((OR P_1 P_2) P_3 ...) P_4)]
+   (proves* (is_1 ...) (neg_1 ...) ((OR P_1 P_2) P_3 ...) P_4)]
   
   ; L-Update-Is
   [(where is_new ((obj (pe_1 ...) x_1) -: (update t_1 #t t_2 (pe_2 ...))))
@@ -245,7 +166,7 @@
                   is_2 ... 
                   ((obj (pe_2 ... pe_1 ...) x_1) -: t_2) 
                   is_3 ...))
-   (proves* SLI_1 (is_new is_1 ... 
+   (proves* (is_new is_1 ... 
                     ((obj (pe_1 ...) x_1) -: t_1) 
                     is_2 ... 
                     ((obj (pe_2 ... pe_1 ...) x_1) -: t_2) 
@@ -254,7 +175,7 @@
             ()
             P_1)
   ------------------- "L-Update-Is"
-   (proves* SLI_1 (is_1 ... 
+   (proves* (is_1 ... 
                   ((obj (pe_1 ...) x_1) -: t_1) 
                   is_2 ... 
                   ((obj (pe_2 ... pe_1 ...) x_1) -: t_2) 
@@ -266,12 +187,12 @@
   ;L-Update-Neg
   [(where is_new ((obj (pe_1 ...) x_1) -: (update t_1 #f t_2 (pe_2 ...)))) 
    (not-in is_new (is_1 ... ((obj (pe_1 ...) x_1) -: t_1) is_2 ...))
-   (proves* SLI_1 (is_new is_1 ... is_2 ... ((obj (pe_1 ...) x_1) -: t_1))
+   (proves* (is_new is_1 ... is_2 ... ((obj (pe_1 ...) x_1) -: t_1))
             (neg_1 ... ((obj (pe_2 ... pe_1 ...) x_1) -! t_2) neg_2 ...)
             ()
             P_1)
   ------------------- "L-Update-Neg"
-   (proves* SLI_1 (is_1 ... ((obj (pe_1 ...) x_1) -: t_1) is_2 ...)
+   (proves* (is_1 ... ((obj (pe_1 ...) x_1) -: t_1) is_2 ...)
             (neg_1 ... ((obj (pe_2 ... pe_1 ...) x_1) -! t_2) neg_2 ...)
             ()
             P_1)])
@@ -322,16 +243,7 @@
    (proves [(subst-P (var x_2) x_1 P_1-)] P_2-)
    ------------------------------------------ "S-Fun"
    (subtype (λ x_1 t_1 t_2 P_1+ P_1- oo_1)
-            (λ x_2 t_3 t_4 P_2+ P_2- oo_2))]
-  
-  [(subtype t_1 (subst-t (var x_1) x_2 t_2))
-   (proves P_1 (subst-t (var x_1) x_2 P_2))
-   ---------------- "S-Dep"
-   (subtype (x_1 : t_1 [P_1]) (x_2 : t_2 [P_2]))]
-  
-  [(subtype t_1 t_2)
-   ---------------- "S-Dep-Weak"
-   (subtype (x_1 : t_1 [P_1]) t_2)])
+            (λ x_2 t_3 t_4 P_2+ P_2- oo_2))])
 
 (define-judgment-form λTR
   #:mode (common-val I I)
@@ -485,39 +397,13 @@
   [(free-vars (OR P_1  P_2)) (app (free-vars P_1) (free-vars P_2))])
 
 
-(define-judgment-form λTR
-  #:mode (in-oo I I)
-  #:mode (in-oo x oo)
-  [----------- "InObj"
-   (in-oo x_1 (obj π x_1))]
-  
-  [(in-oo x_1 L_1)
-   ----------- "InPlus-lhs"
-   (in-oo x_1 (L_1 + L_2))]
-  
-  [(in-oo x_1 L_2)
-   ----------- "InPlus-rhs"
-   (in-oo x_1 (L_1 + L_2))]
-  
-  [(in-oo x_1 L_1)
-   ----------- "InMult"
-   (in-oo x_1 (z L_1))])
-
 (define-metafunction λTR
   subst-oo : oo x oo -> oo
   [(subst-oo oo_1 x_1 Null) Null]
-  [(subst-oo Null x_1 oo_1) Null
-   (judgment-holds (in-oo x_1 oo_1))]
-  [(subst-oo oo x_1 oo_1) oo_1
-   (where #f (judgment-holds (in-oo x_1 oo_1)))]
+  [(subst-oo Null x_1 (obj π_1 x_1)) Null]
   [(subst-oo (obj π_2 x_2) x_1 (obj π_1 x_1)) (obj (app π_1 π_2) x_2)]
-  [(subst-oo z_1 x_1 (obj () x_1)) z_1]
-  [(subst-oo (z_1 L_1) x_1 (obj () x_1)) (z_1 L_1)]
-  [(subst-oo (L_1 + L_2) x_1 (obj () x_1)) (L_1 + L_2)]
-  [(subst-oo L_1 x_1 (z_1 L_2)) (z_1 (subst-oo L_1 x_1 L_2))
-   (judgment-holds (in-oo x_1 L_2))]
-  [(subst-oo L_1 x_1 (L_2 + L_3)) ((subst-oo L_1 x_1 L_2) (subst-oo L_1 x_1 L_3))
-   (judgment-holds (in-oo x_1 (L_2 + L_3)))])
+  [(subst-oo oo x_2 (obj π_1 x_1)) (obj π_1 x_1)
+   (judgment-holds (<> x_2 x_1))])
 
 (define-metafunction λTR
   subst-P : oo x P -> P
@@ -527,8 +413,6 @@
    ((obj (app π_2 π_1) x_1) -! (subst-t (obj π_1 x_1) x_2 t_1))]
   [(subst-P Null x_1 ((obj π_1 x_1) -: t_1)) TT]
   [(subst-P Null x_1 ((obj π_1 x_1) -! t_1)) TT]
-  [(subst-P Null x_1 SLI_1) (SLI-elim x_1 SLI_1)]
-  [(subst-P o_1 x_1 SLI_1) (SLI-subst o_1 x_1 SLI_1)]
   [(subst-P oo_1 x_1 ((obj π_2 x_2) -: t_1)) ((obj π_2 x_2) -: t_1)
    (judgment-holds (<> x_1 x_2))
    (judgment-holds (not-in x_1 (free-vars t_1)))]
@@ -573,11 +457,6 @@
      (subst-P oo_1 x_1 P_1)
      (subst-P oo_1 x_1 P_2)
      (subst-oo oo_1 x_1 oo_2))
-   (judgment-holds (<> x_1 x_2))]
-  [(subst-t oo_1 x_1 (x_1 : t_1 [P_1]))
-   (x_1 : t_1 [P_1])]
-  [(subst-t oo_1 x_1 (x_2 : t_1 [P_1]))
-   (x_2 : (subst-t oo_1 x_1 t_1) [(subst-t oo_1 x_1 P_1)])
    (judgment-holds (<> x_1 x_2))])
 
 (module+ test
@@ -705,6 +584,7 @@
 (define-metafunction λTR
   δt : c -> t
   [(δt add1) (λ x Int Int TT FF Null)]
+  [(δt +) (λ x Int (λ y Int Int TT FF Null) TT FF Null)]
   [(δt zero?) (λ x Int (U T F) TT TT Null)]
   [(δt int?) (λ x Top (U T F) ((var x) -: Int) ((var x) -! Int) Null)]
   [(δt str?) (λ x Top (U T F) ((var x) -: Str) ((var x) -! Str) Null)]
@@ -739,79 +619,10 @@
 
 
 (define-judgment-form λTR
-  #:mode (is-int I)
-  #:contract (is-int any)
-  [------------- "IsInt"
-   (is-int z)])
-
-(define-judgment-form λTR
-  #:mode (not-int I)
-  #:contract (not-int any)
-  [(where #f (judgment-holds (is-int any_1)))
-   ------------- "IsInt"
-   (not-int any_1)])
-
-(define-metafunction λTR
-  oo* : oo oo -> oo
-  [(oo* Null oo) Null]
-  [(oo* oo Null) Null]
-  [(oo* z_1 L_1) (z_1 L_1)]
-  [(oo* L_1 z_1) (z L)]
-  [(oo* z_1 z_2) ,(* (term z_1) (term z_2))]
-  [(oo* L_1 L_2) ,(gensym)
-   (judgment-holds (not-int L_1))
-   (judgment-holds (not-int L_2))])
-
-(define-metafunction λTR
-  oo+ : oo oo -> oo
-  [(oo+ Null oo) Null]
-  [(oo+ oo Null) Null]
-  [(oo+ z_1 z_2) ,(+ (term z_1) (term z_2))]
-  [(oo+ L_1 z_1) (L_1 + z_1)
-   (judgment-holds (not-int L_1))]
-  [(oo+ z_1 L_1) (z_1 + L_1)]
-  (judgment-holds (not-int L_1)))
-
-(define-metafunction λTR
-  less-than-or-eq : L L -> SLI
-  [(less-than-or-eq L_1 L_2) ((<= L_1 L_2))])
-
-(define-metafunction λTR
-  equal-to : L L -> SLI
-  [(equal-to L_1 L_2) ((<= L_1 L_2) (<= L_2 L_1))])
-
-(define-metafunction λTR
-  less-than : L L -> SLI
-  [(less-than L_1 L_2) ((<= (L_1 + 1) L_2))])
-
-(define-metafunction λTR
-  greater-than : L L -> SLI
-  [(greater-than L_1 L_2) ((<= (L_2 + 1) L_1))])
-
-
-(define-metafunction λTR
-  oo-comp : comp oo oo -> (P P)
-  [(oo-comp comp Null oo) (TT TT)]
-  [(oo-comp comp oo Null) (TT TT)]
-  [(oo-comp <= L_1 L_2) ((less-than-or-eq L_1 L_2)  
-                         (greater-than L1 L_2))]
-  [(oo-comp < L_1 L_2) ((less-than L_1 L_2)
-                        (less-than-or-eq L_2 L_1))]
-  [(oo-comp = L_1 L_2) ((equal-to L_1 L_2)
-                        (OR (less-than L_1 L_2)
-                            (less-than L_2 L_1)))]
-  [(oo-comp > L_1 L_2) ((greater-than L_1 L_2)
-                        (less-than-or-eq L_1 L_2))]
-  [(oo-comp >= L_1 L_2) ((less-than-or-eq L_2 L_1)
-                         (less-than L_1 L_2))])
-
-
-(define-judgment-form λTR
   #:mode (typeof I I O O O O)
   #:contract (typeof E e t P P oo)
-  [(where/hidden x_1 ,(gensym))
-   -------------- "T-Num"
-   (typeof E z (x_1 : Int [(= x_1 z)]) TT FF z)]
+  [-------------- "T-Num"
+   (typeof E z Int TT FF Null)]
   
   [-------------- "T-Str"
    (typeof E string Str TT FF Null)]
@@ -837,7 +648,7 @@
            TT FF
            Null)]
   
-  [(where/hidden #f ,(member (term e_1) '(car cdr + * = < <= > >=)))
+  [(where/hidden #f ,(member (term e_1) '(car cdr)))
    (typeof E_1 e_1 (λ x_0 t_0- t_0+ P_0+ P_0- oo_0) P_1+ P_1- oo_1)
    (typeof E_1 e_2 t_2 P_2+ P_2- oo_2)
    (subtype t_2 t_0-)
@@ -901,37 +712,7 @@
            t_2 
            (subst-P oo_1 x_1 ((obj (CDR) x_1) -! F))
            (subst-P oo_1 x_1 ((obj (CDR) x_1) -: F))
-           (subst-oo oo_1 x_1 (obj (CDR) x_1)))]
-  
-  [(typeof E_1 e_1 (t_1 * t_2) P_1+ P_1- oo_1)
-   (where x_1 ,(gensym))
-   ------------------------- "T-Int-Binop"
-   (typeof E_1 
-           (intop e_1 e_2) 
-           t_1 
-           (subst-P oo_1 x_1 ((obj (CAR) x_1) -! F))
-           (subst-P oo_1 x_1 ((obj (CAR) x_1) -: F))
-           (subst-oo oo_1 x_1 (obj (CAR) x_1)))]
-  
-  [(typeof E_1 e_1 (t_1 * t_2) P_1+ P_1- oo_1)
-   (where x_1 ,(gensym))
-   ------------------------- "T-Mult"
-   (typeof E_1 
-           (+ e_1 e_2) 
-           t_1 
-           (subst-P oo_1 x_1 ((obj (CAR) x_1) -! F))
-           (subst-P oo_1 x_1 ((obj (CAR) x_1) -: F))
-           (subst-oo oo_1 x_1 (obj (CAR) x_1)))]
-  
-  [(typeof E_1 e_1 (t_1 * t_2) P_1+ P_1- oo_1)
-   (where x_1 ,(gensym))
-   ------------------------- "T-Leq"
-   (typeof E_1 
-           (+ e_1 e_2) 
-           t_1 
-           (subst-P oo_1 x_1 ((obj (CAR) x_1) -! F))
-           (subst-P oo_1 x_1 ((obj (CAR) x_1) -: F))
-           (subst-oo oo_1 x_1 (obj (CAR) x_1)))])
+           (subst-oo oo_1 x_1 (obj (CDR) x_1)))])
 
 
 (define-judgment-form λTR

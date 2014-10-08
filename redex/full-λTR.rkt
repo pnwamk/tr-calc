@@ -82,6 +82,14 @@
 
 
 (define-judgment-form λTR
+  #:mode (atomic I)
+  #:contract (atomic P)
+  [------------- "Atom-Is"
+   (atomic (o_1 -: t_1))]
+  [------------- "Atom-FF"
+   (atomic FF)])
+
+(define-judgment-form λTR
   #:mode (proves* I I I I)
   #:contract (proves* (is ...) (neg ...) E P)
   ; L-Atom Is
@@ -93,69 +101,76 @@
             (o_1 -: t_2))]
   
   ; L-Atom Neg
-  [(proves* (is_1 ...)
-            (neg_1 ...)
-            ((o_1 -: t_2))
+  [(proves* ()
+            ()
+            ((o_1 -: t_2) P_1 ...)
             FF)
    ------------------- "L-Atom-Neg"
-   (proves* (is_1 ...)
-            (neg_1 ...)
+   (proves* ()
             ()
+            (P_1 ...)
             (o_1 -! t_2))]
   
   ; L-True
   [------------------- "L-True"
-   (proves* (is ...) (neg ...) (P_1 ...) TT)]
+   (proves* () () (P_1 ...) TT)]
   
   ; L-True-skip
   [(proves* (is_1 ...) (neg_1 ...) (P_2 ...) P_1)
+   (atomic P_1)
    ------------------- "L-True-skip"
    (proves* (is_1 ...) (neg_1 ...) (TT P_2 ...) P_1)]
   
   ; L-False
-  [------------------- "L-False"
+  [(atomic P_1)
+   ------------------- "L-False"
    (proves* (is_1 ...) (neg_1 ...) (FF P_2 ...) P_1)]
   
 
   ; L-Bot
   [(contains-Bot t_1)
+   (atomic P_1)
    ------------------- "L-Bot"
    (proves* (is_1 ... (o_1 -: t_1) is_2 ...) (neg_1 ...) () P_1)]
   
   ; L-Is-move
   [(proves* ((o_1 -: t_1) is_1 ...) (neg_1 ...) (P_1 ...) P_2)
+   (atomic P_2)
    ------------------- "L-Is-move"
    (proves* (is_1 ...) (neg_1 ...) ((o_1 -: t_1) P_1 ...) P_2)]
   
   ; L-Neg-move
   [(proves* (is_1 ...) ((o_1 -! t_1) neg_1 ...) (P_1 ...) P_2)
+   (atomic P_2)
    ------------------- "L-Neg-move"
    (proves* (is_1 ...) (neg_1 ...) ((o_1 -! t_1) P_1 ...) P_2)]
   
   ; L-AndE
   [(proves* (is_1 ...) (neg_1 ...) (P_1 P_2 P_3 ...) P_4)
+   (atomic P_4)
    ------------------- "L-AndE"
    (proves* (is_1 ...) (neg_1 ...) ((AND P_1 P_2) P_3 ...) P_4)]
   
   ; L-AndI
-  [(proves* (is_1 ...) (neg_1 ...) () P_1)
-   (proves* (is_1 ...) (neg_1 ...) () P_2)
+  [(proves* () () (P_3 ...) P_1)
+   (proves* () () (P_3 ...) P_2)
    ------------------- "L-AndI"
-   (proves* (is_1 ...) (neg_1 ...) () (AND P_1 P_2))]
+   (proves* () () (P_3 ...) (AND P_1 P_2))]
   
   ; L-OrI-lhs
-  [(proves* (is_1 ...) (neg_1 ...) () P_1)
+  [(proves* () () (P_3 ...) P_1)
    ------------------- "L-OrI-lhs"
-   (proves* (is_1 ...) (neg_1 ...) () (OR P_1 P_2))]
+   (proves* () () (P_3 ...) (OR P_1 P_2))]
   
   ; L-OrI-rhs
-  [(proves* (is_1 ...) (neg_1 ...) () P_2)
+  [(proves* () () (P_3 ...) P_2)
    ------------------- "L-OrI-rhs"
-   (proves* (is_1 ...) (neg_1 ...) () (OR P_1 P_2))]
+   (proves* () () (P_3 ...) (OR P_1 P_2))]
   
   ; L-OrE
   [(proves* (is_1 ...) (neg_1 ...) (P_1 P_3 ...) P_4)
    (proves* (is_1 ...) (neg_1 ...) (P_2 P_3 ...) P_4)
+   (atomic P_4)
    ------------------- "L-OrE"
    (proves* (is_1 ...) (neg_1 ...) ((OR P_1 P_2) P_3 ...) P_4)]
   
@@ -174,6 +189,7 @@
             (neg_1 ...)
             ()
             P_1)
+   (atomic P_1)
   ------------------- "L-Update-Is"
    (proves* (is_1 ... 
                   ((obj (pe_1 ...) x_1) -: t_1) 
@@ -191,6 +207,7 @@
             (neg_1 ... ((obj (pe_2 ... pe_1 ...) x_1) -! t_2) neg_2 ...)
             ()
             P_1)
+   (atomic P_1)
   ------------------- "L-Update-Neg"
    (proves* (is_1 ... ((obj (pe_1 ...) x_1) -: t_1) is_2 ...)
             (neg_1 ... ((obj (pe_2 ... pe_1 ...) x_1) -! t_2) neg_2 ...)
@@ -312,7 +329,7 @@
   [(update t_1 #t t_2 ()) (restrict t_1 t_2)]
   [(update t_1 #f t_2 ()) (remove t_1 t_2)])
 
-; fix judgment-holds common-val clauses
+;; fix judgment-holds common-val clauses
 (define-metafunction λTR
   restrict : t t -> t
   [(restrict t_1 t_2) (U)
@@ -329,7 +346,7 @@
   [(restrict (U t_1) t_2) (restrict t_1 t_2)]
   [(restrict (U t_1 t_2 ...) t_3) (U (restrict t_1 t_3) (restrict (U t_2 ...) t_3))])
 
-; fix where clauses w/ subtype
+;; fix where clauses w/ subtype
 (define-metafunction λTR
   remove : t t -> t
   [(remove t_1 t_2) (U)
@@ -350,7 +367,7 @@
    ----------------- "Equiv-Type"
    (eqv-type? t_1 t_2)])
 
-; restrict tests
+;; restrict tests
 (module+ test
   (check-true (judgment-holds (eqv-type? (restrict Int Int) Int)))
   (check-true (judgment-holds (eqv-type? (restrict Int Top) Int)))
@@ -359,7 +376,7 @@
   (check-true (judgment-holds (eqv-type? (restrict (U T F) (U T Int)) T)))
   (check-true (judgment-holds (eqv-type? (restrict (U (U (U T) F)) (U T Int Str)) T)))
 
-                                        ; remove tests
+  ;; remove tests
   (check-true (judgment-holds (eqv-type? (remove Int Int) (U))))
   (check-true (judgment-holds (eqv-type? (remove Int Str) Int)))
   (check-true (judgment-holds (eqv-type? (remove Int (U Int Str)) (U))))
@@ -370,10 +387,10 @@
 
 (define-metafunction λTR
   free-vars : any -> (x ...)
-  ; objects
+  ;; objects
   [(free-vars Null) ()]
   [(free-vars (obj π x_1)) (x_1)]
-  ; types
+  ;; types
   [(free-vars Top) ()]
   [(free-vars Int) ()]
   [(free-vars Str) ()]
@@ -388,7 +405,7 @@
                           (free-vars P_1)
                           (free-vars P_2)
                           (free-vars oo_1))))]
-  ; props
+  ;; props
   [(free-vars TT) ()]
   [(free-vars FF) ()]
   [(free-vars (o_1 -: t_1)) (app (free-vars o_1) (free-vars t_1))]
@@ -743,7 +760,7 @@
   [(Option t_1) (U t_1 F)])
 
 (module+ test
-; Example 1
+;; Example 1
   (check-true 
    (judgment-holds 
     (typeof* [((var x) -: Top)] 
@@ -791,7 +808,7 @@
              Null)))
 
 
-  ;;Example 2
+  ;; Example 2
   (check-true 
    (judgment-holds 
     (typeof* []
@@ -812,7 +829,7 @@
              (U T F)
              ((var x) -: (U Int Str)) ((var x) -! (U Int Str))
              Null)))
-
+  
   ;; Example 3
   (check-true 
    (judgment-holds 
@@ -823,8 +840,8 @@
              Int
              TT FF
              Null)))
-
-
+  
+  
   (check-true
    (judgment-holds 
     (typeof* [((var x) -: Top)]
@@ -833,7 +850,7 @@
              (U T F)
              ((var x) -: Int) ((var x) -! Int)
              Null)))
-
+  
   (check-true
    (judgment-holds 
     (typeof* [((var x) -: Top)]
@@ -844,7 +861,7 @@
              (U T F)
              ((var x) -: (U Int Str)) ((var x) -! (U Int Str))
              Null)))
-
+  
   (check-true 
    (judgment-holds 
     (typeof* [((var x) -: Top)]
@@ -853,8 +870,8 @@
              (U T F)
              ((var x) -: (U Int Str)) ((var x) -! (U Int Str))
              Null)))
-
-                                        ; Example 4
+  
+  ;; Example 4
   (check-true (judgment-holds 
                (typeof* [((var f) -: (λ x (U Int Str) Int TT FF Null))
                          ((var x) -: Top)]
@@ -866,9 +883,9 @@
                         Int
                         TT FF
                         Null)))
-
-
-                                        ; Example 5
+  
+  
+  ;; Example 5
   (check-true 
    (judgment-holds 
     (typeof* [((var x) -: Top) ((var y) -: Top)]
@@ -878,8 +895,8 @@
              Int
              TT FF
              Null)))
-
-                                        ; Example 6
+  
+  ;; Example 6
   (check-false 
    (judgment-holds 
     (typeof* [((var x) -: Top) ((var y) -: Top)]
@@ -889,8 +906,8 @@
              Int
              TT FF
              Null)))
-
-                                        ; Example 7
+  
+  ;; Example 7
   (check-true 
    (judgment-holds 
     (typeof* [((var x) -: Top) ((var y) -: Top)]
@@ -900,8 +917,8 @@
              Int
              TT FF
              Null)))
-
-                                        ; Example 8
+  
+  ;; Example 8
   (check-true 
    (judgment-holds 
     (typeof* [((var x) -: Top)]
@@ -912,8 +929,8 @@
              Top
              ((var x) -: (U Str Int)) ((var x) -! (U Str Int))
              Null)))
-
-                                        ; Example 9
+  
+  ;; Example 9
   (check-true 
    (judgment-holds 
     (typeof* [((var x) -: Top)]
@@ -930,9 +947,9 @@
              Int
              TT FF
              Null)))
-
-
-                                        ; Example 10
+  
+  
+  ;; Example 10
   (check-true 
    (judgment-holds 
     (typeof* [((var p) -: (Top * Top))]
@@ -942,8 +959,8 @@
              Int
              TT FF
              Null)))
-
-                                        ; Example 11
+  
+  ;; Example 11
   (check-true 
    (judgment-holds 
     (typeof* [((var p) -: (Top * Top))
@@ -956,8 +973,8 @@
              Int
              TT FF
              Null)))
-
-                                        ;Example 12
+  
+  ;; Example 12
   (check-true 
    (judgment-holds 
     (typeof* []
@@ -972,7 +989,7 @@
              TT
              FF
              Null)))
-
+  
   (check-true 
    (judgment-holds 
     (typeof* []
@@ -987,8 +1004,8 @@
              TT
              FF
              Null)))
-
-                                        ; Example 13
+  
+  ;; Example 13
   (check-true 
    (judgment-holds 
     (typeof* [((var x) -: Top) ((var y) -: (U Int Str))]
@@ -1000,8 +1017,8 @@
              Int
              TT FF
              Null)))
-
-                                        ; Example 14
+  
+  ;; Example 14
   (check-true 
    (judgment-holds 
     (typeof* [((var x) -: Top)]

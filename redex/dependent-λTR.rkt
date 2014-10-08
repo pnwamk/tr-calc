@@ -23,7 +23,7 @@
   [π   ::= (pe ...)]
   [o   ::= (obj π x)]
   [oo  ::= o Null]
-  [t   ::= Top T F Int Str (U t ...) (λ x t t P P oo) (t * t)]
+  [t   ::= Top T F Int Str (U t ...) (λ x t t P P oo) (t * t) (x : t [P])]
   [is  ::= (o -: t)]
   [neg ::= (o -! t)]
   [P   ::= is neg (OR P P) (AND P P) TT FF]
@@ -32,6 +32,28 @@
 (define-metafunction λTR
   var : x -> o
   [(var x_1) (obj () x_1)])
+
+(define-metafunction λTR
+  NOT : P -> P
+  [(NOT TT) FF]
+  [(NOT FF) TT]
+  [(NOT (o_1 -: t_1)) (o_1 -! t_1)]
+  [(NOT (o_1 -! t_1)) (o_1 -: t_1)]
+  [(NOT (AND P_1 P_2)) (OR (NOT P_1) (NOT P_2))]
+  [(NOT (OR P_1 P_2)) (AND (NOT P_1) (NOT P_2))])
+
+(define-judgment-form λTR
+  #:mode (deptype? I)
+  #:contract (deptype? t)
+  [------------- "DepType?"
+   (deptype? (x : t [P]))])
+
+(define-judgment-form λTR
+  #:mode (nondeptype? I)
+  #:contract (nondeptype? t)
+  [(where #f (deptype? t_1))
+   ------------- "NonDepType?"
+   (nondeptype? t_1)])
 
 (define-judgment-form λTR
   #:mode (<> I I)
@@ -106,6 +128,16 @@
             ()
             (o_1 -: t_2))]
   
+  [(proves* ()
+            ()
+            (P_2 ...)
+            (AND (o_1 -: t_2) (subst-P o_1 x_1 P_1)))
+   ------------------- "L-Atom-IsDep"
+   (proves* ()
+            ()
+            (P_2 ...)
+            (o_1 -: (x_1 : t_2 [P_1])))]
+  
   ; L-Atom Neg
   [(proves* ()
             ()
@@ -179,6 +211,36 @@
    (atomic P_4)
    ------------------- "L-OrE"
    (proves* (is_1 ...) (neg_1 ...) ((OR P_1 P_2) P_3 ...) P_4)]
+  
+  [(proves* (((obj (pe_1 ...) x_1) -: t_2)
+             is_1 ...
+             is_2 ...)
+            (neg_1 ...)
+            ((subst-P (obj (pe_1 ...) x_1) x_2 P_2))
+            P_2)
+   (atomic P_1)
+  ------------------- "L-Reduce-Is-Dep"
+   (proves* (is_1 ... 
+             ((obj (pe_1 ...) x_1) -: (x_2 : t_2 [P_2]))
+             is_2 ...)
+            (neg_1 ...)
+            ()
+            P_1)]
+  
+  [(proves* (is_1 ...)
+            (neg_1 ... neg_2 ...)
+            ((OR ((obj (pe_1 ...) x_1) -! t_2)
+                 (AND ((obj (pe_1 ...) x_1) -: t_2)
+                      (NOT (subst-P (obj (pe_1 ...) x_1) x_2 P_2)))))
+            P_1)
+   (atomic P_1)
+  ------------------- "L-Reduce-Not-Dep"
+   (proves* (is_1 ...)
+            (neg_1 ...
+             ((obj (pe_1 ...) x_1) -! (x_2 : t_2 [P_2]))
+             neg_2 ...)
+            ()
+            P_1)]
   
   ; L-Update-Is
   [(where is_new ((obj (pe_1 ...) x_1) -: (update t_1 #t t_2 (pe_2 ...))))
@@ -266,30 +328,66 @@
    (proves [(subst-P (var x_2) x_1 P_1-)] P_2-)
    ------------------------------------------ "S-Fun"
    (subtype (λ x_1 t_1 t_2 P_1+ P_1- oo_1)
-            (λ x_2 t_3 t_4 P_2+ P_2- oo_2))])
+            (λ x_2 t_3 t_4 P_2+ P_2- oo_2))]
+  
+  [(subtype t_1 (subst-t (var x_1) x_2 t_2))
+   (proves [P_1] (subst-P (var x_1) x_2 P_2))
+   ------------------ "S-Dep"
+   (subtype (x_1 : t_1 [P_1]) (x_2 : t_2 [P_2]))]
+  
+  [(subtype t_1 t_2)
+   ------------------ "S-DepSub"
+   (subtype (x_1 : t_1 [P_1]) t_2)]
+  
+  [(subtype t_1 t_2)
+   (proves [] P_1)
+   ------------------ "S-DepTaut"
+   (subtype t_1 (x_1 : t_2 [P_1]))])
 
 (define-judgment-form λTR
   #:mode (common-val I I)
   #:contract (common-val t t)
-  [------------------ "CS-Eq"
+  [------------------ "CV-Eq"
    (common-val t_1 t_1)]
-  [------------------ "CS-Top-lhs"
+  
+  [------------------ "CV-Top-lhs"
    (common-val Top t_1)]
-  [------------------ "CS-Top-rhs"
+  
+  [------------------ "CV-Top-rhs"
    (common-val t_1 Top)]
+  
   [(common-val t_2 t_4)
-   ------------------ "CS-U-lhs"
+   ------------------ "CV-U-lhs"
    (common-val (U t_1 ... t_2 t_3 ...) t_4)]
+  
   [(common-val t_2 t_4)
-   ------------------ "CS-U-rhs"
+   ------------------ "CV-U-rhs"
    (common-val t_4 (U t_1 ... t_2 t_3 ...))]
+  
   [(common-val t_1 t_3)
    (common-val t_2 t_4)
-   -------------------- "CS-Pair"
+   -------------------- "CV-Pair"
    (common-val (t_1 * t_2) (t_3 * t_4))]
-  [------------------ "CS-Abs"
+  
+  [------------------ "CV-Abs"
    (common-val (λ x_1 t_1 t_2 P_1 oo_1) 
-               (λ x_2 t_3 t_4 P_2 oo_2))])
+               (λ x_2 t_3 t_4 P_2 oo_2))]
+  
+  ;;TODO are these the best way to handle Dep types?
+  [(common-val t_1 t_2)
+   (where #f (proves [(AND P_1 (subst-P (var x_1) x_2 P_2))] FF))
+   -------------------- "CV-Dep"
+   (common-val (x_1 : t_1 [P_1]) (x_2 : t_2 [P_2]))]
+  
+  [(common-val t_1 t_2)
+   (nondeptype? t_2)
+   -------------------- "CV-Dep-lhs"
+   (common-val (x_1 : t_1 [P_1]) t_2)]
+  
+  [(common-val t_1 t_2)
+   (nondeptype? t_1)
+   -------------------- "CV-Dep-rhs"
+   (common-val t_1 (x_2 : t_2 [P_2]))])
 
 
 (module+ test
@@ -335,7 +433,6 @@
   [(update t_1 #t t_2 ()) (restrict t_1 t_2)]
   [(update t_1 #f t_2 ()) (remove t_1 t_2)])
 
-;; fix judgment-holds common-val clauses
 (define-metafunction λTR
   restrict : t t -> t
   [(restrict t_1 t_2) (U)
@@ -352,7 +449,6 @@
   [(restrict (U t_1) t_2) (restrict t_1 t_2)]
   [(restrict (U t_1 t_2 ...) t_3) (U (restrict t_1 t_3) (restrict (U t_2 ...) t_3))])
 
-;; fix where clauses w/ subtype
 (define-metafunction λTR
   remove : t t -> t
   [(remove t_1 t_2) (U)
@@ -411,6 +507,9 @@
                           (free-vars P_1)
                           (free-vars P_2)
                           (free-vars oo_1))))]
+  [(free-vars (x_1 : t_1 [P_1]))
+   (app (free-vars t_1)
+        (remove* x_1 (free-vars P_1)))]
   ;; props
   [(free-vars TT) ()]
   [(free-vars FF) ()]
@@ -480,6 +579,11 @@
      (subst-P oo_1 x_1 P_1)
      (subst-P oo_1 x_1 P_2)
      (subst-oo oo_1 x_1 oo_2))
+   (judgment-holds (<> x_1 x_2))]
+  [(subst-t oo_1 x_1 (x_1 : t_1 [P_1]))
+   (x_1 : (subst-t oo_1 x_1 t_1) [P_1])]
+  [(subst-t oo_1 x_1 (x_2 : t_1 [P_1]))
+   (x_1 : (subst-t oo_1 x_1 t_1) [(subst-P oo_1 x_1 P_1)])
    (judgment-holds (<> x_1 x_2))])
 
 (module+ test

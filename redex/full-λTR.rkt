@@ -401,10 +401,10 @@
                                     (free-vars (U t_2 ...)))]
   [(free-vars (λ x_1 t_1 t_2 P_1 P_2 oo_1))
    (app (free-vars t_1)
-        (remove* x_1 (app (free-vars t_2)
-                          (free-vars P_1)
-                          (free-vars P_2)
-                          (free-vars oo_1))))]
+        ,(remove* (list (term x_1)) (term (app (free-vars t_2)
+                                               (free-vars P_1)
+                                               (free-vars P_2)
+                                               (free-vars oo_1)))))]
   ;; props
   [(free-vars TT) ()]
   [(free-vars FF) ()]

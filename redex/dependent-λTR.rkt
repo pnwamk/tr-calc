@@ -374,18 +374,23 @@
                (λ x_2 t_3 t_4 P_2 oo_2))]
   
   ;;TODO are these the best way to handle Dep types?
-  [(common-val t_1 t_2)
-   (where #f (proves [(AND P_1 (subst-P (var x_1) x_2 P_2))] FF))
+  ;; They seem logical/natural...
+  [(where #f (proves [P_1 
+                      (subst-P (var x_1) x_2 P_2)
+                      ((var x_1) -: t_1)
+                      ((var x_1) -: t_2)] FF))
    -------------------- "CV-Dep"
    (common-val (x_1 : t_1 [P_1]) (x_2 : t_2 [P_2]))]
   
   [(common-val t_1 t_2)
    (nondeptype? t_2)
+   (where #f (proves [P_1 ((var x_1) -: t_1)] FF))
    -------------------- "CV-Dep-lhs"
    (common-val (x_1 : t_1 [P_1]) t_2)]
   
   [(common-val t_1 t_2)
    (nondeptype? t_1)
+   (where #f (proves [P_2 ((var x_2) -: t_2)] FF))
    -------------------- "CV-Dep-rhs"
    (common-val t_1 (x_2 : t_2 [P_2]))])
 
@@ -394,7 +399,13 @@
   (check-true (judgment-holds (common-val Int Int)))
   (check-true (judgment-holds (common-val (U T Int) Int)))
   (check-true (judgment-holds (common-val Top Int)))
-  (check-false (judgment-holds (common-val T Int))))
+  (check-false (judgment-holds (common-val T Int)))
+  (check-true (judgment-holds (common-val (x : Int [TT]) Int)))
+  (check-false (judgment-holds (common-val (x : Int [(OR FF ((var x) -: Str))]) Int)))
+  (check-false (judgment-holds (common-val Int (x : Int [(OR FF ((var x) -: Str))]))))
+  (check-true (judgment-holds (common-val (z : Int [(AND TT ((var y) -: Str))]) (x : Int [((var y) -: Str)]))))
+  (check-false (judgment-holds (common-val (z : Top [(AND TT ((var z) -: Str))]) (x : Top [((var x) -: Int)]))))
+  (check-false (judgment-holds (common-val (z : Int [(AND TT ((var y) -: Str))]) (x : Int [((var y) -: Int)])))))
 
 (define-judgment-form λTR
   #:mode (type-conflict I I)
@@ -503,13 +514,13 @@
                                     (free-vars (U t_2 ...)))]
   [(free-vars (λ x_1 t_1 t_2 P_1 P_2 oo_1))
    (app (free-vars t_1)
-        (remove* x_1 (app (free-vars t_2)
-                          (free-vars P_1)
-                          (free-vars P_2)
-                          (free-vars oo_1))))]
+        ,(remove* (list (term x_1)) (term (app (free-vars t_2)
+                                               (free-vars P_1)
+                                               (free-vars P_2)
+                                               (free-vars oo_1)))))]
   [(free-vars (x_1 : t_1 [P_1]))
    (app (free-vars t_1)
-        (remove* x_1 (free-vars P_1)))]
+        ,(remove* (list (term x_1)) (term (free-vars P_1))))]
   ;; props
   [(free-vars TT) ()]
   [(free-vars FF) ()]
@@ -592,6 +603,11 @@
   (check-equal? (term (subst-P (var x) y ((var y) -: Int))) (term ((var x) -: Int)))
   (check-equal? (term (subst-P Null x ((var y) -: Int))) (term ((var y) -: Int)))
   (check-equal? (term (subst-P Null y ((var y) -: Int))) (term TT))
+  (check-equal? (term (subst-P Null x ((var y) -: (x : Int [TT])))) (term ((var y) -: (x : Int [TT]))))
+  ;; We could add machinery to have this next example instead resolve to ((var y) -: (x : Int [TT]))
+  ;; but it's unclear if this is actually useful and knowing what is best to do for -! is also
+  ;; possibly complicated... as the above treatment seems problematic for -!
+  (check-equal? (term (subst-P Null z ((var y) -: (x : Int [((var z) -: Int)])))) (term TT))
 
   (check-true (judgment-holds (subtype Int Int)))
   (check-true (judgment-holds (subtype Int Top)))

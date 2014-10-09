@@ -403,9 +403,12 @@
   (check-true (judgment-holds (common-val (x : Int [TT]) Int)))
   (check-false (judgment-holds (common-val (x : Int [(OR FF ((var x) -: Str))]) Int)))
   (check-false (judgment-holds (common-val Int (x : Int [(OR FF ((var x) -: Str))]))))
-  (check-true (judgment-holds (common-val (z : Int [(AND TT ((var y) -: Str))]) (x : Int [((var y) -: Str)]))))
-  (check-false (judgment-holds (common-val (z : Top [(AND TT ((var z) -: Str))]) (x : Top [((var x) -: Int)]))))
-  (check-false (judgment-holds (common-val (z : Int [(AND TT ((var y) -: Str))]) (x : Int [((var y) -: Int)])))))
+  (check-true (judgment-holds (common-val (z : Int [(AND TT ((var y) -: Str))]) 
+                                          (x : Int [((var y) -: Str)]))))
+  (check-false (judgment-holds (common-val (z : Top [(AND TT ((var z) -: Str))]) 
+                                           (x : Top [((var x) -: Int)]))))
+  (check-false (judgment-holds (common-val (z : Int [(AND TT ((var y) -: Str))]) 
+                                           (x : Int [((var y) -: Int)])))))
 
 (define-judgment-form λTR
   #:mode (type-conflict I I)
@@ -641,7 +644,12 @@
   (check-true (judgment-holds (proves [(OR (OR ((var z) -: (U)) FF) ((var x) -: Int))
                                        (OR ((var x) -! Int) ((var y) -: (U T F)))
                                        (OR ((var y) -: Int) ((var z) -: (U T F)))] 
-                                      ((var z) -: (U T F))))))
+                                      ((var z) -: (U T F)))))
+  
+  
+  (check-true (judgment-holds (proves [((var x) -: Int)] ((var x) -: (y : Int [TT])))))
+  (check-true (judgment-holds (proves [((var x) -: Int) ((var z) -: Str)] ((var x) -: (y : Int [((var y) -: (U Int Str))])))))
+  (check-true (judgment-holds (proves [] ((var x) -! (y : Int [FF]))))))
 
 (define-judgment-form λTR
   #:mode (disj I)

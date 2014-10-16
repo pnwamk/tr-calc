@@ -15,7 +15,7 @@
   [x   ::= variable-not-otherwise-mentioned]
   [b   ::= boolean]
   [z   ::= integer]
-  [e   ::= (ann x t) (e e) (λ ([x : t]) e) (if e e e) 
+  [e   ::= x (ann e t) (e e) (λ ([x : t]) e) (if e e e) 
        c b z string (let ([x e]) e) (cons e e)]
   [c   ::= add1 zero? int? str? bool? proc? 
        str-len + error cons? car cdr]
@@ -236,7 +236,7 @@
                       (NOT (subst-P (obj (pe_1 ...) x_1) x_2 P_2)))))
             P_1)
    (atomic P_1)
-  -------------------L-Reduce-Is-Dep
+  ------------------- "L-Reduce-Not-Dep"
    (proves* (is_1 ...)
             (neg_1 ...
              ((obj (pe_1 ...) x_1) -! (x_2 : t_2 [P_2]))
@@ -770,6 +770,18 @@
    (where #f (subtype t_1 t_2))
    (where #f (subtype t_2 t_1))])
 
+(define-judgment-form λDTR
+  #:mode (is-var I)
+  #:contract (is-var e)
+  [---------------- "Is-Var"
+   (is-var x_1)])
+
+(define-judgment-form λDTR
+  #:mode (non-var I)
+  #:contract (non-var e)
+  [(where #f (is-var e_1))
+   ---------------- "Non-Var"
+   (non-var e_1)])
 
 (define-judgment-form λDTR
   #:mode (typeof I I O O O O)
@@ -789,9 +801,36 @@
   [-------------- "T-False"
    (typeof E #f F FF TT Null)]
   
+  [(typeof E_1 e_1 t_2 P_1 P_2 oo_1)
+   (subtype t_2 t_1)
+   (nondeptype? t_1)
+   (non-var e_1)
+   -------------- "T-AnnExp"
+   (typeof E_1 (ann e_1 t_1) t_1 P_1 P_2 oo_1)]
+  
   [(proves E_1 ((var x_1) -: t_1))
+   (where P_t ((var x_1) -: t_1))
    -------------- "T-AnnVar"
-   (typeof E_1 (ann x_1 t_1) t_1 ((var x_1) -! F) ((var x_1) -: F) (var x_1))]
+   (typeof E_1 (ann x_1 t_1) 
+           t_1 
+           (AND ((var x_1) -! F)
+                P_t) 
+           (AND ((var x_1) -: F)
+                P_t) 
+           (var x_1))]
+  
+  
+  ;; TODO - Working to make this work!
+  ;; Subtyping alone doesn't allow the properties derived from the
+  ;; typing judgment to help prove the refinement properties
+  ;; of the desired type... so maybe this can help with that??
+  [(typeof [P_0 ...] e_1 t_1 P_1 P_2 oo_1)
+   (subtype t_1 t_2)
+   (proves [P_1 ((var x_1) -: t_1) P_0 ...] P_x)
+   (proves [P_2 ((var x_1) -: t_1) P_0 ...] P_x)
+   (non-var e_1)
+   -------------- "T-AnnDep"
+   (typeof [P_0 ...] (ann e_1 (x_1 : t_2 [P_x])) (x_1 : t_2 [P_x]) P_1 P_2 oo_1)]
   
   [(where P_x ((var x_1) -: t_1-))
    (typeof [P_x P_0 ...] e_1 t_1+ P_1+ P_1- oo_1)
@@ -1172,20 +1211,74 @@
 
 ;;******************************
 ;; New (Dependent Type) Tests
-
-(module+ test
   
-  ; If we were using bi-directional type checking would we expect these to work:
-  (check-false
-    (judgment-holds 
-    (typeof* [((var x) -: (U Int Str))]
-             (if (int? (ann x (U Int Str)))
-                 (add1 (ann x Int))
-                 (ann x Str))
-             (y : Top [(OR (AND ((var x) -: Int)
-                                ((var y) -: Int))
-                           (AND ((var x) -: Str)
-                                ((var y) -: Str)))])
-             TT
-             FF
-             Null))))
+(require rackunit)
+
+(check-true
+ (judgment-holds 
+  (typeof* [((var x) -: Int)]
+           (ann x (y : Int [TT]))
+           (y : Int [TT])
+           TT
+           FF
+           Null)))
+
+(check-true
+ (judgment-holds 
+  (typeof* [((var x) -: Int)]
+           (ann x (y : Top [((var y) -: Int)]))
+           (y : Top [((var y) -: Int)])
+           TT
+           FF
+           Null)))
+
+(check-true
+ (judgment-holds 
+  (typeof* [((var x) -: Int)]
+           (ann (add1 (ann x Int)) (y : Top [(AND ((var y) -: Int)
+                                                  ((var x) -: Int))]))
+           (y : Top [(AND ((var y) -: Int)
+                          ((var x) -: Int))])
+           TT
+           FF
+           Null)))
+
+(check-true
+ (judgment-holds 
+  (typeof* [((var x) -: Int)]
+           (ann (add1 (ann x Int)) (y : Top [(AND ((var y) -: Int)
+                                                  ((var x) -: Int))]))
+           (y : Top [(AND ((var y) -: Int)
+                          ((var x) -: Int))])
+           TT
+           FF
+           Null)))
+
+(check-true
+ (judgment-holds 
+  (typeof* [((var x) -: (U Str Int))]
+           (if (int? (ann x Top)) 
+               (ann (add1 (ann x Int)) (y : (U Str Int) [(OR (AND ((var y) -: Int)
+                                                                  ((var x) -: Int))
+                                                             (AND ((var y) -: Str)
+                                                                  ((var x) -: Str)))]))
+               (ann x (y : (U Str Int) [(OR (AND ((var y) -: Int)
+                                                 ((var x) -: Int))
+                                            (AND ((var y) -: Str)
+                                                 ((var x) -: Str)))])))
+           (y : (U Str Int) [(OR (AND ((var y) -: Int)
+                                      ((var x) -: Int))
+                                 (AND ((var y) -: Str)
+                                      ((var x) -: Str)))])
+           TT
+           FF
+           Null)))
+
+;; the question remains... should the above with Top as the type being refined
+;; also prove FF for the false case? I think it should... Well maybe it's not actually
+;; more expressive or useful to do so
+
+
+
+
+

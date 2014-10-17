@@ -1,16 +1,22 @@
 #lang racket
 
-(require redex)
+(require redex "bridge.rkt")
 
 ;; TODO
 ;; 1. Add dependent Types  << DONE
 ;; 2. Add simple tests for subtyping, proves, and maybe typechecking << DONE
-;; 3. Build interface from redex -> fme solver
+;; 3. Build interface from redex -> fme solver << DONE
+
+;; NEW TODO Things are too slow (3 min for tests)
+;; Turn end of proof relation into linear combination of types
+;; with metafunctions instead of random matching
+
+
 ;; 4. Add SLIs to redex model
 
 (module+ test
   (require redex rackunit))
-
+;; z (obj π x) (z * LE) (LE + LE)
 (define-language λDTR
   [x   ::= variable-not-otherwise-mentioned]
   [b   ::= boolean]
@@ -32,6 +38,7 @@
 (define-metafunction λDTR
   var : x -> o
   [(var x_1) (obj () x_1)])
+
 
 (define-metafunction λDTR
   NOT : P -> P
@@ -1036,7 +1043,7 @@
                    (str? (ann x Top))))
              (U T F)
              ((var x) -: (U Int Str)) ((var x) -! (U Int Str))
-             Null)))
+             Null))) ;; froze here
   
   (check-true 
    (judgment-holds 
@@ -1212,67 +1219,67 @@
 ;;******************************
 ;; New (Dependent Type) Tests
   
-(require rackunit)
 
-(check-true
- (judgment-holds 
-  (typeof* [((var x) -: Int)]
-           (ann x (y : Int [TT]))
-           (y : Int [TT])
-           TT
-           FF
-           Null)))
-
-(check-true
- (judgment-holds 
-  (typeof* [((var x) -: Int)]
-           (ann x (y : Top [((var y) -: Int)]))
-           (y : Top [((var y) -: Int)])
-           TT
-           FF
-           Null)))
-
-(check-true
- (judgment-holds 
-  (typeof* [((var x) -: Int)]
-           (ann (add1 (ann x Int)) (y : Top [(AND ((var y) -: Int)
-                                                  ((var x) -: Int))]))
-           (y : Top [(AND ((var y) -: Int)
-                          ((var x) -: Int))])
-           TT
-           FF
-           Null)))
-
-(check-true
- (judgment-holds 
-  (typeof* [((var x) -: Int)]
-           (ann (add1 (ann x Int)) (y : Top [(AND ((var y) -: Int)
-                                                  ((var x) -: Int))]))
-           (y : Top [(AND ((var y) -: Int)
-                          ((var x) -: Int))])
-           TT
-           FF
-           Null)))
-
-(check-true
- (judgment-holds 
-  (typeof* [((var x) -: (U Str Int))]
-           (if (int? (ann x Top)) 
-               (ann (add1 (ann x Int)) (y : (U Str Int) [(OR (AND ((var y) -: Int)
-                                                                  ((var x) -: Int))
-                                                             (AND ((var y) -: Str)
-                                                                  ((var x) -: Str)))]))
-               (ann x (y : (U Str Int) [(OR (AND ((var y) -: Int)
-                                                 ((var x) -: Int))
-                                            (AND ((var y) -: Str)
-                                                 ((var x) -: Str)))])))
-           (y : (U Str Int) [(OR (AND ((var y) -: Int)
-                                      ((var x) -: Int))
-                                 (AND ((var y) -: Str)
-                                      ((var x) -: Str)))])
-           TT
-           FF
-           Null)))
+(module+ test
+  (check-true
+   (judgment-holds 
+    (typeof* [((var x) -: Int)]
+             (ann x (y : Int [TT]))
+             (y : Int [TT])
+             TT
+             FF
+             Null)))
+  
+  (check-true
+   (judgment-holds 
+    (typeof* [((var x) -: Int)]
+             (ann x (y : Top [((var y) -: Int)]))
+             (y : Top [((var y) -: Int)])
+             TT
+             FF
+             Null)))
+  
+  (check-true
+   (judgment-holds 
+    (typeof* [((var x) -: Int)]
+             (ann (add1 (ann x Int)) (y : Top [(AND ((var y) -: Int)
+                                                    ((var x) -: Int))]))
+             (y : Top [(AND ((var y) -: Int)
+                            ((var x) -: Int))])
+             TT
+             FF
+             Null)))
+  
+  (check-true
+   (judgment-holds 
+    (typeof* [((var x) -: Int)]
+             (ann (add1 (ann x Int)) (y : Top [(AND ((var y) -: Int)
+                                                    ((var x) -: Int))]))
+             (y : Top [(AND ((var y) -: Int)
+                            ((var x) -: Int))])
+             TT
+             FF
+             Null)))
+  
+  (check-true
+   (judgment-holds 
+    (typeof* [((var x) -: (U Str Int))]
+             (if (int? (ann x Top)) 
+                 (ann (add1 (ann x Int)) (y : (U Str Int) [(OR (AND ((var y) -: Int)
+                                                                    ((var x) -: Int))
+                                                               (AND ((var y) -: Str)
+                                                                    ((var x) -: Str)))]))
+                 (ann x (y : (U Str Int) [(OR (AND ((var y) -: Int)
+                                                   ((var x) -: Int))
+                                              (AND ((var y) -: Str)
+                                                   ((var x) -: Str)))])))
+             (y : (U Str Int) [(OR (AND ((var y) -: Int)
+                                        ((var x) -: Int))
+                                   (AND ((var y) -: Str)
+                                        ((var x) -: Str)))])
+             TT
+             FF
+             Null))))
 
 ;; the question remains... should the above with Top as the type being refined
 ;; also prove FF for the false case? I think it should... Well maybe it's not actually

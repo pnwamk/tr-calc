@@ -176,7 +176,7 @@
   [(contains-Bot t_1)
    (atomic P_1)
    ------------------- "L-Bot"
-   (proves* (is_1 ... (o_1 -: t_1) is_2 ...) (neg_1 ...) () P_1)]
+   (proves* (is_1 ... (o_1 -: t_1) is_2 ...) (neg_1 ...) () P_1)] ;; SLOW
   
   ;; L-Is-move
   [(proves* ((o_1 -: t_1) is_1 ...) (neg_1 ...) (P_1 ...) P_2)
@@ -233,7 +233,7 @@
              is_2 ...)
             (neg_1 ...)
             ()
-            P_1)]
+            P_1)] ;; SLOW
   
   ;; L-Reduce-Is-Dep
   [(proves* (is_1 ...)
@@ -249,7 +249,7 @@
              ((obj (pe_1 ...) x_1) -! (x_2 : t_2 [P_2]))
              neg_2 ...)
             ()
-            P_1)]
+            P_1)] ;; SLOW
   
   ;; L-Update-Is
   [(where is_new ((obj (pe_1 ...) x_1) -: (update t_1 #t t_2 (pe_2 ...))))
@@ -275,7 +275,7 @@
                   is_3 ...)
             (neg_1 ...)
             ()
-            P_1)]
+            P_1)] ;; SLOW
   
   ;; L-Update-Neg
   [(where is_new ((obj (pe_1 ...) x_1) -: (update t_1 #f t_2 (pe_2 ...)))) 
@@ -289,7 +289,7 @@
    (proves* (is_1 ... ((obj (pe_1 ...) x_1) -: t_1) is_2 ...)
             (neg_1 ... ((obj (pe_2 ... pe_1 ...) x_1) -! t_2) neg_2 ...)
             ()
-            P_1)])
+            P_1)]) ;; SLOW
 
 (define-judgment-form λDTR
   #:mode (proves I I)

@@ -521,6 +521,8 @@
   [(free-vars Str) ()]
   [(free-vars T) ()]
   [(free-vars F) ()]
+  [(free-vars (Pair t_1 t_2) (app (free-vars t_1)
+                                (free-vars t_2)))]
   [(free-vars (U)) ()]
   [(free-vars (U t_1 t_2 ...)) (app (free-vars t_1) 
                                     (free-vars (U t_2 ...)))]

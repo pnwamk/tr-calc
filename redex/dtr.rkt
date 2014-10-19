@@ -3,23 +3,23 @@
 (require typed/rackunit)
 
 
-
+(: hash-empty? (All (a b) (case-> (-> (HashTable a b) Boolean) 
+                                  (-> HashTableTop Boolean))))
+(define (hash-empty? h)
+  (zero? (hash-count h)))
 ;;*****************************************                              
 ;; λDTR Definition
 ;;*****************************************
 (define prim-ops '(add1 zero? int? str? bool? proc? 
                        str-len + error cons? car cdr))
 
-(struct: CAR () #:transparent)
-(struct: CDR () #:transparent)
-
-(define-type Path (Listof (U CAR CDR)))
+(define-type Path (Listof (U 'CAR 'CDR)))
 
 (define-type Var Symbol)
 (: Var? (Any . -> . Boolean : Var))
 (define Var? symbol?)
 
-(struct: Obj ([path : (Listof Path)] [var : Var]))
+(struct: Obj ([path : Path] [var : Var]))
 
 (: var (-> Var Obj))
 (define (var x)
@@ -48,6 +48,7 @@
 (struct: T () #:transparent)
 (struct: F () #:transparent)
 (struct: Int () #:transparent)
+(struct: Str () #:transparent)
 (struct: Union ([types : (Listof Type)]) #:transparent)
 (struct: Abs ([arg : Symbol] 
               [domain : Type]
@@ -56,26 +57,25 @@
               [prop- : Prop] 
               [obj : (Opt Obj)]) #:transparent)
 (struct: Pair ([car : Type] [cdr : Type]) #:transparent)
-(struct: Dep ([type : Type] [prop : Prop]) #:transparent)
-(define-type Type (U Top T F Int Union Abs Pair Dep))
-(define Dep-var : Symbol (gensym))
+(struct: Dep ([var : Var] [type : Type] [prop : Prop]) #:transparent)
+(define-type Type (U Top T F Int Str Union Abs Pair Dep))
 
-(struct: TRUE () #:transparent)
-(struct: FALSE () #:transparent)
-(struct: IS ([var : Var] [type : Type]) #:transparent)
-(struct: ISNT ([var : Var] [type : Type]) #:transparent)
-(struct: AND ([lhs : Prop] [rhs : Prop]) #:transparent)
-(struct: OR ([lhs : Prop] [rhs : Prop]) #:transparent)
-(define-type Prop (U TRUE FALSE IS ISNT AND OR))
+(struct: TT () #:transparent)
+(struct: FF () #:transparent)
+(struct: IsT ([var : Var] [type : Type]) #:transparent)
+(struct: NotT ([var : Var] [type : Type]) #:transparent)
+(struct: And ([lhs : Prop] [rhs : Prop]) #:transparent)
+(struct: Or ([lhs : Prop] [rhs : Prop]) #:transparent)
+(define-type Prop (U TT FF IsT NotT And Or))
 
 (: Prop? (Any . -> . Boolean : Prop))
 (define (Prop? a)
-  (or (TRUE? a)
-      (FALSE? a)
-      (IS? a)
-      (ISNT? a)
-      (AND? a)
-      (OR? a)))
+  (or (TT? a)
+      (FF? a)
+      (IsT? a)
+      (NotT? a)
+      (And? a)
+      (Or? a)))
 
 (define (Bool)
   (Union (list (T) (F))))
@@ -94,10 +94,13 @@
   (and (Union? a)
        (empty? (Union-types a))))
 
+(define-type TMap (HashTable Var (Listof Type)))
+(define-type NTMap (HashTable Var Type))
+
 (define-type Opt Option)
 (struct: Env ([props : (Listof Prop)] 
-              [types+ : (HashTable Var (Listof Type))]
-              [types- : (HashTable Var (Listof Type))]))
+              [types+ : TMap]
+              [types- : NTMap]))
 
 (: env ((Listof Prop) . -> . Env))
 (define (env lop)
@@ -109,12 +112,12 @@
 (: ¬ (Prop . -> . Prop))
 (define (¬ p)
   (match p
-    [(TRUE) (FALSE)]
-    [(FALSE) (TRUE)]
-    [(IS x t) (ISNT x t)]
-    [(ISNT x t) (IS x t)]
-    [(AND p q) (OR (¬ p) (¬ q))]
-    [(OR p q) (AND (¬ p) (¬ q))]))
+    [(TT) (FF)]
+    [(FF) (TT)]
+    [(IsT x t) (NotT x t)]
+    [(NotT x t) (IsT x t)]
+    [(And p q) (Or (¬ p) (¬ q))]
+    [(Or p q) (And (¬ p) (¬ q))]))
 ; option-l
 
 (: contains-Bot? (Type -> Boolean))
@@ -122,31 +125,140 @@
   (match t
     [(Union '()) #t]
     [(Pair lhs rhs) (or (contains-Bot? lhs)
-                        (contains-Bot? rhs))]))
-;; TODO, check for FALSE in Dep?
+                        (contains-Bot? rhs))]
+    [_ #f]))
 
 (: atomic? (Prop . -> . Boolean))
 (define (atomic? p)
-  (or (IS? p)
-      (FALSE? p)))
+  (or (IsT? p)
+      (FF? p)))
+
+(: fvs ((U (Opt Obj) Type Prop) . -> . (Listof Var)))
+(define (fvs e)
+  (match e
+    ;; Objects
+    [#f empty]
+    [(Obj _ x) (list x)]
+    ;; Types
+    [(Top) empty]
+    [(Int) empty]
+    [(Str) empty]
+    [(T) empty]
+    [(F) empty]
+    [(Union ts) empty]
+    [(Pair t1 t2) (append (fvs t1) (fvs t2))]
+    [(Abs x td tr p+ p- oo) (remove* (list x) 
+                                     (append (fvs td)
+                                             (fvs tr)
+                                             (fvs p+)
+                                             (fvs p-)
+                                             (fvs oo)))]
+    [(Dep x t p) (append (fvs t)
+                         (remove* (list x)
+                                  (fvs p)))]
+    ;; Props
+    [(TT) empty]
+    [(FF) empty]
+    [(IsT x t) (cons x (fvs t))]
+    [(NotT x t) (cons x (fvs t))]
+    [(Or p1 p2) (append (fvs p1) (fvs p2))]
+    [(And p1 p2) (append (fvs p1) (fvs p2))]
+    [else (error 'fvs "unknown argument ~a" e)]))
+
+
+(: path-type-norm (Path Type . -> . Type))
+(define (path-type-norm π t)
+ (match π
+   [`() t]
+   [`(CAR . ,tl) (Pair (path-type-norm tl t) (Top))]
+   [`(CDR . ,tl) (Pair (Top) (path-type-norm tl t))]))
+
 
 (: subst (case-> [(Opt Obj) Var (Opt Obj) . -> . (Opt Obj)]
+                 [Var Var (Opt Obj) . -> . (Opt Obj)]
                  [(Opt Obj) Var Prop . -> . Prop]
-                 [(Opt Obj) Var Type . -> . Type]))
-(define (subst oo x a)
-  a)
-;; TODO subst
+                 [Var Var Prop . -> . Prop]
+                 [(Opt Obj) Var Type . -> . Type]
+                 [Var Var Type . -> . Type]))
+(define (subst new old-var tgt)
+  (match* (new old-var tgt)
+    [((? Var? x) y _) (subst (Obj '() x) y tgt)]
+    ;; (Opt Obj)
+    [(_ _ #f) #f]
+    [(#f x (Obj _ x)) #f]
+    [((Obj π2 x) y (Obj π1 y)) (Obj (append π1 π2) x)]
+    [(_ x (Obj π1 y)) #:when (not (equal? x y)) (Obj π1 y)]
+    ;; Type
+    [(_ _ (Top)) (Top)]
+    [(_ _ (Int)) (Int)]
+    [(_ _ (Str)) (Str)]
+    [(_ _ (T)) (T)]
+    [(_ _ (F)) (F)]
+    [(_ _ (Union ts)) 
+     (Union (map (λ ([t : Type]) (subst new old-var t)) ts))]
+    [(_ _ (Pair t1 t2)) 
+     (Pair (subst new old-var t1) (subst new old-var t2))]
+    [(_ x (Abs x td tr p+ p- oo)) 
+     (Abs x (subst new x td) tr p+ p- oo)]
+    [(_ x (Abs y td tr p+ p- oo)) #:when (not (equal? x y))
+                                  (Abs y (subst new x td) 
+                                       (subst new x tr) 
+                                       (subst new x p+) 
+                                       (subst new x p-) 
+                                       (subst new x oo))]
+    [(_ x (Dep x t p))
+     (Dep x (subst new x t) p)]
+    [(_ x (Dep y t p)) #:when (not (equal? x y))
+                       (Dep y (subst new x t) p)]
+    ;; Prop
+    [(_ _ (And lhs rhs)) (And (subst new old-var lhs)
+                              (subst new old-var lhs))]
+    [(_ _ (Or lhs rhs)) (Or (subst new old-var lhs)
+                            (subst new old-var lhs))]
+    [((Obj π x) y (IsT y t)) (IsT x (path-type-norm π t))]
+    [((Obj π x) y (NotT y t)) (NotT x (path-type-norm π t))]
+    [(#f y (IsT y t)) (TT)]
+    [(#f y (NotT y t)) (TT)]
+    [(_ x (IsT y t)) #:when (and (not (equal? x y))
+                                 (not (member x (fvs t))))
+                     (IsT y t)]
+    [(_ x (NotT y t)) #:when (and (not (equal? x y))
+                                  (not (member x (fvs t))))
+                     (NotT y t)]
+    [(_ x (IsT y t)) #:when (and (not (equal? x y))
+                                 (member x (fvs t)))
+                     (TT)]
+    [(_ x (NotT y t)) #:when (and (not (equal? x y))
+                                 (member x (fvs t)))
+                     (TT)]
+    [(_ _ _) (error 'subst "unknown subst ~a ~a ~a" new old-var tgt)]))
 
-(: rec-type ((HashTable Var (Listof Type)) Var Type . -> . (HashTable Var (Listof Type))))
-(define (rec-type tht x t)
-  (hash-set tht x (cons t (hash-ref tht x (λ () empty)))))
+(: ext-TMap (TMap 
+             Var 
+             Type 
+             . -> . TMap))
+(define (ext-TMap imap x t)
+  (hash-set imap x (cons t (hash-ref imap x (λ () empty)))))
+
+
+(: ext-NTMap (NTMap 
+              Var 
+              Type 
+              . -> . NTMap))
+(define (ext-NTMap nmap x t)
+  (hash-set nmap x (if (hash-has-key? nmap x)
+                       (Union (list t (hash-ref nmap x)))
+                       t)))
+
+
 
 (: reduce-Union (-> Type Type))
 (define (reduce-Union t)
   (cond
     [(not (Union? t)) t]
     [else (let* ([ts (map reduce-Union (Union-types t))]
-                 [clean-ts (filter (λ ([t : Type]) (not (contains-Bot? t))) ts)])
+                 [clean-ts (filter (λ ([t : Type]) 
+                                     (not (contains-Bot? t))) ts)])
             (Union clean-ts))]))
 
 ;;*****************************************
@@ -169,7 +281,7 @@
 
 (: contradiction? (Prop . -> . Boolean))
 (define (contradiction? p)
-  (proves? (env (list p)) (FALSE)))
+  (proves? (env (list p)) (FF)))
 
 (: subtype? (Type Type . -> . Boolean))
 (define (subtype? t1 t2)
@@ -193,46 +305,85 @@
           (implies? (subst (var x2) x1 p1+) p2+)
           (implies? (subst (var x2) x1 p1-) p2-))]
     ;; S-Dep
-    [((Dep t1 p1) (Dep t2 p2)) (and (subtype? t1 t2)
-                                    (implies? p1 p2))]
+    [((Dep x t1 p1) (Dep y t2 p2)) (and (subtype? t1 (subst x y t2))
+                                        (implies? p1 (subst x y p2)))]
     ;; S-DepSub
-    [((Dep t1 _) _) (subtype? t1 t2)]
+    [((Dep _ t1 _) _) (subtype? t1 t2)]
     ;; S-DepTaut
-    [(_ (Dep t2 p1)) (and (subtype? t1 t2)
-                          (tautology? p1))]
+    [(_ (Dep _ t2 p1)) (and (subtype? t1 t2)
+                            (tautology? p1))]
     [(_ _) #f]))
 
 (: proves? (Env Prop . -> . Boolean))
 (define (proves? E goal)
   (match* (E goal)
-    ;; L-True
-    [(_ (TRUE)) #t]
+    ;; L-TT
+    [(_ (TT)) #t]
     ;; L-AndI
-    [(_ (AND lhs rhs)) (and (proves? E lhs)
+    [(_ (And lhs rhs)) (and (proves? E lhs)
                             (proves? E lhs))]
     ;; L-OrI
-    [(_ (OR lhs rhs)) (or (proves? E lhs)
+    [(_ (Or lhs rhs)) (or (proves? E lhs)
                           (proves? E lhs))]
-    ;; L-Not
-    [((Env ps ts+ ts-) (? ISNT? p)) 
-     (proves? (Env (cons p ps) ts+ ts-) (FALSE))]
+    ;; L-NotT
+    [((Env ps ts+ ts-) (? NotT? p)) 
+     (proves? (Env (cons p ps) ts+ ts-) (FF))]
     ;; L-False
-    [((Env (cons (FALSE) ps) ts+ ts-) _) #t]
+    [((Env (cons (FF) ps) ts+ ts-) _) #t]
+    ;; L-TTSkip
+    [((Env (cons (TT) ps) ts+ ts-) _) 
+     (proves? (Env ps ts+ ts-) goal)]
     ;; L-AndE
-    [((Env (cons (AND lhs rhs) ps) ts+ ts-) _) 
+    [((Env (cons (And lhs rhs) ps) ts+ ts-) _) 
      (proves? (Env (cons lhs (cons rhs ps)) ts+ ts-) goal)]
     ;; L-OrE
-    [((Env (cons (OR lhs rhs) ps) ts+ ts-) _) 
+    [((Env (cons (Or lhs rhs) ps) ts+ ts-) _) 
      (and (proves? (Env (cons lhs ps) ts+ ts-) goal)
           (proves? (Env (cons rhs ps) ts+ ts-) goal))]
-    ;; L-IsMove
-    [((Env (cons (IS x t) ps) ts+ ts-) _) 
-     (proves? (Env ps (rec-type ts+ x t) ts-) goal)]
-    ;; L-IsntMove
-    [((Env (cons (ISNT x t) ps) ts+ ts-) _) 
-     (proves? (Env ps ts+ (rec-type ts- x t)) goal)])
-  ;; TODO
-  )
+    ;; L-IsDep-Move
+    [((Env (cons (IsT x (Dep y t p)) ps) ts+ ts-) _)
+     (let ([p1 (IsT x t)]
+           [p2 (subst x y p)])
+       (proves? (Env (cons p1 (cons p2 ps)) ts+ ts-) goal))]
+    ;; L-NotDep-Move
+    [((Env (cons (NotT x (Dep y t p)) ps) ts+ ts-) _)
+     (let ([ptype (NotT x t)]
+           [pprop (¬ (subst x y p))])
+       (proves? (Env (cons (Or ptype pprop) ps) ts+ ts-) goal))]
+    ;; L-Is-Move
+    [((Env (cons (IsT x t) ps) ts+ ts-) _)
+     (proves? (Env ps (ext-TMap ts+ x t) ts-) goal)]
+    ;; L-NotMove
+    [((Env (cons (NotT x t) ps) ts+ ts-) _)
+     (proves? (Env ps ts+ (ext-NTMap ts- x t)) goal)]
+    ;; L-Restrict*
+    [((Env (? empty?) ts+ ts-) (IsT x t))
+     #:when (and (hash-empty? ts-)
+                 (not (hash-empty? ts+)))
+     (let ([facts : (Listof (Pairof Var Type)) 
+                  (for/list ([x (hash-keys ts+)])
+                    (cons x
+                          (foldl (λ ([t-new : Type] [t-acc : Type])
+                                   (restrict t-acc t-new))
+                                 (Top)
+                                 (hash-ref ts+ x))))])
+       (ormap (λ ([yt : (Pairof Var Type)])
+                (or (contains-Bot? (cdr yt))
+                    (and (equal? (car yt) x)
+                         (subtype? (cdr yt) t))))
+              facts))]
+    ;; L-Remove*
+    [((Env (? empty?) ts+ ts-) _)
+     #:when (not (hash-empty? ts-))
+     (proves? 
+      (Env empty 
+           (for/hash : TMap ([x : Var (hash-keys ts+)])
+             (let* ([xnt : Type (hash-ref ts- x (λ () (Bot)))]
+                    [xts : (Listof Type) (hash-ref ts+ x)])
+               (values x (map (λ ([t : Type]) (remove t xnt)) xts))))
+           (hash))
+      goal)]
+    [(_ _) #f]))
 
 (: common-val? (Type Type . -> . Boolean))
 (define (common-val? t1 t2)
@@ -248,12 +399,13 @@
     [((Pair t11 t12) (Pair t21 t22)) (and (common-val? t11 t21)
                                           (common-val? t12 t22))]
     [((? Abs?) (? Abs?)) #t]
-    [((Dep t1 p1) (Dep t2 p2)) (and (not (contradiction? (AND p1 p2)))
-                                    (common-val? t1 t2))]
-    [((Dep t p) _) (and (not (contradiction? p))
-                        (common-val? t t2))]
-    [(_ (Dep t p)) (and (not (contradiction? p))
-                        (common-val? t1 t))]))
+    [((Dep x1 t1 p1) (Dep x2 t2 p2)) 
+     (and (not (contradiction? (And p1 (subst x1 x2 p2))))
+          (common-val? t1 t2))]
+    [((Dep x t p) _) (and (not (contradiction? p))
+                          (common-val? t t2))]
+    [(_ (Dep x t p)) (and (not (contradiction? p))
+                          (common-val? t1 t))]))
 
 (: type-conflict? (Type Type . -> . Boolean))
 (define (type-conflict? t1 t2)
@@ -279,8 +431,11 @@
     [else t1]))
 
 (module+ test
-  (check-true (proves? (env empty) (TRUE)))
-  #;(check-false (proves? (env empty) (FALSE)))
-  (check-true (proves? (env empty) (OR (TRUE)
-                                       (FALSE))))
-  (check-true (proves? (env (list (FALSE))) (FALSE))))
+  (check-true (proves? (env empty) (TT)))
+  (check-false (proves? (env empty) (FF)))
+  (check-true (proves? (env empty) (Or (TT)
+                                       (FF))))
+  (check-true (proves? (env (list (FF))) (FF)))
+  (check-true (proves? (env (list (IsT 'x (Union `(,(Int) ,(Str))))
+                                  (NotT 'x (Str)))) 
+                       (IsT 'x (Int)))))

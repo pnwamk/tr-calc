@@ -223,9 +223,9 @@
     [(_ _ (TT)) (TT)]
     [(_ _ (FF)) (FF)]
     [(_ _ (And lhs rhs)) (And (subst new old-var lhs)
-                              (subst new old-var lhs))]
+                              (subst new old-var rhs))]
     [(_ _ (Or lhs rhs)) (Or (subst new old-var lhs)
-                            (subst new old-var lhs))]
+                            (subst new old-var rhs))]
     [((Obj π x) y (IsT y t)) (IsT x (path-type-norm π t))]
     [((Obj π x) y (NotT y t)) (NotT x (path-type-norm π t))]
     [(#f y (IsT y t)) (TT)]
@@ -316,7 +316,7 @@
           (implies? (subst (var x2) x1 p1+) p2+)
           (implies? (subst (var x2) x1 p1-) p2-))]
     ;; S-Dep
-    [((Dep x t1 p1) (Dep y t2 p2)) (and (subtype? t1 (subst x y t2))
+    [((Dep x t1 p1) (Dep y t2 p2)) (and (subtype? t1 t2)
                                         (implies? p1 (subst x y p2)))]
     ;; S-DepSub
     [((Dep _ t1 _) _) (subtype? t1 t2)]
@@ -541,9 +541,9 @@
                        (IsT 'y (Dep 'v (Top) (IsT 'v (Str))))))
   (check-true (proves? (env (list (IsT 'y (Dep 'v (Int) (IsT 'x (Str))))))
                        (IsT 'y (Dep 'v (Union `(,(Int) ,(Str))) (And (IsT 'x (Str))
-                                                                     (IsT 'y (Int)))))))
+                                                                     (IsT 'v (Int)))))))
   (check-false (proves? (env (list (IsT 'y (Dep 'v (Int) (IsT 'x (Str))))
                                    (IsT 'z (Top))))
                         (IsT 'y (Dep 'v (Union `(,(Int) ,(Str))) (And (And (IsT 'x (Str))
-                                                                           (IsT 'y (Int)))
+                                                                           (IsT 'v (Int)))
                                                                       (IsT 'z (Int))))))))

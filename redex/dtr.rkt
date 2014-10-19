@@ -352,6 +352,10 @@
     ;; L-OrI
     [(_ (Or lhs rhs)) (or (proves? E lhs)
                           (proves? E rhs))]
+    ;; L-IsDepE
+    [(_ (IsT x (Dep y t p))) 
+     (proves? E (And (IsT x t)
+                     (subst x y p)))]
     ;; L-NotT
     [((Env ps ts+ ts-) (? NotT? p)) 
      (proves? (Env (cons (¬ p) ps) ts+ ts-) (FF))]
@@ -526,4 +530,20 @@
                                   (IsT 'x (Union `(,(Int) ,(Pair (Top) (Top)))))))
                        (IsT 'x (Int))))
   (check-true (proves? (env (list (IsT 'x (Int)) (IsT 'x (Str))))
-                       (FF))))
+                       (FF)))
+  
+  ;; dependent type tests
+  (check-true (proves? (env (list (IsT 'x (Int)) (IsT 'y (Str))))
+                       (IsT 'y (Dep 'v (Str) (IsT 'x (Int))))))
+  (check-false (proves? (env (list (IsT 'x (Int)) (IsT 'y (Str))))
+                       (IsT 'y (Dep 'v (Str) (IsT 'x (Str))))))
+  (check-true (proves? (env (list (IsT 'x (Int)) (IsT 'y (Str))))
+                       (IsT 'y (Dep 'v (Top) (IsT 'v (Str))))))
+  (check-true (proves? (env (list (IsT 'y (Dep 'v (Int) (IsT 'x (Str))))))
+                       (IsT 'y (Dep 'v (Union `(,(Int) ,(Str))) (And (IsT 'x (Str))
+                                                                     (IsT 'y (Int)))))))
+  (check-false (proves? (env (list (IsT 'y (Dep 'v (Int) (IsT 'x (Str))))
+                                   (IsT 'z (Top))))
+                        (IsT 'y (Dep 'v (Union `(,(Int) ,(Str))) (And (And (IsT 'x (Str))
+                                                                           (IsT 'y (Int)))
+                                                                      (IsT 'z (Int))))))))

@@ -1,6 +1,14 @@
 #lang typed/racket
 
-(require typed/rackunit)
+(define-syntax-rule (check-true exp)
+  (if exp
+      (void)
+      (error "check failed!" (quote exp))))
+
+(define-syntax-rule (check-false exp)
+  (if exp
+      (error "check failed!" (quote exp))
+      (void)))
 
 
 (: hash-empty? (All (a b) (case-> (-> (HashTable a b) Boolean) 
@@ -19,7 +27,7 @@
 (: Var? (Any . -> . Boolean : Var))
 (define Var? symbol?)
 
-(struct: Obj ([path : Path] [var : Var]))
+(struct: Obj ([path : Path] [var : Var]) #:transparent)
 
 (: var (-> Var Obj))
 (define (var x)
@@ -128,10 +136,11 @@
                         (contains-Bot? rhs))]
     [_ #f]))
 
-(: atomic? (Prop . -> . Boolean))
-(define (atomic? p)
-  (or (IsT? p)
-      (FF? p)))
+(module+ test
+  (check-true (contains-Bot? (Bot)))
+  (check-true (contains-Bot? (Pair (Top) (Bot))))
+  (check-true (contains-Bot? (Pair (Pair (Bot) (Top)) (Top))))
+  (check-false (contains-Bot? (Union `(,(Int) ,(Bot) ,(Str))))))
 
 (: fvs ((U (Opt Obj) Type Prop) . -> . (Listof Var)))
 (define (fvs e)
@@ -211,6 +220,8 @@
     [(_ x (Dep y t p)) #:when (not (equal? x y))
                        (Dep y (subst new x t) p)]
     ;; Prop
+    [(_ _ (TT)) (TT)]
+    [(_ _ (FF)) (FF)]
     [(_ _ (And lhs rhs)) (And (subst new old-var lhs)
                               (subst new old-var lhs))]
     [(_ _ (Or lhs rhs)) (Or (subst new old-var lhs)
@@ -314,6 +325,22 @@
                             (tautology? p1))]
     [(_ _) #f]))
 
+(: gen-type-env (-> TMap (Listof IsT)))
+(define (gen-type-env ts+)
+  (for/list ([x (hash-keys ts+)])
+    (IsT x
+         (foldl (λ ([t-new : Type] [t-acc : Type])
+                  (restrict t-acc t-new))
+                (Top)
+                (hash-ref ts+ x)))))
+
+(: witness? (IsT Prop . -> . Boolean))
+(define (witness? is p)
+  (or (contains-Bot? (IsT-type is))
+      (and (IsT? p)
+           (equal? (IsT-var is) (IsT-var p))
+           (subtype? (IsT-type is) (IsT-type p)))))
+
 (: proves? (Env Prop . -> . Boolean))
 (define (proves? E goal)
   (match* (E goal)
@@ -321,13 +348,13 @@
     [(_ (TT)) #t]
     ;; L-AndI
     [(_ (And lhs rhs)) (and (proves? E lhs)
-                            (proves? E lhs))]
+                            (proves? E rhs))]
     ;; L-OrI
     [(_ (Or lhs rhs)) (or (proves? E lhs)
-                          (proves? E lhs))]
+                          (proves? E rhs))]
     ;; L-NotT
     [((Env ps ts+ ts-) (? NotT? p)) 
-     (proves? (Env (cons p ps) ts+ ts-) (FF))]
+     (proves? (Env (cons (¬ p) ps) ts+ ts-) (FF))]
     ;; L-False
     [((Env (cons (FF) ps) ts+ ts-) _) #t]
     ;; L-TTSkip
@@ -357,21 +384,14 @@
     [((Env (cons (NotT x t) ps) ts+ ts-) _)
      (proves? (Env ps ts+ (ext-NTMap ts- x t)) goal)]
     ;; L-Restrict*
-    [((Env (? empty?) ts+ ts-) (IsT x t))
+    [((Env (? empty?) ts+ ts-) _)
      #:when (and (hash-empty? ts-)
                  (not (hash-empty? ts+)))
-     (let ([facts : (Listof (Pairof Var Type)) 
-                  (for/list ([x (hash-keys ts+)])
-                    (cons x
-                          (foldl (λ ([t-new : Type] [t-acc : Type])
-                                   (restrict t-acc t-new))
-                                 (Top)
-                                 (hash-ref ts+ x))))])
-       (ormap (λ ([yt : (Pairof Var Type)])
-                (or (contains-Bot? (cdr yt))
-                    (and (equal? (car yt) x)
-                         (subtype? (cdr yt) t))))
-              facts))]
+     (let ([t-env : (Listof IsT) 
+                  (gen-type-env ts+)])
+       (ormap (λ ([xt : IsT])
+                (witness? xt goal))
+              t-env))]
     ;; L-Remove*
     [((Env (? empty?) ts+ ts-) _)
      #:when (not (hash-empty? ts-))
@@ -405,7 +425,8 @@
     [((Dep x t p) _) (and (not (contradiction? p))
                           (common-val? t t2))]
     [(_ (Dep x t p)) (and (not (contradiction? p))
-                          (common-val? t1 t))]))
+                          (common-val? t1 t))]
+    [(_ _) #f]))
 
 (: type-conflict? (Type Type . -> . Boolean))
 (define (type-conflict? t1 t2)
@@ -431,11 +452,78 @@
     [else t1]))
 
 (module+ test
+  (check-false (type-conflict? (Int) (Int)))
+  (check-false (type-conflict? (Int) (Top)))
+  (check-true (type-conflict? (Int) (Bot)))
+  (check-false (type-conflict? (Union `(,(Bot) ,(Int) ,(Str)))
+                               (Union `(,(Int) ,(Int)))))
+  (check-true (type-conflict? (Union `(,(Bot) ,(Int) ,(Str)))
+                              (Pair (Top) (Top))))
+  (check-false (type-conflict? (Abs 'x (Bot) (Top) (TT) (TT) #f)
+                               (Abs 'x (Int) (Int) (TT) (FF) #f)))
+  
+  (check-true (subtype? (Str) (Str)))
+  (check-true (subtype? (Str) (Top)))
+  (check-true (subtype? (Bot) (Str)))
+  (check-false (subtype? (Int) (Str)))
+  (check-true (subtype? (Union `(,(Int) ,(Str)))
+                        (Union `(,(Str) ,(Int)))))
+  (check-false (subtype? (Union `(,(Int) ,(Str)))
+                         (Union `(,(Abs 'x (Int) (Int) (TT) (FF) #f) 
+                                  ,(Pair (Top) (Top))))))
+  (check-true (subtype? (Pair (Int) (Str))
+                        (Pair (Union `(,(Str) ,(Int)))
+                              (Union `(,(Str) ,(Int))))))
+  (check-false (subtype? (Abs 'x (Union `(,(Str) ,(Int))) 
+                              (Union `(,(Str) ,(Int))) (TT) (FF) #f)
+                         (Abs 'x (Int) (Int) (TT) (FF) (var 'x))))
+(check-true (subtype? (Abs 'x (Union `(,(Str) ,(Int))) (Int) (TT) (FF) (var 'x))
+                      (Abs 'x (Int) (Union `(,(Str) ,(Int))) (TT) (TT) #f)))
+  
   (check-true (proves? (env empty) (TT)))
   (check-false (proves? (env empty) (FF)))
   (check-true (proves? (env empty) (Or (TT)
                                        (FF))))
   (check-true (proves? (env (list (FF))) (FF)))
+  (check-true (proves? (env (list (IsT 'x (Int)))) (NotT 'x (Str))))
+  (check-true (proves? (env (list (IsT 'x (Int)))) 
+                       (And (NotT 'x (Str))
+                            (NotT 'x (Pair (Int) (Str))))))
+  (check-false (proves? (env (list (IsT 'x (Int)))) 
+                       (And (NotT 'x (Str))
+                            (NotT 'y (Pair (Int) (Str))))))
+  (check-false (proves? (env (list (IsT 'x (Int)))) 
+                       (And (NotT 'y (Str))
+                            (NotT 'x (Pair (Int) (Str))))))
+  (check-true (proves? (env (list (IsT 'x (Int)))) 
+                       (Or (NotT 'x (Int))
+                           (NotT 'x (Pair (Int) (Str))))))
+  (check-false (proves? (env (list (IsT 'x (Union (list (Int) (Str))))))
+                        (IsT 'x (Str))))
+  (check-true (proves? (env (list (Or (IsT 'x (Int))
+                                      (FF))
+                                  (Or (NotT 'x (Int))
+                                      (IsT 'y (Str)))
+                                  (Or (And (IsT 'y (Int)) (IsT 'z (Bool)))
+                                      (IsT 'z (Union `(,(Str) ,(Int)))))
+                                  (IsT 'z (Union `(,(Str) ,(Bool))))))
+                       (And (NotT 'z (Bool))
+                            (Or (FF)
+                                (NotT 'z (Bot))))))
+  ;; subtyping tests
+  (check-true (proves? (env (list (IsT 'x (Str)))) 
+                       (IsT 'x (Union `(,(Int) ,(Str))))))
+  ;; remove tests
   (check-true (proves? (env (list (IsT 'x (Union `(,(Int) ,(Str))))
                                   (NotT 'x (Str)))) 
-                       (IsT 'x (Int)))))
+                       (IsT 'x (Int))))
+  (check-true (proves? (env (list (IsT 'x (Union `(,(Int) ,(Str))))
+                                  (NotT 'x (Str))
+                                  (NotT 'x (Union `(,(Int) ,(Bot)))))) 
+                       (IsT 'x (Bot))))
+  ;; restrict tests
+  (check-true (proves? (env (list (IsT 'x (Union `(,(Int) ,(Str))))
+                                  (IsT 'x (Union `(,(Int) ,(Pair (Top) (Top)))))))
+                       (IsT 'x (Int))))
+  (check-true (proves? (env (list (IsT 'x (Int)) (IsT 'x (Str))))
+                       (FF))))

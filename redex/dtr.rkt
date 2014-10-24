@@ -26,6 +26,8 @@
                [sli-proves-leq? (-> SLI leq Boolean)]
                [sli-proves-sli? (-> SLI SLI Boolean)])
 
+(define ≤ leq)
+
 (define-syntax-rule (check-true exp)
   (if exp
       (void)
@@ -73,11 +75,23 @@
 (struct: Fun ([arg : Symbol] [arg-type : Type] [body : Exp]) #:transparent)
 (struct: If ([test : Exp] [then : Exp] [else : Exp]) #:transparent)
 (struct: Let ([var : Symbol] [var-exp : Exp] [body : Exp]) #:transparent)
-(struct: Op ([name : Symbol]) #:transparent
-  #:guard (λ (n _)
-            (unless (member n prim-ops)
-              (error "invalid Op ~a" n))
-            n))
+(define-type Op (U 'add1 'zero? 'int? 'str? 'bool? 'proc? 
+                   'str-len '+ 'error 'cons? 'car 'cdr))
+(: Op? (pred Op))
+(define (Op? x)
+  (or (equal? x 'add1)
+      (equal? x 'zero?)
+      (equal? x 'int?)
+      (equal? x 'str?)
+      (equal? x 'bool?)
+      (equal? x 'proc?)
+      (equal? x 'str-len)
+      (equal? x '+)
+      (equal? x 'error)
+      (equal? x 'cons?)
+      (equal? x 'car)
+      (equal? x 'cdr)))
+
 (define-type Val (U Integer String Boolean))
 (define-type Exp (U Val Ann App Fun If Let))
 
@@ -153,6 +167,11 @@
 (: env ((Listof Prop) . -> . Env))
 (define (env lop)
   (Env lop (hash) (hash) empty))
+
+(: env+P (Env Prop . -> . Env))
+(define (env+P E P)
+  (match E
+    [(Env ps ts+ ts- sli) (Env (cons P ps) ts+ ts- sli)]))
 
 ;;*****************************************
 ;; λDTR Helpers
@@ -239,7 +258,7 @@
                  [Var Var Type . -> . Type]))
 (define (subst new old-var tgt)
   (match* (new old-var tgt)
-    [((? Var? x) y _) (subst (Obj '() x) y tgt)]
+    [((? Var? x) y _) (subst (var x) y tgt)]
     ;; (Opt Obj)
     [(_ _ #f) #f]
     [(#f x (Obj _ x)) #f]
@@ -396,7 +415,7 @@
   (for/list ([x (hash-keys ts+)])
     (IsT x
          (foldl (λ ([t-new : Type] [t-acc : Type])
-                  (restrict t-acc t-new))
+                  (update t-acc #t t-new))
                 (Top)
                 (hash-ref ts+ x)))))
 
@@ -475,7 +494,7 @@
            (for/hash : TMap ([x : Var (hash-keys ts+)])
              (let* ([xnt : Type (hash-ref ts- x (λ () (Bot)))]
                     [xts : (Listof Type) (hash-ref ts+ x)])
-               (values x (map (λ ([t : Type]) (remove t xnt)) xts))))
+               (values x (map (λ ([t : Type]) (update t #f xnt)) xts))))
            (hash)
            sli)
       goal)]
@@ -507,6 +526,14 @@
 (: type-conflict? (Type Type . -> . Boolean))
 (define (type-conflict? t1 t2)
   (not (common-val? t1 t2)))
+
+(: update (Type Boolean Type . -> . Type))
+(define (update old b new)
+  (match* (old b new)
+    [((Pair t1 t2) b (Pair t3 t4)) (Pair (update t1 b t3)
+                                         (update t2 b t4))]
+    [(_ #t _) (restrict old new)]
+    [(_ #f _) (remove old new)]))
 
 (: restrict (Type Type . -> . Type))
 (define (restrict t1 t2)
@@ -553,8 +580,8 @@
   (check-false (subtype? (Abs 'x (Union `(,(Str) ,(Int))) 
                               (Union `(,(Str) ,(Int))) (TT) (FF) #f)
                          (Abs 'x (Int) (Int) (TT) (FF) (var 'x))))
-(check-true (subtype? (Abs 'x (Union `(,(Str) ,(Int))) (Int) (TT) (FF) (var 'x))
-                      (Abs 'x (Int) (Union `(,(Str) ,(Int))) (TT) (TT) #f)))
+  (check-true (subtype? (Abs 'x (Union `(,(Str) ,(Int))) (Int) (TT) (FF) (var 'x))
+                        (Abs 'x (Int) (Union `(,(Str) ,(Int))) (TT) (TT) #f)))
   
   (check-true (proves? (env empty) (TT)))
   (check-false (proves? (env empty) (FF)))
@@ -566,11 +593,11 @@
                        (And (NotT 'x (Str))
                             (NotT 'x (Pair (Int) (Str))))))
   (check-false (proves? (env (list (IsT 'x (Int)))) 
-                       (And (NotT 'x (Str))
-                            (NotT 'y (Pair (Int) (Str))))))
+                        (And (NotT 'x (Str))
+                             (NotT 'y (Pair (Int) (Str))))))
   (check-false (proves? (env (list (IsT 'x (Int)))) 
-                       (And (NotT 'y (Str))
-                            (NotT 'x (Pair (Int) (Str))))))
+                        (And (NotT 'y (Str))
+                             (NotT 'x (Pair (Int) (Str))))))
   (check-true (proves? (env (list (IsT 'x (Int)))) 
                        (Or (NotT 'x (Int))
                            (NotT 'x (Pair (Int) (Str))))))
@@ -608,7 +635,7 @@
   (check-true (proves? (env (list (IsT 'x (Int)) (IsT 'y (Str))))
                        (IsT 'y (Dep 'v (Str) (IsT 'x (Int))))))
   (check-false (proves? (env (list (IsT 'x (Int)) (IsT 'y (Str))))
-                       (IsT 'y (Dep 'v (Str) (IsT 'x (Str))))))
+                        (IsT 'y (Dep 'v (Str) (IsT 'x (Str))))))
   (check-true (proves? (env (list (IsT 'x (Int)) (IsT 'y (Str))))
                        (IsT 'y (Dep 'v (Top) (IsT 'v (Str))))))
   (check-true (proves? (env (list (IsT 'y (Dep 'v (Int) (IsT 'x (Str))))))
@@ -623,47 +650,142 @@
                                           (IsT 'z (Int)))))))
   
   ;; SLI tests
-  (check-true (proves? (env (list (IsT 'x (Dep 'v (Int) `(,(leq (lexp `(7 ,(var 'v)))
-                                                                (lexp 28)))))
-                                  (list (leq (lexp 4)
-                                             (lexp `(1 ,(Obj '() 'x)))))))
-                       (IsT 'x (Dep 'v (Int) `(,(leq (lexp `(1 ,(var 'v)))
-                                                     (lexp 4))
-                                               ,(leq (lexp 4)
-                                                     (lexp `(1 ,(Obj '() 'v)))))))))
-  (check-false (proves? (env (list (IsT 'x (Dep 'v (Int) `(,(leq (lexp `(7 ,(var 'v)))
-                                                                 (lexp 28)))))
-                                   `(,(leq (lexp 2)
-                                           (lexp `(1 ,(Obj '() 'x)))))))
-                        (IsT 'x (Dep 'v (Int) `(,(leq (lexp `(1 ,(var 'v)))
-                                                        (lexp 4))
-                                                ,(leq (lexp 4)
-                                                      (lexp `(1 ,(var 'v)))))))))
-  (check-true (proves? (env (list (list (leq (lexp 4)
-                                             (lexp `(1 ,(var 'x)))))
+  (check-true (proves? (env (list (IsT 'x (Dep 'v (Int) `(,(≤ (lexp `(7 ,(var 'v)))
+                                                              (lexp 28)))))
+                                  (list (≤ (lexp 4)
+                                           (lexp `(1 ,(var 'x)))))))
+                       (IsT 'x (Dep 'v (Int) `(,(≤ (lexp `(1 ,(var 'v)))
+                                                   (lexp 4))
+                                               ,(≤ (lexp 4)
+                                                   (lexp `(1 ,(var 'v)))))))))
+  (check-false (proves? (env (list (IsT 'x (Dep 'v (Int) `(,(≤ (lexp `(7 ,(var 'v)))
+                                                               (lexp 28)))))
+                                   `(,(≤ (lexp 2)
+                                         (lexp `(1 ,(var 'x)))))))
+                        (IsT 'x (Dep 'v (Int) `(,(≤ (lexp `(1 ,(var 'v)))
+                                                    (lexp 4))
+                                                ,(≤ (lexp 4)
+                                                    (lexp `(1 ,(var 'v)))))))))
+  (check-true (proves? (env (list (list (≤ (lexp 4)
+                                           (lexp `(1 ,(var 'x)))))
                                   (Or (IsT 'x (Int))
-                                      `(,(leq (lexp `(1 ,(var 'x))) 
-                                           (lexp 3))))
+                                      `(,(≤ (lexp `(1 ,(var 'x))) 
+                                            (lexp 3))))
                                   (Or (NotT 'x (Int))
                                       (IsT 'y (Str)))
                                   (Or (And (IsT 'y (Int)) (IsT 'z (Bool)))
                                       (IsT 'z (Union `(,(Str) ,(Int)))))
                                   (IsT 'z (Union `(,(Str) ,(Bool))))))
                        (And (NotT 'z (Bool))
-                            (And `(,(leq (lexp -1)
-                                         (lexp `(1 ,(var 'x)))))
+                            (And `(,(≤ (lexp -1)
+                                       (lexp `(1 ,(var 'x)))))
                                  (NotT 'z (Bot))))))
-  (check-false (proves? (env (list (list (leq (lexp 4)
-                                              (lexp `(1 ,(var 'x)))))
+  (check-false (proves? (env (list (list (≤ (lexp 4)
+                                            (lexp `(1 ,(var 'x)))))
                                    (Or (IsT 'x (Int))
-                                       `(,(leq (lexp `(1 ,(var 'x))) 
-                                               (lexp 3))))
+                                       `(,(≤ (lexp `(1 ,(var 'x))) 
+                                             (lexp 3))))
                                    (Or (NotT 'x (Int))
                                        (IsT 'y (Str)))
                                    (Or (And (IsT 'y (Int)) (IsT 'z (Bool)))
                                        (IsT 'z (Union `(,(Str) ,(Int)))))
                                    (IsT 'z (Union `(,(Str) ,(Bool))))))
                         (And (NotT 'z (Bool))
-                             (And `(,(leq (lexp 5)
-                                          (lexp `(1 ,(var 'x)))))
+                             (And `(,(≤ (lexp 5)
+                                        (lexp `(1 ,(var 'x)))))
                                   (NotT 'z (Bot)))))))
+
+
+(: dnf (Prop . -> . Prop))
+(define (dnf P)
+  (define 
+    P2 
+    (match P
+      [(And p (Or q r)) (Or (dnf (And p q))
+                            (dnf (And p r)))]
+      [(And (Or q r) p) (Or (dnf (And q p))
+                            (dnf (And r p)))]
+      [(And p q) (And (dnf p)
+                      (dnf q))]
+      [(Or p q) (Or (dnf p)
+                    (dnf q))]
+      [else P]))
+  (if (equal? P P2)
+      P
+      (dnf P2)))
+
+(: simplify (Prop . -> . Prop))
+(define (simplify p)
+  (let simplify ([E : Env (env empty)]
+                 [p : Prop p]) 
+    (match p
+    [(TT) p]
+    [(FF) p]
+    [(IsT x t) (if (proves? E (¬ p))
+                   (FF)
+                   p)]
+    [(NotT x t) (if (proves? E (¬ p))
+                    (FF)
+                    p)]
+    [(And p q) (And (simplify (env+P E q) p)
+                    (simplify (env+P E p) q))]
+    [(Or p q) (Or (simplify E p)
+                  (simplify E q))])))
+
+
+(module+ test
+  (check-true (equal? (simplify (And (Or (IsT 'x (Int)) 
+                                         (IsT 'x (Union `(,(T) ,(F)))))
+                                     (NotT 'x (Int))))
+                      (And (Or (FF) 
+                               (IsT 'x (Union `(,(T) ,(F)))))
+                           (NotT 'x (Int))))))
+
+
+(: δt (Op . -> . Type))
+(define (δt op)
+  (match op
+    ['add1  
+     (Abs 'x (Int) (Int) (TT) (FF) #f)]
+    ['zero? 
+     (Abs 'x (Int) (Bool) (TT) (TT) #f)]
+    ['int?  
+     (Abs 'x (Top) (Bool) (TT) (TT) #f)]
+    ['str?  
+     (Abs 'x (Top) (Bool) (TT) (TT) #f)]
+    ['bool?  
+     (Abs 'x (Top) (Bool) (TT) (TT) #f)]
+    ['proc?  
+     (Abs 'x (Top) (Bool) (TT) (TT) #f)]
+    ['str-len?  
+     (Abs 'x (Str) (Int) (TT) (FF) #f)]
+    ['+  
+     (Abs 'x (Str) (Int) (TT) (FF) #f)]
+    ['error
+     (Abs 'x (Str) (Int) (TT) (FF) #f)]
+    ['cons?
+     (Abs 'x (Str) (Int) (TT) (FF) #f)]
+    ['car
+     (Abs 'x (Str) (Int) (TT) (FF) #f)]
+    ['cdr
+     (Abs 'x (Str) (Int) (TT) (FF) #f)]))
+
+; add1 zero? int? str? bool? proc? 
+; str-len + error cons? car cdr
+
+(: oo-join ((Opt Obj) (Opt Obj) . -> . (Opt Obj)))
+(define (oo-join oo1 oo2)
+  (cond
+    [(or (not oo1)
+         (not oo1)
+         (not (equal? oo1 oo2)))
+     #f]
+    [else oo1]))
+
+(: t-join (Type Type . -> . Type))
+(define (t-join t1 t2)
+  (cond
+    [(subtype? t1 t2) t2]
+    [(subtype? t2 t1) t1]
+    [else (Union `(,t1 ,t2))]))
+

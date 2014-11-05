@@ -204,7 +204,7 @@
     [(Env ps ts+ ts- sli) (Env (cons P ps) ts+ ts- sli)]))
 
 ;; Expressions
-(struct: Ann ([exp : (U Symbol Exp)] [type : Type]) #:transparent)
+(struct: Ann ([var : Var] [type : Type]) #:transparent)
 (struct: App ([rator : Exp] [rand : Exp]) #:transparent)
 (struct: Fun ([arg : Symbol] [arg-type : Type] [body : Exp]) #:transparent)
 (struct: If ([test : Exp] [then : Exp] [else : Exp]) #:transparent)
@@ -213,7 +213,7 @@
                    'str-len '+ 'error 'cons? 'car 'cdr '<=))
 (define-predicate Op? Op)
 
-(define-type Val (U Integer String Boolean))
+(define-type Val (U Integer String Boolean Op))
 (define-predicate Val? Val)
 (define-type Exp (U Val Ann App Fun If Let))
 (define-predicate Exp? Exp)
@@ -318,14 +318,10 @@
     [(TT) empty]
     [(FF) empty]
     [(Atom b r t) (append (fvs r) (fvs t))]
-    [(Or ps) (foldl (λ ([loId : (Listof Id)]
-                        [loIds : (Listof Id)])
-                      (append loId loIds)) 
+    [(Or ps) (foldl #{append @ Id}
                     empty 
                     (map fvs ps))]
-    [(And ps) (foldl (λ ([loId : (Listof Id)]
-                         [loIds : (Listof Id)])
-                       (append loId loIds)) 
+    [(And ps) (foldl #{append @ Id} 
                      empty 
                      (map fvs ps))]
     [(? Leq? l) (map Obj-id (leq-vars l))]
@@ -440,11 +436,9 @@
     [((FF) new x) p]
     ;; Is/Not null
     [((? Atom? atom) new x) (subst-in-atom atom new x)]
-    [((And ps) new x) (And (map (λ ([p : Prop]) 
-                                  (p_ p [new / x]))
+    [((And ps) new x) (And (map (λ ([p : Prop]) (p_ p [new / x]))
                                 ps))]
-    [((Or ps) new x) (Or (map (λ ([p : Prop]) 
-                                (p_ p [new / x]))
+    [((Or ps) new x) (Or (map (λ ([p : Prop]) (p_ p [new / x]))
                               ps))]
     [((? Leq? l) _ x)
      (or (subst-in-leq l new x)
@@ -502,7 +496,7 @@
              Type 
              -> TMap))
 (define (ext-TMap imap r t)
-  (hash-set imap r (cons t (hash-ref imap r (λ () '())))))
+  (hash-set imap r (cons t (hash-ref imap r (thunk '())))))
 
 
 (: ext-NTMap (NTMap 
@@ -883,30 +877,6 @@
                                             (lexp 13))))))
 
 
-
-;;               Or      And     atoms
-;; (define-type Conj (Listof (U Atom Leq TT FF)))
-;; (define-type DNF (Listof Conj))
-
-;; (: Prop->DNF (Prop -> DNF))
-;; (define (Prop->DNF P)
-;;   (define (DNFxDNF->DNF [A : DNF] [B : DNF]) : DNF
-;;     (for*/list ([a : Conj A]
-;;                 [b : Conj B]) : DNF
-;;       (append a b)))
-;;   (match P
-;;     [(? Atom? a) `((,a))]
-;;     [(? TT? a) `((,a))]
-;;     [(? FF? a) `((,a))]
-;;     [(? Leq? l) `((,l))]
-;;     [(And '()) `((,(TT)))]
-;;     [(And ps) (let ([dnf-ps (map Prop->DNF ps)])
-;;                 (foldl DNFxDNF->DNF 
-;;                        (first dnf-ps) 
-;;                        (rest dnf-ps)))]
-;;     [(Or ps) (apply append (map Prop->DNF ps))]))
-
-
 (: reify-ref ((Opt Ref) -> Ref))
 (define (reify-ref opt-r)
   (or opt-r (var (Local (gensym 'local)))))
@@ -930,13 +900,14 @@
     [#t (T)]
     [#f (F)]
     ['add1 
-     (Abs 'x (Int) (Int) 
+     (Abs 'x (Int) (Dep 'v (Int) (== (+: 1 (1 (var 'x)))
+                                     (+: (1 (var 'v))))) 
           (TT) (FF) 
           (+: 1 (1 (var 'x))))]
     ['zero? 
      (Abs 'x (Int) (Bool) 
-          (== (+: 0) (+: (1 (var 'x)))) 
-          (!= (+: 0) (+: (1 (var 'x)))) 
+          (Is (var 'x) (Dep 'v (Int) (== (+: 0) (+: (1 (var 'v)))))) 
+          (Is (var 'x) (Dep 'v (Int) (!= (+: 0) (+: (1 (var 'v)))))) 
           #f)]
     ['int?  
      (Abs 'x (Top) (Bool) 
@@ -961,8 +932,12 @@
     ['str-len?  
      (Abs 'x (Str) (Int) (TT) (FF) #f)]
     ['+  
-     (Abs 'x (Int) (Abs 'y (Int) (Int) (TT) (FF) (+: (1 (var 'x)) (1 (var 'y)))) 
-          (TT) (FF) #f)]
+     (Abs 'x (Int) (Abs 'y (Int) (Dep 'v (Int) (== (+: (1 (var 'v)))
+                                                   (+: (1 (var 'x)) (1 (var 'y)))))
+                        (TT) (FF)
+                        (+: (1 (var 'x)) (1 (var 'y)))) 
+          (TT) (FF) 
+          #f)]
     ['<=
      (Abs 'x (Int) (Abs 'y (Int) (Bool) 
                         (Is (var 'x) (Dep 'v (Int) (≤ (+: (1 (var 'v)))
@@ -978,6 +953,25 @@
           (Is (var 'x) (Pair (Top) (Top))) 
           (Not (var 'x) (Pair (Top) (Top))) #f)]))
 
+
+
+(: ref-join ((Opt Ref) (Opt Ref) -> (Opt Ref)))
+(define (ref-join r1 r2)
+  (cond
+   [(or (not r1)
+        (not r2)
+        (not (ref-equiv? r1 r2)))
+    #f]
+   [else r1]))
+
+(: t-join (Type Type -> Type))
+(define (t-join t1 t2)
+  (cond
+   [(subtype? t1 t2) t2]
+   [(subtype? t2 t1) t1]
+   [else (Union `(,t1 ,t2))]))
+
+
 (: val->ref (Val -> (Opt Ref)))
 (define (val->ref v)
   (match v
@@ -987,36 +981,6 @@
 (: val->prop (Val -> Prop))
 (define (val->prop b)
   (if b (TT) (FF)))
-
-(define TI TypeInfo)
-(: typeof ((Listof Prop) Exp -> TypeInfo))
-(define (typeof Γ e)
-  (match e
-    [(? Val? v) 
-     (TI (δt v) (val->prop v) (val->prop (not v)) (val->ref v))]
-    [else (error 'typeof "I don't know what that is, bro! ~a" e)]))
-
-(: chk-typeof ((Listof Prop) Exp TypeInfo -> Void))
-(define (chk-typeof Γ e ti)
-  (match-let ([(TypeInfo et ep+ ep- eoptr) ti]
-              [(TypeInfo t p+ p- optr) (typeof Γ e)])
-    (cond
-     [(not (subtype? t et))
-      (printf "FAILURE:\nEnv: ~a\nTerm: ~a\n!(~a <: ~a)" Γ e t et)]
-     [(not (proves? (env (list p+)) ep+))
-      (printf "FAILURE:\nEnv: ~a\nTerm: ~a\n!(~a |- ~a) (Prop+)" Γ e p+ ep+)]
-     [(not (proves? (env (list p-)) ep-))
-      (printf "FAILURE:\nEnv: ~a\nTerm: ~a\n!(~a |- ~a) (Prop-)" Γ e p+ ep+)]
-     [(not (subref? optr eoptr))
-      (printf "FAILURE:\nEnv: ~a\nTerm: ~a\n!(~a <: ~a)" Γ e optr eoptr)])))
-
-(chk-typeof '() 5 (TI (Int) (TT) (FF) (+: 5)))
-(chk-typeof '() "Hello World!" (TI (Str) (TT) (FF) #f))
-(chk-typeof '() #t (TI (T) (TT) (FF) #f))
-(chk-typeof '() #f (TI (F) (FF) (TT) #f))
-
-
-
 
 ;; ;; Expressions
 ;; (struct: Ann ([exp : (U Symbol Exp)] [type : Type]) #:transparent)
@@ -1031,107 +995,107 @@
 ;; (define-type Exp (U Val Ann App Fun If Let))
 
 
+(define TI TypeInfo)
+(: typeof ((Listof Prop) Exp -> (Opt TypeInfo)))
+(define (typeof Γ e)
+  (match e
+    ;; T-Const
+    [(? (λ (x) (or (Val? x) (Op? x))) v) 
+     (TI (δt v) (val->prop v) (val->prop (not v)) (val->ref v))]
+    ;; T-AnnVar
+    [(Ann x t)
+     (let ([xprop (Is (var x) t)]) 
+       (cond
+        [(proves? (env Γ) xprop) 
+         (TI t 
+             (And: xprop (Not (var 'x) (F))) 
+             (And: xprop (Is (var 'x) (F))) 
+             (var x))]
+        [else #f]))]
+    ;; T-Fun
+    [(Fun x dom body) 
+     (match (typeof (cons (Is (var x) dom) Γ) body)
+       [(TypeInfo range P1+ P1- optr1)
+        (TI (Abs x dom range P1+ P1- optr1) (TT) (FF) #f)] ; excluded P_x
+       [#f #f])]
+    ;;
+    [else (error 'typeof "I don't know what that is, bro! ~a" e)]))
+
+(: chk-typeof ((Listof Prop) Exp (Opt TypeInfo) -> Boolean))
+(define (chk-typeof Γ e ti)
+  (match* (ti (typeof Γ e))
+    [((TypeInfo et ep+ ep- eoptr) (TypeInfo t p+ p- optr)) 
+     (cond
+      [(not (subtype? t et))
+       (printf "FAILURE:\nEnv: ~a\nTerm: ~a\n!(~a <: ~a)" Γ e t et)
+       #f]
+      [(not (proves? (env (cons p+ Γ)) ep+))
+       (printf "FAILURE:\nEnv: ~a\nTerm: ~a\n!(~a |- ~a) (Prop+)" Γ e p+ ep+)
+       #f]
+      [(not (proves? (env (cons p- Γ)) ep-))
+       (printf "FAILURE:\nEnv: ~a\nTerm: ~a\n!(~a |- ~a) (Prop-)" Γ e p+ ep+)
+       #f]
+      [(not (subref? optr eoptr))
+       (printf "FAILURE:\nEnv: ~a\nTerm: ~a\n!(~a <: ~a)" Γ e optr eoptr)
+       #f]
+      [else #t])]
+    [((TypeInfo t p+ p- optr) #f)
+     (printf "FAILURE:\nEnv: ~a\nTerm: ~a\nDid not typecheck!" Γ e)
+     #f]
+    [(#f (TypeInfo t p+ p- optr))
+     (printf "FAILURE:\nEnv: ~a\nTerm: ~a\nDid typecheck! (Expected #f)" Γ e)
+     #f]
+    [(#f #f) #t]))
+
+(: chk-not-typeof ((Listof Prop) Exp TypeInfo -> Boolean))
+(define (chk-not-typeof Γ e ti)
+  (match* (ti (typeof Γ e))
+    [((TypeInfo et ep+ ep- eoptr) (TypeInfo t p+ p- optr)) 
+     (if (or (not (subtype? t et))
+             (not (proves? (env (cons p+ Γ)) ep+))
+             (not (proves? (env (cons p- Γ)) ep-))
+             (not (subref? optr eoptr)))
+         #t
+         (begin (printf "FAILURE:\nEnv: ~a\nTerm: ~a\nWas not supposed to type-check as ~a" Γ e ti)
+                #f))]
+    [((TypeInfo t p+ p- optr) #f)
+     (printf "FAILURE:\nEnv: ~a\nTerm: ~a\nDid not typecheck!" Γ e)
+     #f]))
+
+(chk (chk-typeof '() 5 (TI (Int) (TT) (FF) (+: 5))))
+(chk (chk-typeof '() "Hello World!" (TI (Str) (TT) (FF) #f)))
+(chk (chk-typeof '() #t (TI (T) (TT) (FF) #f)))
+(chk (chk-typeof '() #f (TI (F) (FF) (TT) #f)))
+(chk (chk-typeof '() 'add1 (TI (Abs 'x (Int) (Dep 'v (Int) (== (+: 1 (1 (var 'x)))
+                                                               (+: (1 (var 'v))))) 
+                                    (TT) (FF) 
+                                    (+: 1 (1 (var 'x)))) 
+                               (TT) (FF) #f)))
+(chk (chk-typeof `(,(Is (var 'x) (Int))) 
+                 (Ann 'x (Int)) 
+                 (TI (Int) (TT) (FF) #f)))
+(chk (chk-typeof `(,(Is (var 'x) (Int))) 
+                 (Ann 'x (Top)) 
+                 (TI (Top) (TT) (FF) #f)))
+(chk (chk-typeof `(,(Is (var 'x) (Int))) 
+                 (Ann 'x (Str)) 
+                 #f))
+(chk (chk-typeof '() 
+                 (Fun 'x (Int) (Ann 'x (Int))) 
+                 (TI (Abs 'x (Int) (Int) (TT) (FF) (var 'x))
+                     (TT) (FF) #f)))
+(chk (chk-typeof '() 
+                 (Fun 'x (Int) (Ann 'x (Int))) 
+                 (TI (Abs 'x (Bot) (Top) (TT) (FF) (var 'x))
+                     (TT) (FF) #f)))
+(chk (chk-not-typeof '() 
+                     (Fun 'x (Int) (Ann 'x (Int))) 
+                     (TI (Abs 'x (Top) (Int) (TT) (FF) (var 'x))
+                         (TT) (FF) #f)))
 
 
-;;; TODO I'm not sure how essential it is... but it might be the case
-;;; that we want to combine SLIs in the same disjunct...?
-                                        ;
-                                        ;
-                                        ;(: simplify (Prop ->p))
-                                        ;(define (simplify p)
-                                        ;  (let simplify ([E : Env (env empty)]
-                                        ;                 [p : Prop p]) 
-                                        ;    (match p
-                                        ;    [(TT) p]
-                                        ;    [(FF) p]
-                                        ;    [(IsT x t) (if (proves? E (¬ p))
-                                        ;                   (FF)
-                                        ;                   p)]
-                                        ;    [(NotT x t) (if (proves? E (¬ p))
-                                        ;                    (FF)
-                                        ;                    p)]
-                                        ;    [(And p q) (And (simplify (env+P E q) p)
-                                        ;                    (simplify (env+P E p) q))]
-                                        ;    [(Or p q) (Or (simplify E p)
-                                        ;                  (simplify E q))])))
-                                        ;
-                                        ;
-                                        ;(module+ test
-                                        ;  (chk (equal? (simplify (And (Or (IsT 'x (Int)) 
-                                        ;                                         (IsT 'x (Union `(,(T) ,(F)))))
-                                        ;                                     (NotT 'x (Int))))
-                                        ;                      (And (Or (FF) 
-                                        ;                               (IsT 'x (Union `(,(T) ,(F)))))
-                                        ;                           (NotT 'x (Int))))))
-                                        ;
-                                        ;
-                                        ;(: δt (Op -> Type))
-                                        ;(define (δt op)
-                                        ;  (match op
-                                        ;    ['add1  
-                                        ;     (Abs 'x (Int) (Int) 
-                                        ;          (TT) (FF) (+: 1 (1 (var 'x))))]
-                                        ;    ['zero? 
-                                        ;     (Abs 'x (Int) (Bool) 
-                                        ;          (== (+: 0) (+: (1 (var 'x)))) 
-                                        ;          (!= (+: 0) (+: (1 (var 'x)))) 
-                                        ;          #f)]
-                                        ;    ['int?  
-                                        ;     (Abs 'x (Top) (Bool) (IsT 'x (Int)) (NotT 'x (Int)) #f)]
-                                        ;    ['str?  
-                                        ;     (Abs 'x (Top) (Bool) (IsT 'x (Str)) (NotT 'x (Str)) #f)]
-                                        ;    ['bool?  
-                                        ;     (Abs 'x (Top) (Bool) (IsT 'x (Bool)) (NotT 'x (Bool)) #f)]
-                                        ;    ['proc?  
-                                        ;     (Abs 'x (Top) (Bool) 
-                                        ;          (IsT 'x (Abs 'y (Bot) (Top) (TT) (TT) #f)) 
-                                        ;          (NotT 'x (Abs 'y (Bot) (Top) (TT) (TT) #f)) 
-                                        ;          #f)]
-                                        ;    ['str-len?  
-                                        ;     (Abs 'x (Str) (Int) (TT) (FF) #f)]
-                                        ;    ['+  
-                                        ;     (Abs 'x (Int) (Abs 'y (Int) (Int) (TT) (FF) (+: (1 (var 'x)) (1 (var 'y)))) 
-                                        ;          (TT) (FF) #f)]
-                                        ;    ['<=
-                                        ;     (Abs 'x (Int) (Abs 'y (Int) (Bool) 
-                                        ;                        (≤ (+: (1 (var 'x)))
-                                        ;                           (+: (1 (var 'y))))
-                                        ;                        (¬ (≤ (+: (1 (var 'x)))
-                                        ;                              (+: (1 (var 'y)))))
-                                        ;                        #f) 
-                                        ;          (TT) (FF) #f)]
-                                        ;    ['error
-                                        ;     (Abs 'x (Str) (Bot) (FF) (FF) #f)]
-                                        ;    ['cons?
-                                        ;     (Abs 'x (Top) (Bool) (IsT 'x (Pair (Top) (Top))) (NotT 'x (Pair (Top) (Top))) #f)]))
-                                        ;
-;; add1 zero? int? str? bool? proc? 
-;; str-len + error cons? car cdr
-                                        ;
-                                        ;(: oo-join ((Opt Obj) (Opt Obj) -> (Opt Obj)))
-                                        ;(define (oo-join oo1 oo2)
-                                        ;  (cond
-                                        ;    [(or (not oo1)
-                                        ;         (not oo1)
-                                        ;         (not (equal? oo1 oo2)))
-                                        ;     #f]
-                                        ;    [else oo1]))
-                                        ;
-                                        ;(: t-join (Type Type -> Type))
-                                        ;(define (t-join t1 t2)
-                                        ;  (cond
-                                        ;    [(subtype? t1 t2) t2]
-                                        ;    [(subtype? t2 t1) t1]
-                                        ;    [else (Union `(,t1 ,t2))]))
-                                        ;
-                                        ;
-                                        ;(: typeof (Env Exp -> (Values Type Prop Prop (Opt Ref))))
-                                        ;(define (typeof E exp)
-                                        ;  (match exp
-                                        ;    ;; T-Int
-                                        ;    [(? exact-integer? n)
-                                        ;     ;; -----------------
-                                        ;     (values (Int) (TT) (FF) (+: n))]))
+
+
 
 
 

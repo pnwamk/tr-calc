@@ -127,14 +127,17 @@
 ;; Objects
 (define-type Var Symbol)
 (define-predicate Var? Var)
+(struct Local ([var : Symbol]))
+(define-type Id (U Var Local))
+(define-predicate Id? Id)
 
-(struct: Obj ([path : Path] [var : Var]) #:transparent)
+(struct: Obj ([path : Path] [id : Id]) #:transparent)
 (define-type Ref (U Obj LExp))   ;; lexp  x   (Obj (car) lexp)
 (define-predicate Ref? Ref)
 (define-type SLI (Listof Leq))
 (define-predicate SLI? SLI)
 
-(: var (-> Var Obj))
+(: var (-> Id Obj))
 (define (var x)
   (Obj empty x))
 
@@ -243,6 +246,12 @@
 (define (Not obj type)
   (Atom #f obj type))
 
+
+(struct TypeInfo ([type : Type] 
+                  [prop+ : Prop]
+                  [prop- : Prop]
+                  [ref : Ref]))
+
 ;;*****************************************
 ;;                                               
 ;;                                               
@@ -300,13 +309,13 @@
   (chk (contains-Bot? (Pair (Pair (Bot) (Top)) (Top))))
   (chk~ (contains-Bot? (U: (Int) (Bot) (Str)))))
 
-(: fvs ((U (Opt Ref) Type Prop) -> (Listof Var)))
+(: fvs ((U (Opt Ref) Type Prop) -> (Listof Id)))
 (define (fvs e)
   (match e
     ;; References
     [#f empty]
     [(Obj _ x) (list x)]
-    [(? lexp? l) (map Obj-var (lexp-vars l))]
+    [(? lexp? l) (map Obj-id (lexp-vars l))]
     ;; Types
     [(Top) empty]
     [(Int) empty]
@@ -328,22 +337,22 @@
     [(TT) empty]
     [(FF) empty]
     [(Atom b r t) (append (fvs r) (fvs t))]
-    [(Or ps) (foldl (λ ([lov : (Listof Var)]
-                        [lovs : (Listof Var)])
-                      (append lov lovs)) 
+    [(Or ps) (foldl (λ ([loId : (Listof Id)]
+                        [loIds : (Listof Id)])
+                      (append loId loIds)) 
                     empty 
                     (map fvs ps))]
-    [(And ps) (foldl (λ ([lov : (Listof Var)]
-                         [lovs : (Listof Var)])
-                       (append lov lovs)) 
+    [(And ps) (foldl (λ ([loId : (Listof Id)]
+                         [loIds : (Listof Id)])
+                       (append loId loIds)) 
                      empty 
                      (map fvs ps))]
-    [(? Leq? l) (map Obj-var (leq-vars l))]
+    [(? Leq? l) (map Obj-id (leq-vars l))]
     [else (error 'fvs "unknown argument ~a" e)]))
 
-(: subst-obj-in-lexp (LExp Obj Var -> LExp))
+(: subst-obj-in-lexp (LExp Obj Id -> LExp))
 (define (subst-obj-in-lexp cur-l new-o x)
-  (define y (Obj-var new-o))
+  (define y (Obj-id new-o))
   (define π2 (Obj-path new-o))
   (for/fold ([l : LExp cur-l])
             ([o (lexp-vars cur-l)])
@@ -354,11 +363,11 @@
 
 ;; returning #f implies the substitution results
 ;; in a non-linear expression
-(: subst-lexp-in-lexp (LExp LExp Var  -> (Opt LExp)))
+(: subst-lexp-in-lexp (LExp LExp Id  -> (Opt LExp)))
 (define (subst-lexp-in-lexp cur-l new-l x)
   (for/fold ([l : (Option LExp) cur-l])
             ([o (lexp-vars cur-l)])
-    (let* ([z (Obj-var o)]
+    (let* ([z (Obj-id o)]
            [πz (Obj-path o)])
       (cond
        [(not l) #f]
@@ -369,7 +378,7 @@
             #f)]
        [else l]))))
 
-(: subst-in-lexp (LExp Ref Var -> (Opt LExp)))
+(: subst-in-lexp (LExp Ref Id -> (Opt LExp)))
 (define (subst-in-lexp cur-l new x)
   (cond
    [(Obj? new)
@@ -377,26 +386,18 @@
    [(lexp? new)
     (subst-lexp-in-lexp cur-l new x)]))
 
-(: subst-in-leq (Leq Ref Var -> (Opt Leq)))
+(: subst-in-leq (Leq Ref Id -> (Opt Leq)))
 (define (subst-in-leq cur-leq new x)
   (let ([lhs (subst-in-lexp (Leq-lhs cur-leq) new x)]
         [rhs (subst-in-lexp (Leq-rhs cur-leq) new x)])
   (and lhs rhs (Leq lhs rhs))))
 
-(: subst-in-opt-ref ((Opt Ref) (Opt Ref) Var -> (Opt Ref)))
+(: subst-in-opt-ref ((Opt Ref) Ref Id -> (Opt Ref)))
 (define (subst-in-opt-ref ref new x)
   ;; ref[new / x]
   (match* (ref new x)
     ;; ref[#f / x]
     [(#f _ _) #f]
-    [((Obj π y) #f x) #:when (equal? x y)
-     #f]
-    [((Obj π y) #f x) #:when (not (equal? x y))
-     (Obj π y)]
-    [((? lexp? l) #f x) #:when (member x (fvs l))
-     #f]
-    [((? lexp? l) #f x) #:when (not (member x (fvs l)))
-     l]
     ;; obj(y)[new / x] x <> y
     [((Obj π1 y) _ x) #:when (not (equal? y x))
      ref]
@@ -419,7 +420,7 @@
 ;; atomic props if the target id is in the fvs
 ;; of the type -- we're not sure why it does this,
 ;; it seems necc. to *not* do this in fact
-(: subst-in-atom (Atom (Opt Ref) Var -> Prop))
+(: subst-in-atom (Atom Ref Id -> Prop))
 (define (subst-in-atom atom new id)
   (match* (atom new id)
     ;; Atom(lexp(w/ x)) [non-#f / x]
@@ -446,15 +447,12 @@
             (zero? (lexp-constant l)))
        (let ([y (first (fvs l))])
          (Atom b (Obj π1 y) (t_ t [new / y])))]
-      [else (FF)])]
-    ;; Atom(obj _ x) [#f / x] where x \in (fvs r)
-    [((Atom b r t) #f x)  #:when (member x (fvs r))
-     (TT)]))
+      [else (FF)])]))
 
 
 
 
-(: subst-in-prop (Prop (Opt Ref) Var -> Prop))
+(: subst-in-prop (Prop Ref Id -> Prop))
 (define (subst-in-prop p new x)
   (match* (p new x)
     [((TT) new x) p]
@@ -467,44 +465,40 @@
     [((Or ps) new x) (Or (map (λ ([p : Prop]) 
                                 (p_ p [new / x]))
                               ps))]
-    [((? Leq? l) #f x)
-     (or (and (member x (fvs l)) (TT))
-         l)]
-    [((? Leq? l) (? Obj? o) x)
+    [((? Leq? l) _ x)
      (or (subst-in-leq l new x)
          (TT))]
     [(_ _ _) (error 'subst "unknown subst ~a ~a ~a" p new x)]))
 
-(: subst-in-type (Type (Opt Ref) Var -> Type))
+(: subst-in-type (Type Ref Id -> Type))
 (define (subst-in-type t new x)
-  (cond
-   [(Top? t) t]
-   [(Int? t) t]
-   [(Str? t) t]
-   [(T? t) t]
-   [(F? t) t]
-   [(Union? t) 
+  (match t
+   [(Top) t]
+   [(Int) t]
+   [(Str) t]
+   [(T) t]
+   [(F) t]
+   [(Union ts) 
     (Union (map (λ ([t : Type]) (t_ t [new / x])) 
-                (Union-types t)))]
-   [(Pair? t) 
-    (Pair (t_ (Pair-car t) [new / x]) 
-          (t_ (Pair-cdr t) [new / x]))]
-   [(and (Abs? t) (equal? x (Abs-arg t)))
-    (match-let ([(Abs x td tr p+ p- oo) t])
-      (Abs x (t_ td [new / x]) tr p+ p- oo))]
-   [(Abs? t) (match-let ([(Abs y td tr p+ p- r) t])
-               (Abs y 
-                    (t_ td [new / x]) 
-                    (t_ tr [new / x]) 
-                    (p_ p+ [new / x]) 
-                    (p_ p- [new / x]) 
-                    (r_ r  [new / x])))]
-   [(Dep? t)
-    (match-let ([(Dep y t p) t])
-      (Dep x (t_ t [new / x]) 
-           (if (equal? x y)
-               p
-               (p_ p [new / x]))))]))
+                ts))]
+   [(Pair lhs rhs) 
+    (Pair (t_ lhs [new / x]) 
+          (t_ rhs [new / x]))]
+   [(Abs y td tr p+ p- r) #:when (equal? x y)
+    (Abs y (t_ td [new / y]) tr p+ p- r)]
+   [(Abs y td tr p+ p- r) #:when (not (equal? x y))
+    (Abs y 
+         (t_ td [new / x]) 
+         (t_ tr [new / x]) 
+         (p_ p+ [new / x]) 
+         (p_ p- [new / x]) 
+         (r_ r  [new / x]))]
+   [(Dep y t p)
+    (if (equal? x y)
+        (Dep y (t_ t [new / x]) p)
+        (Dep y 
+             (t_ t [new / x]) 
+             (p_ p [new / x])))]))
 
 (define-syntax r_
   (syntax-rules (/)
@@ -551,25 +545,24 @@
            (Union clean-ts))]))
 
 ;;*****************************************
-
-                                        ;                                      
-                                        ;                                      
-                                        ;                                      
-                                        ;   ;;;;;;             ;;;;            
-                                        ;   ;    ;;               ;            
-                                        ;   ;     ;               ;            
-                                        ;   ;     ;   ;;;;        ;     ;;;;;  
-                                        ;   ;    ;;   ;   ;       ;    ;     ; 
-                                        ;   ;;;;;    ;    ;;      ;    ;       
-                                        ;   ;    ;   ;;;;;;;      ;    ;;;;    
-                                        ;   ;     ;  ;            ;       ;;;; 
-                                        ;   ;     ;  ;            ;          ; 
-                                        ;   ;     ;   ;           ;    ;     ; 
-                                        ;   ;      ;   ;;;;        ;;;  ;;;;;  
-                                        ;                                      
-                                        ;                                      
-                                        ;                                      
-                                        ;                                      
+;;                                      
+;;                                      
+;;                                      
+;;   ;;;;;;             ;;;;            
+;;   ;    ;;               ;            
+;;   ;     ;               ;            
+;;   ;     ;   ;;;;        ;     ;;;;;  
+;;   ;    ;;   ;   ;       ;    ;     ; 
+;;   ;;;;;    ;    ;;      ;    ;       
+;;   ;    ;   ;;;;;;;      ;    ;;;;    
+;;   ;     ;  ;            ;       ;;;; 
+;;   ;     ;  ;            ;          ; 
+;;   ;     ;   ;           ;    ;     ; 
+;;   ;      ;   ;;;;        ;;;  ;;;;;  
+;;                                      
+;;                                      
+;;                                      
+;;                                      
 
 
 (: subref? ((Opt Ref) (Opt Ref) -> Boolean))
@@ -911,26 +904,46 @@
 
 
 ;;               Or      And     atoms
-(define-type Conj (Listof (U Atom Leq TT FF)))
-(define-type DNF (Listof Conj))
+;; (define-type Conj (Listof (U Atom Leq TT FF)))
+;; (define-type DNF (Listof Conj))
 
-(: Prop->DNF (Prop -> DNF))
-(define (Prop->DNF P)
-  (define (DNFxDNF->DNF [A : DNF] [B : DNF]) : DNF
-    (for*/list ([a : Conj A]
-                [b : Conj B]) : DNF
-      (append a b)))
-  (match P
-    [(? Atom? a) `((,a))]
-    [(? TT? a) `((,a))]
-    [(? FF? a) `((,a))]
-    [(? Leq? l) `((,l))]
-    [(And '()) `((,(TT)))]
-    [(And ps) (let ([dnf-ps (map Prop->DNF ps)])
-                (foldl DNFxDNF->DNF 
-                       (first dnf-ps) 
-                       (rest dnf-ps)))]
-    [(Or ps) (apply append (map Prop->DNF ps))]))
+;; (: Prop->DNF (Prop -> DNF))
+;; (define (Prop->DNF P)
+;;   (define (DNFxDNF->DNF [A : DNF] [B : DNF]) : DNF
+;;     (for*/list ([a : Conj A]
+;;                 [b : Conj B]) : DNF
+;;       (append a b)))
+;;   (match P
+;;     [(? Atom? a) `((,a))]
+;;     [(? TT? a) `((,a))]
+;;     [(? FF? a) `((,a))]
+;;     [(? Leq? l) `((,l))]
+;;     [(And '()) `((,(TT)))]
+;;     [(And ps) (let ([dnf-ps (map Prop->DNF ps)])
+;;                 (foldl DNFxDNF->DNF 
+;;                        (first dnf-ps) 
+;;                        (rest dnf-ps)))]
+;;     [(Or ps) (apply append (map Prop->DNF ps))]))
+
+
+(: reify-ref ((Opt Ref) -> Ref))
+(define (reify-ref opt-r)
+  (or opt-r (var (Local (gensym 'local)))))
+
+(: α-vary (Type -> Type))
+(define (α-vary t)
+  (define αhash : (HashTable Local Local)
+    (for/hash ([local : Local (filter Local? (fvs t))]) 
+      : (HashTable Local Local)
+      (values local (Local (gensym 'local)))))
+    t)
+
+#;(define TI TypeInfo)
+#;(: typeof ((Listof Prop) Exp -> TypeInfo))
+#;(define (typeof Γ e)
+  (match e
+    [()]))
+
 
 ;;; TODO I'm not sure how essential it is... but it might be the case
 ;;; that we want to combine SLIs in the same disjunct...?

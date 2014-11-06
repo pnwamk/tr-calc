@@ -5,9 +5,8 @@
 (require/typed fme
   [#:opaque LExp lexp?]
   [#:struct Leq ([lhs : LExp] [rhs : LExp])]
-  [lexp (->* ((U Integer (Tuple Integer Obj))) 
-             #:rest (U Integer (Tuple Integer Obj)) 
-             LExp)]
+  [list->lexp (-> (Listof (U Integer (Tuple Integer Obj))) 
+                   LExp)]
   [lexp-coefficient (-> LExp Obj Integer)]
   [lexp-constant (-> LExp Integer)]
   [lexp-vars (-> LExp (Listof Obj))]
@@ -63,16 +62,16 @@
     [(term n) n]))
 
 (define-syntax-rule (+: t ...)
-  (lexp (term t) ...))
+  (list->lexp (list (term t) ...)))
 
 
 (define-syntax ≤
   (syntax-rules ()
-    [(≤ l1 l2) (And (list (Leq l1 l2)))]
-    [(≤ l1 l2 l3) (And (list (Leq l1 l2) 
-                             (Leq l2 l3)))]
-    [(≤ l1 l2 l3 l4 ...) (And (list (Leq l1 l2) 
-                                    (≤ l2 l3 l4 ...)))]))
+    [(≤ l1 l2) (Leq l1 l2)]
+    [(≤ l1 l2 l3) (And (Leq l1 l2) 
+                       (Leq l2 l3))]
+    [(≤ l1 l2 l3 l4 ...) (And (Leq l1 l2) 
+                              (≤ l2 l3 l4 ...))]))
 
 (define-syntax-rule (== l1 l2)
   (≤ l1 l2 l1))
@@ -83,11 +82,17 @@
 (define-syntax-rule (U: t ...)
   (Union (list t ...)))
 
-(define-syntax-rule (And: p ...)
-  (And (list p ...)))
+(define-syntax And:
+  (syntax-rules ()
+    [(_ p) p]
+    [(_ p q ...) (And p
+                      (And: q ...))]))
 
-(define-syntax-rule (Or: p ...)
-  (Or (list p ...)))
+(define-syntax Or:
+  (syntax-rules ()
+    [(_ p) p]
+    [(_ p q ...) (Or p
+                      (Or: q ...))]))
 
 
 (: hash-empty? (All (a b) (case-> (-> (HashTable a b) Boolean) 
@@ -137,6 +142,36 @@
 (define-type SLI (Listof Leq))
 (define-predicate SLI? SLI)
 
+(: parse-term (Any -> (U Integer (Tuple Integer Obj))))
+(define (parse-term term)
+  (match term
+    [(? exact-integer? n) n]
+    [(list (? exact-integer? n) r)
+     (let ([obj (parse-ref r)])
+       (cond
+        [(Obj? obj) (list n obj)]
+        [else (error 'parse-term "unsupported term for parser: ~a" r)]))]))
+
+
+(: parse-ref (Any -> Ref))
+(define (parse-ref exp)
+  (match exp
+    [(? Var? v) (var v)]
+    [`(car ,v) #:when (Var? v)
+     (Obj '(CAR) v)]
+    [`(cdr ,v) #:when (Var? v)
+     (Obj '(CDR) v)]
+    [`(cadr ,v) #:when (Var? v)
+     (Obj '(CAR CDR) v)]
+    [`(cddr ,v) #:when (Var? v)
+     (Obj '(CDR CDR) v)]
+    [`(caar ,v) #:when (Var? v)
+     (Obj '(CAR CAR) v)]
+    [`(cdar ,v) #:when (Var? v)
+     (Obj '(CDR CAR) v)]
+    [(cons '+: terms) 
+     (list->lexp (map parse-term (cast terms (Listof Any))))]))
+
 (: var (-> Id Obj))
 (define (var x)
   (Obj empty x))
@@ -159,15 +194,62 @@
 (define-type Type (U Top T F Int Str Union Abs Pair Dep))
 (define-predicate Type? Type)
 
+(: parse-type (Any -> Type))
+(define (parse-type exp)
+  (match exp
+    ['Top (Top)]
+    ['Bot (Bot)]
+    ['T (T)]
+    ['F (F)]
+    ['Int (Int)]
+    ['Str (Str)]
+    ['Bool (Bool)]
+    [`(U . ,types) (let ([ts (map parse-type (cast types (Listof Any)))])
+                     (Union ts))]
+    [`(,t1 -> ,t2) #:when (subtype? (F) (parse-type t2))
+     (Abs 'x (parse-type t1) (parse-type t2) (TT) (TT) #f)]
+    [`(,t1 -> ,t2) #:when (not (subtype? (F) (parse-type t2)))
+     (Abs 'x (parse-type t1) (parse-type t2) (TT) (FF) #f)]
+    [`(,x : ,t1 -> ,t2 (,p1 ,p2))
+     (Abs (cast x Symbol) (parse-type t1) (parse-type t2) (parse-prop p1) (parse-prop p2) #f)]
+    [`(,x : ,t1 -> ,t2 (,p1 ,p2 ,r))
+     (Abs (cast x Symbol) (parse-type t1) (parse-type t2) (parse-prop p1) (parse-prop p2) (parse-ref r))]
+    [`(,t1 * ,t2) (Pair (parse-type t1) (parse-type t2))]
+    [`(,x : ,t where ,p) (Dep (cast x Symbol) (parse-type t) (parse-prop p))]
+    [else (error 'parse-type "unknown type: ~a" exp)]))
+
+
 ;; Propositions
 
 (struct: TT () #:transparent)
 (struct: FF () #:transparent)
 (struct: Atom  ([bool : Boolean] [ref : Ref] [type : Type]) #:transparent)
-(struct: And ([props : (Listof Prop)]) #:transparent)
-(struct: Or ([props : (Listof Prop)]) #:transparent)
+(struct: And ([lhs : Prop] [rhs : Prop]) #:transparent)
+(struct: Or ([lhs : Prop] [rhs : Prop]) #:transparent)
 (define-type Prop (U TT FF Atom And Or Leq))
 (define-predicate Prop? Prop)
+
+(: parse-prop (Any -> Prop))
+(define (parse-prop exp)
+  (match exp
+    ['TT (TT)]
+    ['FF (FF)]
+    [`(,r -: ,t) (Atom #t (parse-ref r) (parse-type t))]
+    [`(,r -! ,t) (Atom #f (parse-ref r) (parse-type t))]
+    [`(And ,p ,q) 
+     (And (parse-prop p) (parse-prop q))]
+    [`(Or ,p ,q) 
+     (Or (parse-prop p) (parse-prop q))]
+    [`(<= ,l1 ,l2)
+     (Leq (cast (parse-ref l1) LExp) (cast (parse-ref l2) LExp))]
+    [else (error 'parse-prop "unknown prop: ~a" exp)]))
+
+
+;; Types := Top Bot T F Int Str Bool (U t ...)
+;;          (t -> t) (x : t -> t (p p)) (x : t -> t (p p r))
+;;          (t * t) (x : t where p)
+
+;; Props := TT FF (r -: t) (r -! t) (And t ...) (Or t ...)
 
 (define (Bool)
   (Union (list (T) (F))))
@@ -175,7 +257,6 @@
 (define (Bool? t)
   (equal? t
           (Union (list (T) (F)))))
-
 
 (define (Bot)
   (Union empty))
@@ -218,6 +299,22 @@
 (define-type Exp (U Val Ann App Fun If Let))
 (define-predicate Exp? Exp)
 
+(: parse-exp (Any -> Exp))
+(define (parse-exp exp)
+  (match exp
+    [(? Val? v) v]
+    [`(,x : ,t) (Ann (cast x Symbol) (parse-type t))]
+    [`(,e1 ,e2) (App (parse-exp e1) (parse-exp e2))]
+    [`(,e1 ,e2 ,e3) (App (App (parse-exp e1) (parse-exp e2)) (parse-exp e3))]
+    [`(λ (,x : ,t) ,body) 
+     (Fun (cast x Symbol) (parse-type t) (parse-exp body))]
+    [`(if ,e1 ,e2 ,e3) (If (parse-exp e1) (parse-exp e2) (parse-exp e3))]
+    [`(let ([,x ,xval]) ,body) (Let (cast x Symbol) (parse-exp xval) (parse-exp body))]
+    [`(let ([,x ,xval]
+            [,y ,yval]) 
+       ,body) 
+     (Let (cast x Symbol) (parse-exp xval) 
+          (Let (cast y Symbol) (parse-exp yval) (parse-exp body)))]))
 
 (: Is (Obj Type -> Atom))
 (define (Is obj type)
@@ -271,8 +368,8 @@
     [(TT) (FF)]
     [(FF) (TT)]
     [(Atom b r t) (Atom (not b) r t)]
-    [(And ps) (Or (map ¬ ps))]
-    [(Or ps) (And (map ¬ ps))]
+    [(And p q) (Or (¬ p) (¬ q))]
+    [(Or p q) (And (¬ p) (¬ q))]
     ;; empty SLI
     [(? Leq? l) (leq-negate l)]))
 
@@ -318,12 +415,8 @@
     [(TT) empty]
     [(FF) empty]
     [(Atom b r t) (append (fvs r) (fvs t))]
-    [(Or ps) (foldl #{append @ Id}
-                    empty 
-                    (map fvs ps))]
-    [(And ps) (foldl #{append @ Id} 
-                     empty 
-                     (map fvs ps))]
+    [(Or p q) (append (fvs p) (fvs q))]
+    [(And p q) (append (fvs p) (fvs q))]
     [(? Leq? l) (map Obj-id (leq-vars l))]
     [else (error 'fvs "unknown argument ~a" e)]))
 
@@ -436,10 +529,8 @@
     [((FF) new x) p]
     ;; Is/Not null
     [((? Atom? atom) new x) (subst-in-atom atom new x)]
-    [((And ps) new x) (And (map (λ ([p : Prop]) (p_ p [new / x]))
-                                ps))]
-    [((Or ps) new x) (Or (map (λ ([p : Prop]) (p_ p [new / x]))
-                              ps))]
+    [((And p q) new x) (And (p_ p [new / x]) (p_ q [new / x]))]
+    [((Or p q) new x) (Or (p_ p [new / x]) (p_ q [new / x]))]
     [((? Leq? l) _ x)
      (or (subst-in-leq l new x)
          (TT))]
@@ -599,7 +690,7 @@
 (: equiv-obj-lexp? (Obj LExp -> Boolean))
 (define (equiv-obj-lexp? o l)
   (and (empty? (Obj-path o)) 
-       (lexp-equal? l (lexp (list 1 o)))))
+       (lexp-equal? l (+: (1 o)))))
 
 (: ref-equiv? (Ref Ref -> Boolean))
 (define (ref-equiv? r1 r2)
@@ -679,22 +770,23 @@
     ;; L-TT
     [(_ (TT)) #t]
     ;; L-AndI
-    [(_ (And ps)) (andmap (curry proves? E) ps)]
+    [(_ (And p q)) (and (proves? E p)
+                        (proves? E q))]
     ;; L-OrI
-    [(_ (Or ps)) (ormap (curry proves? E) ps)]
+    [(_ (Or p q)) (or (proves? E p)
+                      (proves? E q))]
     ;; L-False
     [((Env (cons (FF) ps) ts+ ts- sli) _) #t]
     ;; L-TTSkip
     [((Env (cons (TT) ps) ts+ ts- sli) _) 
      (proves? (Env ps ts+ ts- sli) goal)]
     ;; L-AndE
-    [((Env (cons (And ps2) ps) ts+ ts- sli) _) 
-     (proves? (Env (app ps2 ps) ts+ ts- sli) goal)]
+    [((Env (cons (And p q) ps) ts+ ts- sli) _) 
+     (proves? (Env (cons p (cons q ps)) ts+ ts- sli) goal)]
     ;; L-OrE
-    [((Env (cons (Or ps2) ps) ts+ ts- sli) _) 
-     (andmap (λ ([p : Prop])
-               (proves? (Env (cons p ps) ts+ ts- sli) goal))
-             ps2)]
+    [((Env (cons (Or p q) ps) ts+ ts- sli) _) 
+     (and (proves? (Env (cons p ps) ts+ ts- sli) goal)
+          (proves? (Env (cons q ps) ts+ ts- sli) goal))]
     ;; L-Is-Move
     [((Env (cons (Atom #t r t) ps) ts+ ts- sli) _)
      (proves? (Env ps (ext-TMap ts+ r t) ts- sli) goal)]
@@ -729,7 +821,7 @@
                                           (common-val? t12 t22))]
     [((? Abs?) (? Abs?)) #t]
     [((Dep x1 t1 p1) (Dep x2 t2 p2)) 
-     (and (not (contradiction? (And (list p1 (p_ p2 [(var x1) / x2])))))
+     (and (not (contradiction? (And p1 (p_ p2 [(var x1) / x2]))))
           (common-val? t1 t2))]
     [((Dep x t p) _) (and (not (contradiction? p))
                           (common-val? t t2))]
@@ -868,13 +960,13 @@
                                (Is (Obj '(CAR) 'x) (Int))
                                (Not (Obj '(CDR) 'x) (Bool)))))
               (Is (var 'x) (Pair (Top) (Bool)))))
-(chk (proves? (env (list (And: (Is (var 'x) (Dep 'v (Int) (≤ (lexp 1)
-                                                             (lexp `(1 ,(var 'v))))))
-                               (Is (var 'x) (Dep 'q (Int) (≤ (lexp `(2 ,(var 'q)))
-                                                             (lexp 26)))))))
-              (Is (var 'x) (Dep 'v (Int) (≤ (lexp 1)
-                                            (lexp `(1 ,(var 'v)))
-                                            (lexp 13))))))
+(chk (proves? (env (list (And: (Is (var 'x) (Dep 'v (Int) (≤ (+: 1)
+                                                             (+: (1 (var 'v))))))
+                               (Is (var 'x) (Dep 'q (Int) (≤ (+: (2 (var 'q)))
+                                                             (+: 26)))))))
+              (Is (var 'x) (Dep 'v (Int) (≤ (+: 1)
+                                            (+: (1 (var 'v)))
+                                            (+: 13))))))
 
 
 (: reify-ref ((Opt Ref) -> Ref))
@@ -1018,7 +1110,40 @@
        [(TypeInfo range P1+ P1- optr1)
         (TI (Abs x dom range P1+ P1- optr1) (TT) (FF) #f)] ; excluded P_x
        [#f #f])]
-    ;;
+    ;; T-If
+    [(If e1 e2 e3)
+     (match (typeof Γ e1)
+       [#f #f]
+       [(TypeInfo t1 p1+ p1- 1)
+        (match* ((typeof (cons p1+ Γ) e2)
+                 (typeof (cons p1- Γ) e3))
+          [(#f _) #f]
+          [(_ #f) #f]
+          [((TypeInfo t2 p2+ p2- r2)
+            (TypeInfo t3 p3+ p3- r3))
+           (TI (t-join t2 t3) 
+               (Or: (And: p1+ p2+)
+                    (And: p1- p3+))
+               (Or: (And: p1+ p2-)
+                    (And: p1- p3-))
+               (ref-join r2 r3))])])]
+    ;; T-App
+    [(App e1 e2) #:when (not (or (equal? e1 'car)
+                                 (equal? e1 'cdr)))
+     (match* ((typeof Γ e1)
+              (typeof Γ e2))
+       [(#f _) #f]
+       [(_ #f) #f]
+       [((TypeInfo (? Abs? fun-t) p1+ p1- optr1)
+         (TypeInfo arg-t p2+ p2- optr2))
+        (match-let ([(Abs x td tr pf+ pf- rf) (α-vary fun-t)]
+                    [r2 (reify-ref optr2)])
+          (if (subtype? arg-t td)
+              (TI (t_ tr [r2 / x])
+                  (p_ pf+ [r2 / x])
+                  (p_ pf- [r2 / x])
+                  (r_ optr1 [r2 / x]))
+              #f))])]
     [else (error 'typeof "I don't know what that is, bro! ~a" e)]))
 
 (: chk-typeof ((Listof Prop) Exp (Opt TypeInfo) -> Boolean))
@@ -1089,7 +1214,7 @@
                  (TI (Abs 'x (Bot) (Top) (TT) (FF) (var 'x))
                      (TT) (FF) #f)))
 (chk (chk-not-typeof '() 
-                     (Fun 'x (Int) (Ann 'x (Int))) 
+                     (Fun 'x (Int) (Ann 'x (Int)))
                      (TI (Abs 'x (Top) (Int) (TT) (FF) (var 'x))
                          (TT) (FF) #f)))
 

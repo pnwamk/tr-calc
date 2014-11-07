@@ -142,35 +142,7 @@
 (define-type SLI (Listof Leq))
 (define-predicate SLI? SLI)
 
-(: parse-term (Any -> (U Integer (Tuple Integer Obj))))
-(define (parse-term term)
-  (match term
-    [(? exact-integer? n) n]
-    [(list (? exact-integer? n) r)
-     (let ([obj (parse-ref r)])
-       (cond
-        [(Obj? obj) (list n obj)]
-        [else (error 'parse-term "unsupported term for parser: ~a" r)]))]))
 
-
-(: parse-ref (Any -> Ref))
-(define (parse-ref exp)
-  (match exp
-    [(? Var? v) (var v)]
-    [`(car ,v) #:when (Var? v)
-     (Obj '(CAR) v)]
-    [`(cdr ,v) #:when (Var? v)
-     (Obj '(CDR) v)]
-    [`(cadr ,v) #:when (Var? v)
-     (Obj '(CAR CDR) v)]
-    [`(cddr ,v) #:when (Var? v)
-     (Obj '(CDR CDR) v)]
-    [`(caar ,v) #:when (Var? v)
-     (Obj '(CAR CAR) v)]
-    [`(cdar ,v) #:when (Var? v)
-     (Obj '(CDR CAR) v)]
-    [(cons '+: terms) 
-     (list->lexp (map parse-term (cast terms (Listof Any))))]))
 
 (: var (-> Id Obj))
 (define (var x)
@@ -194,29 +166,6 @@
 (define-type Type (U Top T F Int Str Union Abs Pair Dep))
 (define-predicate Type? Type)
 
-(: parse-type (Any -> Type))
-(define (parse-type exp)
-  (match exp
-    ['Top (Top)]
-    ['Bot (Bot)]
-    ['T (T)]
-    ['F (F)]
-    ['Int (Int)]
-    ['Str (Str)]
-    ['Bool (Bool)]
-    [`(U . ,types) (let ([ts (map parse-type (cast types (Listof Any)))])
-                     (Union ts))]
-    [`(,t1 -> ,t2) #:when (subtype? (F) (parse-type t2))
-     (Abs 'x (parse-type t1) (parse-type t2) (TT) (TT) #f)]
-    [`(,t1 -> ,t2) #:when (not (subtype? (F) (parse-type t2)))
-     (Abs 'x (parse-type t1) (parse-type t2) (TT) (FF) #f)]
-    [`(,x : ,t1 -> ,t2 (,p1 ,p2))
-     (Abs (cast x Symbol) (parse-type t1) (parse-type t2) (parse-prop p1) (parse-prop p2) #f)]
-    [`(,x : ,t1 -> ,t2 (,p1 ,p2 ,r))
-     (Abs (cast x Symbol) (parse-type t1) (parse-type t2) (parse-prop p1) (parse-prop p2) (parse-ref r))]
-    [`(,t1 * ,t2) (Pair (parse-type t1) (parse-type t2))]
-    [`(,x : ,t where ,p) (Dep (cast x Symbol) (parse-type t) (parse-prop p))]
-    [else (error 'parse-type "unknown type: ~a" exp)]))
 
 
 ;; Propositions
@@ -229,20 +178,7 @@
 (define-type Prop (U TT FF Atom And Or Leq))
 (define-predicate Prop? Prop)
 
-(: parse-prop (Any -> Prop))
-(define (parse-prop exp)
-  (match exp
-    ['TT (TT)]
-    ['FF (FF)]
-    [`(,r -: ,t) (Atom #t (parse-ref r) (parse-type t))]
-    [`(,r -! ,t) (Atom #f (parse-ref r) (parse-type t))]
-    [`(And ,p ,q) 
-     (And (parse-prop p) (parse-prop q))]
-    [`(Or ,p ,q) 
-     (Or (parse-prop p) (parse-prop q))]
-    [`(<= ,l1 ,l2)
-     (Leq (cast (parse-ref l1) LExp) (cast (parse-ref l2) LExp))]
-    [else (error 'parse-prop "unknown prop: ~a" exp)]))
+
 
 
 ;; Types := Top Bot T F Int Str Bool (U t ...)
@@ -299,22 +235,10 @@
 (define-type Exp (U Val Ann App Fun If Let))
 (define-predicate Exp? Exp)
 
-(: parse-exp (Any -> Exp))
-(define (parse-exp exp)
-  (match exp
-    [(? Val? v) v]
-    [`(,x : ,t) (Ann (cast x Symbol) (parse-type t))]
-    [`(,e1 ,e2) (App (parse-exp e1) (parse-exp e2))]
-    [`(,e1 ,e2 ,e3) (App (App (parse-exp e1) (parse-exp e2)) (parse-exp e3))]
-    [`(λ (,x : ,t) ,body) 
-     (Fun (cast x Symbol) (parse-type t) (parse-exp body))]
-    [`(if ,e1 ,e2 ,e3) (If (parse-exp e1) (parse-exp e2) (parse-exp e3))]
-    [`(let ([,x ,xval]) ,body) (Let (cast x Symbol) (parse-exp xval) (parse-exp body))]
-    [`(let ([,x ,xval]
-            [,y ,yval]) 
-       ,body) 
-     (Let (cast x Symbol) (parse-exp xval) 
-          (Let (cast y Symbol) (parse-exp yval) (parse-exp body)))]))
+
+
+
+
 
 (: Is (Obj Type -> Atom))
 (define (Is obj type)
@@ -1200,6 +1124,95 @@
                   (parse-exp 'exp)
                   ti))
 
+
+(: parse-term (Any -> (U Integer (Tuple Integer Obj))))
+(define (parse-term term)
+  (match term
+    [(? exact-integer? n) n]
+    [(list (? exact-integer? n) r)
+     (let ([obj (parse-ref r)])
+       (cond
+        [(Obj? obj) (list n obj)]
+        [else (error 'parse-term "unsupported term for parser: ~a" r)]))]))
+
+
+(: parse-ref (Any -> Ref))
+(define (parse-ref exp)
+  (match exp
+    [(? Var? v) (var v)]
+    [`(car ,v) #:when (Var? v)
+     (Obj '(CAR) v)]
+    [`(cdr ,v) #:when (Var? v)
+     (Obj '(CDR) v)]
+    [`(cadr ,v) #:when (Var? v)
+     (Obj '(CAR CDR) v)]
+    [`(cddr ,v) #:when (Var? v)
+     (Obj '(CDR CDR) v)]
+    [`(caar ,v) #:when (Var? v)
+     (Obj '(CAR CAR) v)]
+    [`(cdar ,v) #:when (Var? v)
+     (Obj '(CDR CAR) v)]
+    [(cons '+: terms) 
+     (list->lexp (map parse-term (cast terms (Listof Any))))]))
+
+(: parse-type (Any -> Type))
+(define (parse-type exp)
+  (match exp
+    ['Top (Top)]
+    ['Bot (Bot)]
+    ['T (T)]
+    ['F (F)]
+    ['Int (Int)]
+    ['Str (Str)]
+    ['Bool (Bool)]
+    [`(U . ,types) (let ([ts (map parse-type (cast types (Listof Any)))])
+                     (Union ts))]
+    [`(,t1 -> ,t2) #:when (subtype? (F) (parse-type t2))
+     (Abs 'x (parse-type t1) (parse-type t2) (TT) (TT) #f)]
+    [`(,t1 -> ,t2) #:when (not (subtype? (F) (parse-type t2)))
+     (Abs 'x (parse-type t1) (parse-type t2) (TT) (FF) #f)]
+    [`(,x : ,t1 -> ,t2 (,p1 ,p2))
+     (Abs (cast x Symbol) (parse-type t1) (parse-type t2) (parse-prop p1) (parse-prop p2) #f)]
+    [`(,x : ,t1 -> ,t2 (,p1 ,p2 ,r))
+     (Abs (cast x Symbol) (parse-type t1) (parse-type t2) (parse-prop p1) (parse-prop p2) (parse-ref r))]
+    [`(,t1 * ,t2) (Pair (parse-type t1) (parse-type t2))]
+    [`(,x : ,t where ,p) (Dep (cast x Symbol) (parse-type t) (parse-prop p))]
+    [else (error 'parse-type "unknown type: ~a" exp)]))
+
+
+(: parse-prop (Any -> Prop))
+(define (parse-prop exp)
+  (match exp
+    ['TT (TT)]
+    ['FF (FF)]
+    [`(,r -: ,t) (Atom #t (parse-ref r) (parse-type t))]
+    [`(,r -! ,t) (Atom #f (parse-ref r) (parse-type t))]
+    [`(And ,p ,q) 
+     (And (parse-prop p) (parse-prop q))]
+    [`(Or ,p ,q) 
+     (Or (parse-prop p) (parse-prop q))]
+    [`(<= ,l1 ,l2)
+     (Leq (cast (parse-ref l1) LExp) (cast (parse-ref l2) LExp))]
+    [else (error 'parse-prop "unknown prop: ~a" exp)]))
+
+
+(: parse-exp (Any -> Exp))
+(define (parse-exp exp)
+  (match exp
+    [(? Val? v) v]
+    [`(,x : ,t) (Ann (cast x Symbol) (parse-type t))]
+    [`(λ ([,x : ,t]) ,body) 
+     (Fun (cast x Symbol) (parse-type t) (parse-exp body))]
+    [`(if ,e1 ,e2 ,e3) (If (parse-exp e1) (parse-exp e2) (parse-exp e3))]
+    [`(let ([,x ,xval]) ,body) (Let (cast x Symbol) (parse-exp xval) (parse-exp body))]
+    [`(let ([,x ,xval]
+            [,y ,yval]) 
+       ,body) 
+     (Let (cast x Symbol) (parse-exp xval) 
+          (Let (cast y Symbol) (parse-exp yval) (parse-exp body)))]
+    [`(,e1 ,e2) (App (parse-exp e1) (parse-exp e2))]
+    [`(,e1 ,e2 ,e3) (App (App (parse-exp e1) (parse-exp e2)) (parse-exp e3))]))
+
 (chk (chk-typeof '() 5 (TI (Int) (TT) (FF) (+: 5))))
 (chk (chk-typeof '() "Hello World!" (TI (Str) (TT) (FF) #f)))
 (chk (chk-typeof '() #t (TI (T) (TT) (FF) #f)))
@@ -1212,23 +1225,26 @@
 (chk (typeof? [(x -: Int)]
               (x : Int)
               (TI (Int) (TT) (FF) #f)))
+
 (chk (typeof? [(x -: Int)] 
               (x : Top) 
               (TI (Top) (TT) (FF) #f)))
+
 (chk (not-typecheck? [(x -: Int)] 
                      (x : Str)))
-(chk (chk-typeof '() 
-                 (Fun 'x (Int) (Ann 'x (Int))) 
-                 (TI (Abs 'x (Int) (Int) (TT) (FF) (var 'x))
-                     (TT) (FF) #f)))
-(chk (chk-typeof '() 
-                 (Fun 'x (Int) (Ann 'x (Int))) 
-                 (TI (Abs 'x (Bot) (Top) (TT) (FF) (var 'x))
-                     (TT) (FF) #f)))
-(chk (chk-not-typeof '() 
-                     (Fun 'x (Int) (Ann 'x (Int)))
-                     (TI (Abs 'x (Top) (Int) (TT) (FF) (var 'x))
-                         (TT) (FF) #f)))
+
+(chk (typeof? [] 
+              (λ ([x : Int]) (x : Int)) 
+              (TI (Abs 'x (Int) (Int) (TT) (FF) (var 'x))
+                  (TT) (FF) #f)))
+(chk (typeof? []
+              (λ ([x : Int]) (x : Int)) 
+              (TI (Abs 'x (Bot) (Top) (TT) (FF) (var 'x))
+                  (TT) (FF) #f)))
+(chk (not-typeof? []
+                  (λ ([x : Int]) (x : Int))
+                  (TI (Abs 'x (Top) (Int) (TT) (FF) (var 'x))
+                      (TT) (FF) #f)))
 
 
 

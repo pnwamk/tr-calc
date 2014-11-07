@@ -1187,6 +1187,19 @@
      (printf "FAILURE:\nEnv: ~a\nTerm: ~a\nDid not typecheck!" Γ e)
      #f]))
 
+(define-syntax-rule (typeof? (p ...) exp ti)
+  (chk-typeof (map parse-prop (list 'p ...))
+              (parse-exp 'exp)
+              ti))
+
+(define-syntax-rule (not-typecheck? (p ...) exp)
+  (typeof? (p ...) exp #f))
+
+(define-syntax-rule (not-typeof? (p ...) exp ti)
+  (chk-not-typeof (map parse-prop (list 'p ...))
+                  (parse-exp 'exp)
+                  ti))
+
 (chk (chk-typeof '() 5 (TI (Int) (TT) (FF) (+: 5))))
 (chk (chk-typeof '() "Hello World!" (TI (Str) (TT) (FF) #f)))
 (chk (chk-typeof '() #t (TI (T) (TT) (FF) #f)))
@@ -1196,15 +1209,14 @@
                                     (TT) (FF) 
                                     (+: 1 (1 (var 'x)))) 
                                (TT) (FF) #f)))
-(chk (chk-typeof `(,(Is (var 'x) (Int))) 
-                 (Ann 'x (Int)) 
-                 (TI (Int) (TT) (FF) #f)))
-(chk (chk-typeof `(,(Is (var 'x) (Int))) 
-                 (Ann 'x (Top)) 
-                 (TI (Top) (TT) (FF) #f)))
-(chk (chk-typeof `(,(Is (var 'x) (Int))) 
-                 (Ann 'x (Str)) 
-                 #f))
+(chk (typeof? [(x -: Int)]
+              (x : Int)
+              (TI (Int) (TT) (FF) #f)))
+(chk (typeof? [(x -: Int)] 
+              (x : Top) 
+              (TI (Top) (TT) (FF) #f)))
+(chk (not-typecheck? [(x -: Int)] 
+                     (x : Str)))
 (chk (chk-typeof '() 
                  (Fun 'x (Int) (Ann 'x (Int))) 
                  (TI (Abs 'x (Int) (Int) (TT) (FF) (var 'x))

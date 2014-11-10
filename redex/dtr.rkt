@@ -164,14 +164,20 @@
 (define-predicate Ref? Ref)
 
 
+(: id->str (Id -> String))
+(define (id->str id)
+  (if (Var? id)
+      (symbol->string id)
+      (symbol->string (Local-var id))))
+
 (: ref->str ((Opt Ref) -> String))
 (define (ref->str optr)
   (match optr
     [#f "Ø"] 
-    [(Obj '() (? symbol? x)) (symbol->string x)]
-    [(Obj path (? symbol? x)) (string-append "(" 
-                                             (path->str path) 
-                                             (symbol->string x) ")")]
+    [(Obj '() (? Id? x)) (id->str x)]
+    [(Obj path (? Id? x)) (string-append "(" 
+                                         (path->str path) 
+                                         (id->str x) ")")]
     [(? lexp? l) (lexp->string l ref->str)]))
 
 
@@ -210,7 +216,11 @@
     [(F) "F"]
     [(Int) "Int"]
     [(Str) "Str"]
-    [(Union ts) (string-append "(U" (apply string-append (map type->str ts)) ")")]
+    [(Union ts) (string-append "(U" (apply string-append 
+                                           (map (λ ([t : Type]) : String
+                                                  (string-append " " (type->str t))) 
+                                                ts)) 
+                               ")")]
     [(Abs x td tr p+ p- optr)
      (string-append "(" (symbol->string x)
                     " : " (type->str td)
@@ -1118,8 +1128,8 @@
        (cond
         [(proves? (env Γ) xprop) 
          (TI t 
-             (And: xprop (Not (var 'x) (F))) 
-             (And: xprop (Is (var 'x) (F))) 
+             (And: xprop (Not (var x) (F))) 
+             (And: xprop (Is (var x) (F))) 
              (var x))]
         [else #f]))]
     ;; T-Fun
@@ -1168,20 +1178,20 @@
     [(Let x xval body)
      (match (typeof Γ xval)
        [#f #f]
-       [(TypeInfo t1 p1+ p1- optr1)
-        (let ([plet (And (Is (var x) t1)
-                         (Or (And (Not (var x) (F)) p1+)
-                             (And (Is (var x) (F)) p1-)))])
+       [(TypeInfo tx px+ px- optrx)
+        (let ([plet (And (Is (var x) tx)
+                         (Or (And (Not (var x) (F)) px+)
+                             (And (Is (var x) (F)) px-)))])
           (match (typeof (cons plet Γ) body)
             [#f #f]
             [(TypeInfo t2 p2+ p2- optr2)
-             (let ([r1 (reify-ref optr1)]
+             (let ([rx (reify-ref optrx)]
                    [p+ (And p2+ plet)]
                    [p- (And p2- plet)])
-               (TypeInfo (t_ t2 [r1 / x])
-                         (p_ p2+ [r1 / x])
-                         (p_ p2- [r1 / x])
-                         (r_ optr2 [r1 / x])))]))])]
+               (TypeInfo (t_ t2 [rx / x])
+                         (p_ p+ [rx / x])
+                         (p_ p- [rx / x])
+                         (r_ optr2 [rx / x])))]))])]
     ;; T-Cons
     ;; T-Car
     ;; T-Cdr
@@ -1210,8 +1220,8 @@
        (printf "FAILURE:\nEnv: ~a\nTerm: ~a\n~a  \ndoes not imply:\n ~a\n (Prop-)" 
                (apply string-append (map prop->str Γ)) 
                (exp->str e)
-               (prop->str p+) 
-               (prop->str ep+))
+               (prop->str p-) 
+               (prop->str ep-))
        #f]
       [(not (subref? optr eoptr))
        (printf "FAILURE:\nEnv: ~a\nTerm: ~a\n~a  \nis not a subtype of:\n ~a\n" 
@@ -1359,6 +1369,12 @@
        ,body) 
      (Let (cast x Symbol) (parse-exp xval) 
           (Let (cast y Symbol) (parse-exp yval) (parse-exp body)))]
+    [`(or ,e1 ,e2) (Let 'tmp (parse-exp e1) (If (Ann 'tmp (Top)) 
+                                                (Ann 'tmp (T))
+                                                (parse-exp e2)))]
+    [`(and ,e1 ,e2) (If (parse-exp e1) 
+                        (parse-exp e2)
+                        #f)]
     [`(,e1 ,e2) (App (parse-exp e1) (parse-exp e2))]
     [`(,e1 ,e2 ,e3) (App (App (parse-exp e1) (parse-exp e2)) (parse-exp e3))]
     [else (error 'parse-exp "invalid exp ~a" exp)]))
@@ -1398,7 +1414,7 @@
                   (TT) (FF) #f)))
 
 (chk (typeof? []
-              (λ ([x : Int]) (x : Int)) 
+              (λ ([x : Int]) (x : Int))
               (TI (Abs 'x (Bot) (Top) (TT) (FF) (var 'x))
                   (TT) (FF) #f)))
 
@@ -1409,7 +1425,7 @@
 
 ;; add1 adds exactly 1
 (chk (typeof? [] add1 
-              (TI (Abs 'x (Int) (Dep 'v (Int) (eq (+: 1 'x)
+              (TI (Abs 'x (Int) (Dep 'v (Int) (eq (+: 1 'x) ; 
                                                   (+: 'v))) 
                        (TT) (FF) 
                        (+: 1 'x)) 
@@ -1428,7 +1444,7 @@
               (λ ([x : Int]) (+ 1 (x : Int))) 
               (TI (Abs 'x (Int) (Dep 'v (Int) (eq (+: 1 'x)
                                                   (+: 'v))) 
-                       (TT) (FF) (+: 1 (1 (var 'x))))
+                       (TT) (FF) (+: 1 'x))
                   (TT) (FF) #f)))
 
 
@@ -1457,11 +1473,39 @@
                   (error "string not found!"))
               (TI (Int) (TT) (FF) #f)))
 
+;; Example 4
+(chk (typeof? [(f -: ((U Int Str) -> Int))
+               (x -: Top)]
+              (if (or (int? (x : Top)) (str? (x : Top)))
+                  ((f : ((U Int Str) -> Int)) (x : (U Int Str)))
+                  0)
+              (TI (Int) (TT) (FF) #f)))
+
+;; Example 5
+(chk (typeof? [(x -: Top)
+               (y -: Top)]
+              (if (and (int? (x : Top)) (str? (y : Top)))
+                  (+ (x : Int) (str-len (y : Str)))
+                  0)
+              (TI (Int) (TT) (FF) #f)))
 
 
+;; Example 6
+(chk (not-typecheck? [(x -: (U Str Int)) (y -: Top)]
+                     (if (and (int? (x : Top)) (str? (y : Top)))
+                         (+ (x : Int) (str-len (y : Str)))
+                         (str-len (x : Str)))))
 
 
-
+;; Example 7 (see example 6)
+(chk (typeof? []
+              (λ ([x : Top])
+                (or (int? (x : Top)) (str? (x : Top))))
+              (TI (Abs 'x (Top) (Bool) 
+                       (Is (var 'x) (U: (Str) (Int))) 
+                       (Not (var 'x) (U: (Str) (Int))) 
+                       #f)
+                  (TT) (FF) #f)))
 
 
 

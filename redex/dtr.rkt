@@ -138,13 +138,14 @@
 (define prim-ops '(add1 zero? int? str? bool? proc? 
                    str-len + error cons? car cdr <=))
 
-(define-type Path (Listof (U 'CAR 'CDR)))
+(define-type Path (Listof (U 'CAR 'CDR 'LEN)))
 
 (: pe->str (Any -> String))
 (define (pe->str pe)
   (match pe
     ['CAR "a"]
-    ['CDR "d"]))
+    ['CDR "d"]
+    ['LEN "L"]))
 
 (: path->str (Path -> String))
 (define (path->str p)
@@ -204,8 +205,9 @@
               [prop- : Prop] 
               [ref : (Opt Ref)]) #:transparent)
 (struct: Pair ([car : Type] [cdr : Type]) #:transparent)
+(struct: Array ([type : Type]))
 (struct: Dep ([var : Var] [type : Type] [prop : Prop]) #:transparent)
-(define-type Type (U Top T F Int Str Union Abs Pair Dep))
+(define-type Type (U Top T F Int Str Union Abs Pair Dep Array))
 (define-predicate Type? Type)
 
 (: type->str (Type -> String))
@@ -229,6 +231,8 @@
                     "[" (ref->str optr) "])")]
     [(Pair t1 t2)
      (string-append "(" (type->str t1) " * " (type->str t2) ")")]
+    [(Vec t)
+     (string-append "<" (type->str t) ">")]
     [(Dep x t p)
      (string-append "{" (symbol->string x)
                     " : " (type->str t) " | "
@@ -297,14 +301,15 @@
 (struct: If ([test : Exp] [then : Exp] [else : Exp]) #:transparent)
 (struct: Let ([var : Symbol] [var-exp : Exp] [body : Exp]) #:transparent)
 (struct: Cons ([car : Exp] [cdr : Exp]))
+(struct: Vec ([exps : (Listof Exp)]))
 (define-type Op (U 'add1 'zero? 'int? 'str? 'bool? 'proc? 
                    'str-len '+ 'double 'modulo 'error 'cons? 
-                   'car 'cdr '<=))
+                   'car 'cdr '<= 'ref))
 (define-predicate Op? Op)
 
 (define-type Val (U Integer String Boolean Op))
 (define-predicate Val? Val)
-(define-type Exp (U Val Ann App Fun If Let Cons))
+(define-type Exp (U Val Ann App Fun If Let Cons Vec))
 (define-predicate Exp? Exp)
 
 (: exp->str (Exp -> String))
@@ -320,7 +325,11 @@
                                   (exp->str e3) ")")]
     [(Let x xval body) (string-append "(let ([" (symbol->string x)
                                       " " (exp->str xval) "]) "
-                                      (exp->str body) ")")]))
+                                      (exp->str body) ")")]
+    [(Vec exps) (string-append "(vec" (apply string-append (map (λ ([e : Exp])
+                                                                  (string-append " " (exp->str e)))
+                                                                exps))
+                               ")")]))
 
 
 
@@ -389,6 +398,7 @@
     [(Union '()) #t]
     [(Pair lhs rhs) (or (contains-Bot? lhs)
                         (contains-Bot? rhs))]
+    [(Vec vt) (contains-Bot? vt)]
     [_ #f]))
 
 (module+ test
@@ -412,6 +422,7 @@
     [(F) empty]
     [(Union ts) empty]
     [(Pair t1 t2) (append (fvs t1) (fvs t2))]
+    [(Vec t) (fvs t)]
     [(Abs x td tr p+ p- oo) (remove* (list x) 
                                      (append (fvs td)
                                              (fvs tr)
@@ -561,14 +572,15 @@
     [(Pair lhs rhs) 
      (Pair (t_ lhs [new / x]) 
            (t_ rhs [new / x]))]
+    [(Vec vt) (Vec (t_ vt [new / x]))]
     [(Abs y td tr p+ p- r) #:when (equal? x y)
      (Abs y (t_ td [new / y]) tr p+ p- r)]
     [(Abs y td tr p+ p- r) #:when (not (equal? x y))
      (Abs y 
-          (t_ td [new / x]) 
-          (t_ tr [new / x]) 
-          (p_ p+ [new / x]) 
-          (p_ p- [new / x]) 
+          (t_ td [new / x])
+          (t_ tr [new / x])
+          (p_ p+ [new / x])
+          (p_ p- [new / x])
           (r_ r  [new / x]))]
     [(Dep y t p)
      (if (equal? x y)
@@ -672,15 +684,15 @@
     [(_ _) #:when (equal? t1 t2) #t]
     ;; S-Top
     [(_ (? Top?)) #t]
-    ;; S-Top
-    [((Pair t1l t1r) (Pair t2l t2r)) (and (subtype? t1l t2l)
-                                          (subtype? t1r t2r))]
     ;; S-UnionSub
     [((Union ts) _) (andmap (curry supertype? t2) ts)]
     ;; S-UnionSuper
     [(_ (Union ts)) (ormap (curry subtype? t1) ts)]
+    ;; S-Pair
     [((Pair t1l t1r) (Pair t2l t2r)) (and (subtype? t1l t2l)
                                           (subtype? t1r t2r))]
+    ;; S-Vec
+    [((Vec vt1) (Vec vt2)) (subtype? vt1 vt2)]
     ;; S-Fun
     [((Abs x1 t1d t1r p1+ p1- r1) 
       (Abs x2 t2d t2r p2+ p2- r2))
@@ -846,6 +858,7 @@
     [((Union ts) _) (ormap (λ ([t : Type]) (common-val? t t2)) ts)]
     [((Pair t11 t12) (Pair t21 t22)) (and (common-val? t11 t21)
                                           (common-val? t12 t22))]
+    [((Vec vt1) (Vec vt2)) (common-val? vt1 vt2)]
     [((? Abs?) (? Abs?)) #t]
     [((Dep x1 t1 p1) (Dep x2 t2 p2)) 
      (and (not (contradiction? (And p1 (p_ p2 [(var x1) / x2]))))
@@ -877,6 +890,12 @@
        (if (subtype? (Pair (Top) (Top)) old)
            (Pair (Top) (update (Top) b new rest))
            (Bot))]
+      [((Vec τ) b '(LEN)) (Vec τ)]
+      [(_ b '(LEN))
+       (if (subtype? (Vec Top) old)
+           (Vec Top)
+           (Bot))]
+      [(_ _ (cons x xs)) (Bot)]
       [(t #t '()) (restrict t new)]
       [(t #f '()) (remove t new)])))
 
@@ -1227,7 +1246,27 @@
               (p_ (Is o (F)) [r1 / x])
               (r_ o [r1 / x])))]
      [_ #f])]
-    [else (error 'typeof "I don't know what that is, bro! ~a" e)]))
+    ;; T-Vec
+    [(Vec exps)
+     (let* ([tis (map (curry typeof Γ) exps)]
+            [t (foldl type-join (Top) (map TypeInfo-type tis))])
+       (TI (Array t) (TT) (FF) #f))]
+    [else (error 'typeof "I don't know what that is, bro! ~a" e)]
+    ;; T-Ref
+    [(App 'ref e1)
+     (match (typeof Γ e1)
+       [(TypeInfo (Vec t) _ _ optr1)
+        (let ([r1 (reify-ref optr1)] ;; ? W/ substutition would this map the domain to Bot if null?
+              [p+ (if (subtype? t (F)) (FF) (TT))]
+              [p- (if (subtype? (F) t) (TT) (FF))])
+            (Abs 'x 
+                 (Dep 'i (Int) (leq (+: 0)
+                                    (+: i)
+                                    (+: (1 (len r1)) -1)))
+                 t
+                 p+ p-
+                 #f))]
+       [_ #f])]))
 
 (: chk-typeof ((Listof Prop) Exp (Opt TypeInfo) -> Boolean))
 (define (chk-typeof Γ e ti)

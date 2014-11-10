@@ -296,6 +296,7 @@
 (struct: Fun ([arg : Symbol] [arg-type : Type] [body : Exp]) #:transparent)
 (struct: If ([test : Exp] [then : Exp] [else : Exp]) #:transparent)
 (struct: Let ([var : Symbol] [var-exp : Exp] [body : Exp]) #:transparent)
+(struct: Cons ([car : Exp] [cdr : Exp]))
 (define-type Op (U 'add1 'zero? 'int? 'str? 'bool? 'proc? 
                    'str-len '+ 'double 'modulo 'error 'cons? 
                    'car 'cdr '<=))
@@ -303,7 +304,7 @@
 
 (define-type Val (U Integer String Boolean Op))
 (define-predicate Val? Val)
-(define-type Exp (U Val Ann App Fun If Let))
+(define-type Exp (U Val Ann App Fun If Let Cons))
 (define-predicate Exp? Exp)
 
 (: exp->str (Exp -> String))
@@ -1193,8 +1194,39 @@
                          (p_ p- [rx / x])
                          (r_ optr2 [rx / x])))]))])]
     ;; T-Cons
+    [(Cons e1 e2)
+     (match* ((typeof Γ e1) (typeof Γ e2))
+     [(#f _) #f]
+     [(_ #f) #f]
+     [((TypeInfo t1 p1+ p1- optr1) 
+       (TypeInfo t2 p2+ p2- optr2))
+      (TI (Pair t1 t2) (TT) (FF) #f)])]
     ;; T-Car
+    [(App 'car e1)
+     (match (typeof Γ e1)
+     [#f #f]
+     [(TypeInfo (Pair t1 t2) p1+ p1- optr1)
+      (let* ([r1 (reify-ref optr1)]
+             [x (gensym 'x)]
+             [o (Obj '(CAR) x)])
+          (TI t1
+              (p_ (Not o (F)) [r1 / x])
+              (p_ (Is o (F)) [r1 / x])
+              (r_ o [r1 / x])))]
+     [_ #f])]
     ;; T-Cdr
+    [(App 'cdr e1)
+     (match (typeof Γ e1)
+     [#f #f]
+     [(TypeInfo (Pair t1 t2) p1+ p1- optr1)
+      (let* ([r1 (reify-ref optr1)]
+             [x (gensym 'x)]
+             [o (Obj '(CDR) x)])
+          (TI t2
+              (p_ (Not o (F)) [r1 / x])
+              (p_ (Is o (F)) [r1 / x])
+              (r_ o [r1 / x])))]
+     [_ #f])]
     [else (error 'typeof "I don't know what that is, bro! ~a" e)]))
 
 (: chk-typeof ((Listof Prop) Exp (Opt TypeInfo) -> Boolean))
@@ -1366,9 +1398,10 @@
     [`(let ([,x ,xval]) ,body) (Let (cast x Symbol) (parse-exp xval) (parse-exp body))]
     [`(let ([,x ,xval]
             [,y ,yval]) 
-       ,body) 
+       ,body)
      (Let (cast x Symbol) (parse-exp xval) 
           (Let (cast y Symbol) (parse-exp yval) (parse-exp body)))]
+     [`(cons ,e1 ,e2) (Cons (parse-exp e1) (parse-exp e2))]
     [`(or ,e1 ,e2) (Let 'tmp (parse-exp e1) (If (Ann 'tmp (Top)) 
                                                 (Ann 'tmp (T))
                                                 (parse-exp e2)))]
@@ -1433,8 +1466,8 @@
 
 ;; add1 produces a larger value
 (chk (typeof? [] add1 
-              (TI (Abs 'x (Int) (Dep 'v (Int) (leq (+: 1 'x)
-                                                   (+: 'v)))
+              (TI (Abs 'x (Int) (Dep 'v (Int) (gt (+: 'v)
+                                                  (+: 'x)))
                        (TT) (FF) 
                        (+: 1 'x)) 
                   (TT) (FF) #f)))
@@ -1498,6 +1531,8 @@
 
 
 ;; Example 7 (see example 6)
+
+;; Example 8
 (chk (typeof? []
               (λ ([x : Top])
                 (or (int? (x : Top)) (str? (x : Top))))
@@ -1506,6 +1541,64 @@
                        (Not (var 'x) (U: (Str) (Int))) 
                        #f)
                   (TT) (FF) #f)))
+
+
+;; Example 9 (see example 5)
+
+;; Example 10
+(chk (typeof? [(p -: (Top * Top))]
+              (if (int? (car (p : (Top * Top))))
+                  (add1 (car (p : (Int * Top))))
+                  42)
+              (TI (Int) (TT) (FF) #f)))
+
+(chk (typeof? [(p -: (Top * Top))]
+              (if (int? (cdr (p : (Top * Top))))
+                  (add1 (cdr (p : (Top * Int))))
+                  42)
+              (TI (Int) (TT) (FF) #f)))
+
+
+;; Example 11
+(chk (typeof? [(g -: ((Int * Int) -> Int))
+               (p -: (Top * Top))]
+              (if (and (int? (car (p : (Top * Top))))
+                       (int? (cdr (p : (Int * Top)))))
+                  ((g : ((Int * Int) -> Int)) (p : (Int * Int)))
+                  42)
+              (TI (Int) (TT) (FF) #f)))
+
+;; Example 12
+(chk (typeof? []
+              (λ ([p : (Top * Top)])
+                (int? (car (p : (Top * Top))))) 
+              (TI (Abs 'p (Pair (Top) (Top)) (Bool)
+                       (Is  (Obj '(CAR) 'p) (Int))
+                       (Not (Obj '(CAR) 'p) (Int))
+                       #f)
+                  (TT) (FF) 
+                  #f)))
+
+;; Example 13
+(chk (typeof? [(x -: Top) (y -: (U Int Str))]
+              (if (and (int? (x : Top)) (str? (y : Top)))
+                  (+ (x : Int) (str-len (y : Str))) 
+                  (if (int? (x : Top))
+                      (+ (x : Int) (y : Int))
+                      0))
+              (TI (Int) (TT) (FF) #f)))
+
+;; Example 14
+(chk (typeof? [(x -: Top)]
+              (λ ([y : (U Int Str)])
+                (if (and (int? (x : Top)) (str? (y : Top))) 
+                    (+ (x : Int) (str-len (y : Str))) 
+                    (if (int? (x : Top))
+                        (+ (x : Int) (y : Int))
+                        0)))
+              (TI (Abs 'x (U: (Str) (Int)) (Int) (TT) (FF) #f)
+                  (TT) (FF) #f)))
+
 
 
 

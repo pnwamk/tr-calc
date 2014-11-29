@@ -191,6 +191,12 @@
 (define (var x)
   (Obj empty x))
 
+(: len (-> Id Obj))
+(define (len x)
+  (Obj '(LEN) x))
+
+
+
 ;; Types
 (struct: Top () #:transparent)
 (struct: T () #:transparent)
@@ -231,7 +237,7 @@
                     "[" (ref->str optr) "])")]
     [(Pair t1 t2)
      (string-append "(" (type->str t1) " * " (type->str t2) ")")]
-    [(Vec t)
+    [(Array t)
      (string-append "<" (type->str t) ">")]
     [(Dep x t p)
      (string-append "{" (symbol->string x)
@@ -398,7 +404,7 @@
     [(Union '()) #t]
     [(Pair lhs rhs) (or (contains-Bot? lhs)
                         (contains-Bot? rhs))]
-    [(Vec vt) (contains-Bot? vt)]
+    [(Array vt) (contains-Bot? vt)]
     [_ #f]))
 
 (module+ test
@@ -422,7 +428,7 @@
     [(F) empty]
     [(Union ts) empty]
     [(Pair t1 t2) (append (fvs t1) (fvs t2))]
-    [(Vec t) (fvs t)]
+    [(Array t) (fvs t)]
     [(Abs x td tr p+ p- oo) (remove* (list x) 
                                      (append (fvs td)
                                              (fvs tr)
@@ -572,7 +578,7 @@
     [(Pair lhs rhs) 
      (Pair (t_ lhs [new / x]) 
            (t_ rhs [new / x]))]
-    [(Vec vt) (Vec (t_ vt [new / x]))]
+    [(Array vt) (Array (t_ vt [new / x]))]
     [(Abs y td tr p+ p- r) #:when (equal? x y)
      (Abs y (t_ td [new / y]) tr p+ p- r)]
     [(Abs y td tr p+ p- r) #:when (not (equal? x y))
@@ -691,7 +697,7 @@
     ;; S-Pair
     [((Pair t1l t1r) (Pair t2l t2r)) (and (subtype? t1l t2l)
                                           (subtype? t1r t2r))]
-    ;; S-Vec
+    ;; S-Array
     [((Vec vt1) (Vec vt2)) (subtype? vt1 vt2)]
     ;; S-Fun
     [((Abs x1 t1d t1r p1+ p1- r1) 
@@ -890,10 +896,10 @@
        (if (subtype? (Pair (Top) (Top)) old)
            (Pair (Top) (update (Top) b new rest))
            (Bot))]
-      [((Vec τ) b '(LEN)) (Vec τ)]
+      [((Array τ) b '(LEN)) (Array τ)]
       [(_ b '(LEN))
-       (if (subtype? (Vec Top) old)
-           (Vec Top)
+       (if (subtype? (Array (Top)) old)
+           (Array (Top))
            (Bot))]
       [(_ _ (cons x xs)) (Bot)]
       [(t #t '()) (restrict t new)]
@@ -1248,24 +1254,30 @@
      [_ #f])]
     ;; T-Vec
     [(Vec exps)
-     (let* ([tis (map (curry typeof Γ) exps)]
-            [t (foldl type-join (Top) (map TypeInfo-type tis))])
-       (TI (Array t) (TT) (FF) #f))]
+     (let ([tis (map (curry typeof Γ) exps)])
+       (if (not (empty? (filter not tis)))
+           #f
+            (let ([t (foldl t-join (Top) (map TypeInfo-type 
+                                              (filter TypeInfo? tis)))])
+              (TI (Array t) (TT) (FF) #f))))]
     [else (error 'typeof "I don't know what that is, bro! ~a" e)]
     ;; T-Ref
     [(App 'ref e1)
      (match (typeof Γ e1)
-       [(TypeInfo (Vec t) _ _ optr1)
-        (let ([r1 (reify-ref optr1)] ;; ? W/ substutition would this map the domain to Bot if null?
+       [(TypeInfo (Array t) _ _ optr1)
+        ;; ? W/ substutition would this map the domain to Bot if null?
+        (let ([r1 (reify-ref optr1)]
               [p+ (if (subtype? t (F)) (FF) (TT))]
               [p- (if (subtype? (F) t) (TT) (FF))])
-            (Abs 'x 
-                 (Dep 'i (Int) (leq (+: 0)
-                                    (+: i)
-                                    (+: (1 (len r1)) -1)))
-                 t
-                 p+ p-
-                 #f))]
+          (TI (Abs 'x 
+                   (t_ (Dep 'i (Int) (leq (+: 0)
+                                          (+: 'i)
+                                          (+: (1 (len 'v)) -1)))
+                       [r1 / 'v])
+                   t
+                   p+ p-
+                   #f)
+              (TT) (FF) #f))]
        [_ #f])]))
 
 (: chk-typeof ((Listof Prop) Exp (Opt TypeInfo) -> Boolean))

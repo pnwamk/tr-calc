@@ -1,63 +1,54 @@
 #lang racket
 
-(require fme racket/match)
+(require fme racket/contract racket/set)
 (provide (all-defined-out))
 
 (define int? exact-integer?)
 
-;; z (obj π x) (z * LE) (LE + LE)
-(define (redex->lexp le)
-  (let parse ([le le])
-    (match le
-      ;; constant
-      [(? int? n) `(,n)]
-      [`(obj ,π ,x) `((1 (obj ,π ,x)))]
-      [`(,n * ,m) #:when (and (int? n) (int? m))
-                  (list (* n m))]
-      ;; * over +
-      [`(,n * (,lhs + ,rhs)) #:when (int? n)
-                             (append (parse `(,n * ,lhs))
-                                     (parse `(,n * ,rhs)))]
-      ;; int * (int body)
-      [`(,n * (,m * ,rhs)) #:when (and (int? n) (int? m))
-                           (parse `(,(* n m) * ,rhs))]
-      ;; int * obj
-      [`(,n * (obj ,π ,x)) #:when (int? n)
-                           `((,n (obj ,π ,x)))]
-      ;; int + int
-      [`(,n + ,m) #:when (and (int? n) (int? m))
-                  (list (+ n m))]
-      [`(,lhs + ,rhs) (list (parse lhs)
-                            (parse rhs))]
-      ;; LE + LE (else case)
-      [else (error 'parse-LE "bad match!!! ~a" le)])))
+;; o ::= i (obj π x) (* i o) (+ o o)
+;; φ ::= (o ≤ o)
+;; Φ ::= (φ ...)
+(define (fme-elim-var Φ x)
+  (fme-elim Φ x))
 
-(define (redex->sli sli)
-  (map redex->lexp
-       sli))
+(define (redex-fme-sat? e)
+  (fme-sat? (redex->fme e)))
 
+(define (redex-fme-imp? e1 e2)
+  (fme-imp? (redex->fme e1)
+            (redex->fme e2)))
 
-(define (lexp->redex l)
-  (define c (lexp-constant l))
-  (let loop ([exp c]
-             [vars (lexp-vars l)])
+(define/contract (redex->fme e)
+  (-> any/c (set/c leq?))
+  (let parse ([e e])
+    (match e
+      [(list) (set)]
+      [(cons (list lhs ≤ rhs) rest) 
+       (set-add (parse rest) (leq (parse lhs)
+                                  (parse rhs)))]
+      [(? int? i) (lexp i)]
+      [(list 'obj π x) (lexp `(1 (obj ,π ,x)))]
+      [(list '* (? int? i) o) (lexp-scale (parse o) i)]
+      [(list '+ o1 o2) (lexp-plus (parse o1) (parse o2))]
+      [else (error 'redex->fme-lexp "bad fme-exp!!! ~a" e)])))
+
+(define/contract (lexp->redex l)
+  (-> lexp? (or/c list? int?))
+  (define var-terms (for/list ([x (lexp-vars l)])
+                      `(* ,(lexp-coeff l x) ,x)))
+  (define c (lexp-const l))
     (cond
-      [(empty? vars) exp]
-      [else
-       (let* ([x (first vars)]
-              [z (lexp-coefficient l x)])
-           (loop `((,z * ,x) + ,exp)
-                 (rest vars)))])))
+      [(empty? var-terms) c]
+      [(not (zero? c)) `(+ ,c ,var-terms)]
+      [else var-terms]))
 
-(define (sli->redex sli)
-  (map lexp->redex sli))
+(define/contract (leq->redex e)
+  (-> leq? list?)
+  (define-values (l r) (leq-lexps e))
+  `(,(lexp->redex l) ≤ ,(lexp->redex r)))
 
-(define (redex-sli-proves-sli? sli1 sli2)
-  (sli-proves-sli? (redex->sli sli1)
-                   (redex->sli sli2)))
-
-(define (redex-sli-satisfiable? sli1)
-  (sli-satisfiable? (redex->sli sli1)))
-
+(define/contract (sli->redex e)
+  (-> sli? list?)
+  (map leq->redex e))
 
 

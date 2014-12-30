@@ -9,7 +9,10 @@
 ;; φ ::= (o ≤ o)
 ;; Φ ::= (φ ...)
 (define (fme-elim-var Φ x)
-  (fme-elim Φ x))
+  (fme-elim* Φ (λ (var)
+                 (match var
+                   [(list 'obj π (? (curry equal? x))) #t]
+                   [_ #f]))))
 
 (define (redex-fme-sat? e)
   (fme-sat? (redex->fme e)))
@@ -40,15 +43,17 @@
     (cond
       [(empty? var-terms) c]
       [(not (zero? c)) `(+ ,c ,var-terms)]
-      [else var-terms]))
+      [(= 1 (length var-terms)) (first var-terms)]
+      [else `(+ ,var-terms)]))
 
 (define/contract (leq->redex e)
   (-> leq? list?)
   (define-values (l r) (leq-lexps e))
   `(,(lexp->redex l) ≤ ,(lexp->redex r)))
 
-(define/contract (sli->redex e)
+(define/contract (sli->redex sli)
   (-> sli? list?)
-  (map leq->redex e))
+  (for/list ([ineq (in-set sli)])
+      (leq->redex ineq)))
 
 

@@ -22,6 +22,12 @@
                                        ((var z) ≤ (var x))])))
 (check-true (judgment-holds (fme-imp (((var x) ≤ 3)) 
                                      (((var x) ≤ 5)))))
+(check-equal? (term (subst (((obj () x) ≤ (obj () z))
+                            ((obj () z) ≤ (obj (CAR) z))
+                            ((obj (CAR) z) ≤ (obj () y)))
+                           Ø
+                           z))
+              (term [((* 1 (obj () x)) ≤ (* 1 (obj () y)))]))
 
 
 ;; subtype tests

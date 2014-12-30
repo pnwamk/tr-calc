@@ -51,6 +51,8 @@
 (define-metafunction λDTR
   fme-elim : Φ x -> Φ
   [(fme-elim Φ x) ,(sli->redex (fme-elim-var (redex->fme (term Φ)) (term x)))])
+;; TODO fme-elim must grab all sli-vars, scan for those which
+;; contain x, then eliminate *all* of those!
 
 (define-metafunction λDTR
   negb : b -> b
@@ -667,6 +669,7 @@
   [(subst-ψ Φ Ø x) (fme-elim Φ x)]
   [(subst-ψ Φ o x) (subst-Φ Φ o x)])
 
+
 (define-metafunction λDTR 
   ≤^ : oo oo -> Φ
   [(≤^ Ø oo) []]
@@ -786,19 +789,5 @@
          ψ 
          (update* (ψ_0 ...) f_0))
    (where f_0 (fact o b τ))])
-
-;;  f (Or ψ ψ) (And ψ ψ) TT FF Φ
-
-;;  [(proves-alg (app Φ Φ_0) Γf [ψ_1 ...] ψ)
-;   ---------------------- "L-Linear"
-;   (proves-alg Φ Γf [Φ_0 ψ_1 ...] ψ)]
-;  
-;  [(where f (fact o b τ))
-;   (proves-alg (app Φ (implied-Φ o b τ))
-;               (update* (ext Γf f) f) 
-;               (update* [ψ_0 ...]  f) 
-;               ψ)
-;   ---------------------- "L-Update*"
-;   (proves-alg Φ Γf [(fact o b τ) ψ_0 ...] ψ)])
 
 

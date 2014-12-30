@@ -573,14 +573,24 @@
   [(And^ TT ψ) ψ]
   [(And^ ψ TT) ψ]
   [(And^ FF ψ) FF]
-  [(And^ ψ FF) FF])
+  [(And^ ψ FF) FF]
+  [(And^ ψ_l ψ_r) (And ψ_l ψ_r)
+   (judgment-holds (<> TT ψ_l))
+   (judgment-holds (<> TT ψ_r))
+   (judgment-holds (<> FF ψ_l))
+   (judgment-holds (<> FF ψ_r))])
 
 (define-metafunction λDTR
   Or^ : ψ ψ -> ψ
   [(Or^ TT ψ) TT]
   [(Or^ ψ TT) TT]
   [(Or^ FF ψ) ψ]
-  [(Or^ ψ FF) ψ])
+  [(Or^ ψ FF) ψ]
+  [(Or^ ψ_l ψ_r) (Or ψ_l ψ_r)
+   (judgment-holds (<> TT ψ_l))
+   (judgment-holds (<> TT ψ_r))
+   (judgment-holds (<> FF ψ_l))
+   (judgment-holds (<> FF ψ_r))])
 
 (define-metafunction λDTR
   +^ : oo oo -> oo
@@ -728,20 +738,67 @@
 
 
 
-;; (define-metafunction λDTR
-;;   ;; ((Φ (f ...)) ...) disjuncts so far
-;;   ;; ψ current prop
-;;   ;; Γ prop stack (i.e. TO DO))
-;;   dnf* : ((Φ (f ...)) ...) ψ Γ -> ((Φ (f ...)) ...)
+(define-metafunction λDTR
+  dnf : ψ -> ψ
+  [(dnf ψ) ,(foldl (λ (cur acc) (term (Or^ ,cur ,acc)))
+                   (term FF)
+                   (map (λ (e)
+                          (match e
+                            [(list) (term TT)]
+                            [(list sli fs) 
+                             (term (And ,sli ,(foldl (λ (cur acc) (term (And^ ,acc ,cur)))
+                                                     (term TT)
+                                                     fs)))]))
+                        (term (dnf* (([] [])) ψ []))))])
+
+(define-metafunction λDTR
+  ;; ((Φ (f ...)) ...) disjuncts so far
+  ;; ψ current prop
+  ;; Γ prop stack (i.e. TO DO))
+  dnf* : ((Φ (f ...)) ...) ψ Γ -> ((Φ (f ...)) ...)
+  ;; TT
+  [(dnf* ((Φ (f ...)) ...) TT ()) 
+   ((Φ (f ...)) ...)]
+  [(dnf* ((Φ (f ...)) ...) TT (ψ ψ_0 ...)) 
+   (dnf* ((Φ (f ...)) ...) ψ (ψ_0 ...))]
+  ;; FF
+  [(dnf* ((Φ (f ...)) ...) FF (ψ ...))
+   ()]
+  ;; And
+  [(dnf* ((Φ (f ...)) ...) (And ψ_l ψ_r) (ψ ...))
+   (dnf* ((Φ (f ...)) ...) ψ_l (ψ_r ψ ...))]
+  ;; Or
+  [(dnf* ((Φ (f ...)) ...) (Or ψ_l ψ_r) (ψ ...))
+   (app (dnf* ((Φ (f ...)) ...) ψ_l (ψ ...))
+        (dnf* ((Φ (f ...)) ...) ψ_r (ψ ...)))]
+  ;; Φ
+  [(dnf* ((Φ (f ...)) ...) Φ_0 ())
+   (((app Φ Φ_0) (f ...)) ...)]
+  [(dnf* ((Φ (f ...)) ...) Φ_0 (ψ ψ_0 ...))
+   (dnf* (((app Φ Φ_0) (f ...)) ...) ψ (ψ_0 ...))]
   
-;;   [(dnf* ((Φ (f ...)) ...) TT ()) 
-;;    ((Φ (f ...)) ...)]
-  
-;;   [(dnf* ((Φ (f ...)) ...) TT (ψ ψ_0 ...)) 
-;;    (dnf* ((Φ (f ...)) ...) ψ (ψ_0 ...))]
-  
-;;   [(dnf* ((Φ (f ...)) ...) FF Γ) ((fact (var ,(gensym)) #t (U)))]
-;;   ;;BOOKMARK
-  
-;;   [])
+  ;; fact
+  [(dnf* ((Φ (f ...)) ...) (fact o b τ) ())
+   (((app Φ (implied-Φ o b τ)) (update* (ext (f ...) f_0) f_0)) ...)
+   (where f_0 (fact o b τ))]
+  [(dnf* ((Φ (f ...)) ...) (fact o b τ) (ψ ψ_0 ...))
+   (dnf* (((app Φ (implied-Φ o b τ)) (update* (ext (f ...) f_0) f_0)) ...) 
+         ψ 
+         (update* (ψ_0 ...) f_0))
+   (where f_0 (fact o b τ))])
+
+;;  f (Or ψ ψ) (And ψ ψ) TT FF Φ
+
+;;  [(proves-alg (app Φ Φ_0) Γf [ψ_1 ...] ψ)
+;   ---------------------- "L-Linear"
+;   (proves-alg Φ Γf [Φ_0 ψ_1 ...] ψ)]
+;  
+;  [(where f (fact o b τ))
+;   (proves-alg (app Φ (implied-Φ o b τ))
+;               (update* (ext Γf f) f) 
+;               (update* [ψ_0 ...]  f) 
+;               ψ)
+;   ---------------------- "L-Update*"
+;   (proves-alg Φ Γf [(fact o b τ) ψ_0 ...] ψ)])
+
 

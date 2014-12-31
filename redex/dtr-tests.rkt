@@ -4,13 +4,18 @@
 
 ;; substs tests
 (check-equal? (term (subst (var x) Ø x)) (term Ø))
-(check-equal? (term (subst (fact (var x) #t Int) (var x) x)) (term (fact (var x) #t Int)))
-(check-equal? (term (subst (fact (var x) #t Int) (var y) x)) (term (fact (var y) #t Int)))
-(check-equal? (term (subst (fact (var x) #t Int) Ø y)) (term (fact (var x) #t Int)))
-(check-equal? (term (subst (fact (var x) #t Int) Ø x)) (term TT))
-(check-equal? (term (subst (fact (+ 42 (* 13 (var x))) #t Int) Ø x)) (term TT))
-(check-equal? (term (subst (fact (+ 42 (* 13 (var x))) #t Int) (+ (var z) (var q)) x)) 
-              (term (fact (+ 42 (* 13 (+ (var z) (var q)))) #t Int)))
+(check-equal? (term (subst ((var x) -: Int) (var x) x)) 
+              (term ((var x) -: Int)))
+(check-equal? (term (subst ((var x) -: Int) (var y) x)) 
+              (term ((var y) -: Int)))
+(check-equal? (term (subst ((var x) -: Int) Ø y)) 
+              (term ((var x) -: Int)))
+(check-equal? (term (subst ((var x) -: Int) Ø x)) 
+              (term TT))
+(check-equal? (term (subst ((+ 42 (* 13 (var x))) -: Int) Ø x)) 
+              (term TT))
+(check-equal? (term (subst ((+ 42 (* 13 (var x))) -: Int) (+ (var z) (var q)) x)) 
+              (term ((+ 42 (* 13 (+ (var z) (var q)))) -: Int)))
 
 ;; fme tests
 (check-true (judgment-holds (fme-sat [])))
@@ -22,132 +27,128 @@
                                        ((var z) ≤ (var x))])))
 (check-true (judgment-holds (fme-imp (((var x) ≤ 3)) 
                                      (((var x) ≤ 5)))))
-(check-equal? (term (subst (((obj () x) ≤ (obj () z))
-                            ((obj () z) ≤ (obj (CAR) z))
-                            ((obj (CAR) z) ≤ (obj () y)))
+(check-equal? (term (subst (((var x) ≤ (var z))
+                            ((var z) ≤ (o-car (var z)))
+                            ((o-car (var z)) ≤ (var y)))
                            Ø
                            z))
-              (term [((* 1 (obj () x)) ≤ (* 1 (obj () y)))]))
+              (term (((* 1 (() @ x)) ≤ (* 1 (() @ y))))))
 
 
 ;; subtype tests
 (check-true (judgment-holds (subtype Int Int)))
 (check-true (judgment-holds (subtype Int Top)))
 (check-true (judgment-holds (subtype (U) Int)))
-(check-true (judgment-holds (subtype Int (U Int F))))
-(check-true (judgment-holds (subtype (U T F) (U Int T F))))
+(check-true (judgment-holds (subtype Int (U Int #f))))
+(check-true (judgment-holds (subtype (U #t #f) (U Int #t #f))))
 (check-true (judgment-holds (subtype Int Int)))
-(check-false (judgment-holds (subtype (U Int T) Int)))
+(check-false (judgment-holds (subtype (U Int #t) Int)))
 (check-true (judgment-holds (subtype (U Int Int) Int)))
-(check-true (judgment-holds (subtype (U Int Int) (U Int T))))
+(check-true (judgment-holds (subtype (U Int Int) (U Int #t))))
 (check-true (judgment-holds 
-             (subtype (Abs x Top (U T F) (fact (var x) #t Int) (fact (var x) #f Int) Ø) 
-                      (Abs x Top (U T F) (fact (var x) #t Int) (fact (var x) #f Int) Ø))))
+             (subtype (x : Top → (U #t #f) (((var x) -: Int) ((var x) -! Int) Ø)) 
+                      (x : Top → (U #t #f) (((var x) -: Int) ((var x) -! Int) Ø)))))
 (check-true (judgment-holds 
-             (subtype (Abs x Top (U T F) (fact (var x) #t Int) (fact (var x) #f Int) Ø) 
-                      (Abs y Top (U T F) (fact (var y) #t Int) (fact (var y) #f Int) Ø))))
+             (subtype (x : Top → (U #t #f) (((var x) -: Int) ((var x) -! Int) Ø)) 
+                      (y : Top → (U #t #f) (((var y) -: Int) ((var y) -! Int) Ø)))))
 (check-true (judgment-holds 
-             (subtype (Abs x Top Int TT TT Ø)
-                      (Abs y Int (U Int T F) TT TT Ø))))
+             (subtype (x : Top → Int (TT TT Ø))
+                      (y : Int → (U Int #t #f) (TT TT Ø)))))
 
 ;; subtype tests w/ refinements
-(check-true (judgment-holds (subtype (Refine x : Int [((var x) ≤ 5)]) Int)))
-(check-true (judgment-holds (subtype (Refine y : Int [((var y) ≤ 3)]) 
-                                     (Refine x : Int [((var x) ≤ 5)]))))
-(check-false (judgment-holds (subtype (Refine y : Int [((var y) ≤ 13)]) 
-                                      (Refine x : Int [((var x) ≤ 5)]))))
+(check-true (judgment-holds (subtype (x : Int where [((var x) ≤ 5)]) Int)))
+(check-true (judgment-holds (subtype (y : Int where [((var y) ≤ 3)]) 
+                                     (x : Int where [((var x) ≤ 5)]))))
+(check-false (judgment-holds (subtype (y : Int where [((var y) ≤ 13)]) 
+                                      (x : Int where [((var x) ≤ 5)]))))
 
 
 ;; update* fact tests
-(check-equal? (term (update* [(fact (var x) #t Int)]
-                             (fact (var x) #t Str))) 
-              (term ((fact (var x) #t (U)))))
-(check-equal? (term (update* [(fact (var x) #t Str)]
-                             (fact (var x) #f Str)))
-              (term ((fact (var x) #t (U)))))
-(check-equal? (term (update* [(fact (var x) #t (U Int Str))]
-                             (fact (var x) #f Str))) 
-              (term ((fact (var x) #t Int))))
-(check-equal? (term (update* [(fact (var x) #t (U Int Str))]
-                             (fact (var x) #t (U T Str)))) 
-              (term ((fact (var x) #t Str))))
-(check-equal? (term (update* [(fact (var x) #t (Pair Top Top))]
-                             (fact (obj (CAR) x) #t Int))) 
-              (term ((fact (var x) #t (Pair Int Top)))))
-(check-equal? (term (update* [(fact (var x) #t (Pair Top Top))]
-                             (fact (obj (CDR) x) #t Int))) 
-              (term ((fact (var x) #t (Pair Top Int)))))
-(check-equal? (term (update* [(fact (var x) #t (Pair Int Top))]
-                             (fact (obj (CAR) x) #t Str))) 
-              (term ((fact (var x) #t (U)))))
-(check-equal? (term (update* [(fact (var x) #t Int)]
-                             (fact (obj (CAR) x) #t Str))) 
-              (term ((fact (var x) #t (U)))))
-(check-equal? (term (update* [(fact (var x) #t (Vec (U Int Str)))]
-                             (fact (var x) #t (Vec Str))))
-              (term ((fact (var x) #t (Vec Str)))))
-(check-equal? (term (update* [(fact (var x) #t (Vec (U Int Str)))]
-                             (fact (var x) #f (Vec Str))))
-              (term ((fact (var x) #t (Vec Int)))))
-(check-equal? (term (update* [(fact (var x) #t (Refine z : (U Int Str) [((var z) ≤ (var z))]))]
-                             (fact (var x) #t Int)))
-              (term ((fact (var x) #t (Refine z : Int [((var z) ≤ (var z))])))))
-(check-equal? (term (update* [(fact (var x) #t (Refine z : (U Int Str) [((var z) ≤ (var z))]))]
-                             (fact (var x) #f Str)))
-              (term ((fact (var x) #t (Refine z : Int [((var z) ≤ (var z))])))))
-(check-equal? (term (update* [(fact (var x) #t (Refine z : (U Int Str) [((var z) ≤ (var z))]))]
-                             (fact (var x) #t (Refine q : Int [((var q) ≤ (+ 1 (var q)))]))))
-              (term ((fact (var x) #t (Refine z : Int [((var z) ≤ (var z))
-                                                       ((var z) ≤ (+ 1 (var z)))])))))
-(check-equal? (term (update* [(fact (var x) #t (Refine z : (U Int Str) [((+ 1 (var z)) ≤ (var x))]))]
-                             (fact (var x) #t (Refine q : Int [((+ 1 (var x)) ≤ (var q))]))))
-              (term ((fact (var x) #t (U)))))
+(check-equal? (term (update* [((var x) -: Int)]
+                             ((var x) -: Str))) 
+              (term (((var x) -: (U)))))
+(check-equal? (term (update* [((var x) -: Str)]
+                             ((var x) -! Str)))
+              (term (((var x) -: (U)))))
+(check-equal? (term (update* [((var x) -: (U Int Str))]
+                             ((var x) -! Str))) 
+              (term (((var x) -: Int))))
+(check-equal? (term (update* [((var x) -: (U Int Str))]
+                             ((var x) -: (U #t Str)))) 
+              (term (((var x) -: Str))))
+(check-equal? (term (update* [((var x) -: (Top × Top))]
+                             (((CAR) @ x) -: Int))) 
+              (term (((var x) -: (Int × Top)))))
+(check-equal? (term (update* [((var x) -: (Top × Top))]
+                             (((CDR) @ x) -: Int))) 
+              (term (((var x) -: (Top × Int)))))
+(check-equal? (term (update* [((var x) -: (Int × Top))]
+                             (((CAR) @ x) -: Str))) 
+              (term (((var x) -: (U)))))
+(check-equal? (term (update* [((var x) -: Int)]
+                             (((CAR) @ x) -: Str))) 
+              (term (((var x) -: (U)))))
+(check-equal? (term (update* [((var x) -: (♯ (U Int Str)))]
+                             ((var x) -: (♯ Str))))
+              (term (((var x) -: (♯ Str)))))
+(check-equal? (term (update* [((var x) -: (♯ (U Int Str)))]
+                             ((var x) -! (♯ Str))))
+              (term (((var x) -: (♯ Int)))))
+(check-equal? (term (update* [((var x) -: (z : (U Int Str) where [((var z) ≤ (var z))]))]
+                             ((var x) -: Int)))
+              (term (((var x) -: (z : Int where [((var z) ≤ (var z))])))))
+(check-equal? (term (update* [((var x) -: (z : (U Int Str) where [((var z) ≤ (var z))]))]
+                             ((var x) -! Str)))
+              (term (((var x) -: (z : Int where (((var z) ≤ (var z))))))))
+(check-equal? (term (update* [((var x) -: (z : (U Int Str) where [((var z) ≤ (var z))]))]
+                             ((var x) -: (q : Int where [((var q) ≤ (+ 1 (var q)))]))))
+              (term (((var x) -: (z : Int where [((var z) ≤ (var z))
+                                                 ((var z) ≤ (+ 1 (var z)))])))))
+(check-equal? (term (update* [((var x) -: (z : (U Int Str) where [((+ 1 (var z)) ≤ (var x))]))]
+                              ((var x) -: (q : Int where [((+ 1 (var x)) ≤ (var q))]))))
+              (term (((var x) -: (U)))))
 
 ;; update* other tests
-(check-equal? (term (update* [(fact (var x) #t Int)
-                              (fact (var x) #t Int)]
-                             (fact (var x) #t Str))) 
-              (term ((fact (var x) #t (U)) (fact (var x) #t (U)))))
-(check-equal? (term (update* [(And FF
-                                   (fact (var x) #t Int))]
-                             (fact (var x) #t Str))) 
-              (term ((And FF 
-                          (fact (var x) #t (U))))))
-(check-equal? (term (update* [(Or (fact (var x) #t Int)
-                                  TT)]
-                             (fact (var x) #t Str))) 
-              (term ((Or (fact (var x) #t (U)) 
-                         TT))))
+(check-equal? (term (update* [((var x) -: Int)
+                              ((var x) -: Int)]
+                             ((var x) -: Str))) 
+              (term (((var x) -: (U)) 
+                     ((var x) -: (U)))))
+(check-equal? (term (update* [(TT ∧ ((var x) -: Int))]
+                             ((var x) -: Str))) 
+              (term (((var x) -: (U)))))
+(check-equal? (term (update* [(((var x) -: Int) ∨ FF)]
+                             ((var x) -: Str)))
+              (term (((var x) -: (U)))))
 
 ;;logic tests
 (check-false (judgment-holds (proves [] FF)))
-(check-true (judgment-holds (proves [(fact (var x) #t Int)]
-                                    (fact (var x) #t Int))))
-(check-true (judgment-holds (proves [(fact (var x) #t Int)]
-                                    (fact (var x) #f Str))))
-(check-true (judgment-holds (proves [(And (fact (var x) #t Int) 
-                                          (fact (var y) #t F))] 
-                                    (And (fact (var y) #t F) 
-                                         (fact (var x) #t Int)))))
-(check-true (judgment-holds (proves [(fact (var x) #t Int)] 
-                                    (Or (fact (var x) #t Int)
-                                        (fact (var x) #t (U T F))))))
-(check-true (judgment-holds (proves [(fact (var x) #t Int)
-                                     (fact (var x) #f Int)] 
+(check-true (judgment-holds (proves [((var x) -: Int)]
+                                    ((var x) -: Int))))
+(check-true (judgment-holds (proves [((var x) -: Int)]
+                                    ((var x) -! Str))))
+(check-true (judgment-holds (proves [(((var x) -: Int) 
+                                      ∧ ((var y) -: #f))] 
+                                    (((var y) -: #f) 
+                                     ∧ ((var x) -: Int)))))
+(check-true (judgment-holds (proves [((var x) -: Int)] 
+                                    (((var x) -: Int) 
+                                     ∨ ((var x) -: (U #t #f))))))
+(check-true (judgment-holds (proves [((var x) -: Int)
+                                     ((var x) -! Int)] 
                                     FF)))
-(check-true (judgment-holds (proves [(fact (var x) #t Int) 
-                                     (fact (var x) #t Str)] 
+(check-true (judgment-holds (proves [((var x) -: Int) 
+                                     ((var x) -: Str)] 
                                     FF)))
-(check-true (judgment-holds (proves [(fact (var x) #t (U T F Int)) 
-                                     (And (fact (var x) #f T) 
-                                          (fact (var x) #t (U T Int)))]
-                                    (fact (var x) #t Int))))
-(check-true (judgment-holds (proves [(Or (Or (fact (var z) #t (U)) 
-                                             FF) 
-                                         (fact (var x) #t Int))
-                                     (Or (fact (var x) #f Int) 
-                                         (fact (var y) #t (U T F)))
-                                     (Or (fact (var y) #t Int) 
-                                         (fact (var z) #t (U T F)))] 
-                                    (fact (var z) #t (U T F)))))
+(check-true (judgment-holds (proves [((var x) -: (U #t #f Int)) 
+                                     (((var x) -! #t) 
+                                      ∧ ((var x) -: (U #t Int)))]
+                                    ((var x) -: Int))))
+(check-true (judgment-holds (proves [((((var z) -: (U)) ∨ FF)
+                                      ∨ ((var x) -: Int))
+                                     (((var x) -! Int) 
+                                      ∨ ((var y) -: (U #t #f)))
+                                     (((var y) -: Int) 
+                                      ∨ ((var z) -: (U #t #f)))] 
+                                    ((var z) -: (U #t #f)))))
 

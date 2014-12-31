@@ -5,17 +5,17 @@
 
 (define int? exact-integer?)
 
-;; o ::= i (obj π x) (* i o) (+ o o)
-;; φ ::= (o ≤ o)
-;; Φ ::= (φ ...)
 (define (fme-elim-var Φ x)
   (fme-elim* Φ (λ (var)
                  (match var
-                   [(list 'obj π (? (curry equal? x))) #t]
+                   [(list π '@ (? (curry equal? x))) #t]
                    [_ #f]))))
 
 (define (redex-fme-sat? e)
   (fme-sat? (redex->fme e)))
+
+(define (redex-sli-equal? sli1 sli2)
+  (equal? (redex->fme sli1) (redex->fme sli2)))
 
 (define (redex-fme-imp? e1 e2)
   (fme-imp? (redex->fme e1)
@@ -30,7 +30,7 @@
        (set-add (parse rest) (leq (parse lhs)
                                   (parse rhs)))]
       [(? int? i) (lexp i)]
-      [(list 'obj π x) (lexp `(1 (obj ,π ,x)))]
+      [(list π '@ x) (lexp `(1 (,π @ ,x)))]
       [(list '* (? int? i) o) (lexp-scale (parse o) i)]
       [(list '+ o1 o2) (lexp-plus (parse o1) (parse o2))]
       [else (error 'redex->fme-lexp "bad fme-exp!!! ~a" e)])))

@@ -37,14 +37,18 @@
 
 (define/contract (lexp->redex l)
   (-> lexp? (or/c list? int?))
-  (define var-terms (for/list ([x (lexp-vars l)])
-                      `(* ,(lexp-coeff l x) ,x)))
+  (define vars-exp (match (lexp-vars l)
+                     ['() #f]
+                     [(cons x xs) 
+                      (for/fold ([rexp `(* ,(lexp-coeff l x) ,x)])
+                                ([x* xs])
+                        `(+ (* ,(lexp-coeff l x*) ,x*)
+                            ,rexp))]))
   (define c (lexp-const l))
-    (cond
-      [(empty? var-terms) c]
-      [(not (zero? c)) `(+ ,c ,var-terms)]
-      [(= 1 (length var-terms)) (first var-terms)]
-      [else `(+ ,var-terms)]))
+  (cond
+    [(not vars-exp) c]
+    [(zero? c) vars-exp]
+    [else `(+ ,c ,vars-exp)]))
 
 (define/contract (leq->redex e)
   (-> leq? list?)

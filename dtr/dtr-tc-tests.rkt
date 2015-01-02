@@ -103,6 +103,145 @@
            (z : Int where [((id z) ≤ 42) (42 ≤ (id z))])
            (TT FF 42))))
 
+(check-true
+ (judgment-holds 
+  (typeof* ((is x (U #t #f)))
+           (if (ann x (U #t #f))
+               42
+               "Hello World")
+           (U Int Str)
+           (TT FF Ø))))
+
+;; T-Let
+(check-true
+ (judgment-holds 
+  (typeof* ((is x (U #t #f)))
+           (let (y (ann x (U #t #f)))
+            (if (ann y (U #t #f))
+               42
+               "Hello World"))
+           (U Int Str)
+           (TT FF Ø))))
+
+(check-true
+ (judgment-holds 
+  (typeof* ((is x Top))
+           (let (y (ann x Top))
+             (ann y Top))
+           Top
+           ((! x #f) (is x #f) (id x)))))
+
+(check-true
+ (judgment-holds 
+  (typeof* ((is x Top))
+           (let (y (int? (ann x Top)))
+             (ann y (U #t #f)))
+           (U #t #f)
+           ((is x Int) (! x Int) Ø))))
+
+;; T-Cons
+(check-true
+ (judgment-holds 
+  (typeof* ()
+           (cons 42 "Hello World")
+           (Int × Str)
+           (TT FF Ø))))
+
+(check-true
+ (judgment-holds 
+  (typeof* ()
+           (cons (cons 40 2) (cons "Hello" "World"))
+           ((Int × Int) × (Str × Str))
+           (TT FF Ø))))
+
+;; T-Car
+(check-true
+ (judgment-holds 
+  (typeof* ()
+           (car (cons 42 "Hello World"))
+           Int
+           (TT FF Ø))))
+
+(check-true
+ (judgment-holds 
+  (typeof* ((is p (Int × Str)))
+           (car (ann p (Int × Str)))
+           Int
+           (TT FF ((CAR) @ p)))))
+
+;; T-Cdr
+(check-true
+ (judgment-holds 
+  (typeof* ()
+           (cdr (cons 42 "Hello World"))
+           Str
+           (TT FF Ø))))
+
+(check-true
+ (judgment-holds 
+  (typeof* ((is p (Int × Str)))
+           (cdr (ann p (Int × Str)))
+           Str
+           (TT FF ((CDR) @ p)))))
+
+;; T-Vec
+(check-true
+ (judgment-holds
+  (typeof* ()
+           (vec 42)
+           (♯ Int)
+           (TT FF Ø))))
+
+(check-true
+ (judgment-holds
+  (typeof* ()
+           (vec 42 "Hello World")
+           (♯ (U Int Str))
+           (TT FF Ø))))
+
+(check-true
+ (judgment-holds
+  (typeof* ()
+           (vec 42 "All" "Your" "Base" "Are" "Belong" "To" "Us!")
+           (♯ (U Int Str))
+           (TT FF Ø))))
+
+;; T-VecRef
+(check-true
+ (judgment-holds
+  (typeof* ()
+           (vec-ref (vec 42 "All" "Your" "Base" "Are" "Belong" "To" "Us!") 0)
+           (U Int Str)
+           (TT FF Ø))))
+
+(check-true
+ (judgment-holds
+  (typeof* ()
+           (vec-ref (vec 42 "All" "Your" "Base" "Are" "Belong" "To" "Us!") ((* 2) 2))
+           (U Int Str)
+           (TT FF Ø))))
+
+(check-false
+ (judgment-holds
+  (typeof* ()
+           (vec-ref (vec 42 "All" "Your" "Base" "Are" "Belong" "To" "Us!") ((+ 0) -1))
+           (U Int Str)
+           (TT FF Ø))))
+
+(check-true
+ (judgment-holds
+  (typeof* ()
+           (vec-ref (vec 42 "All" "Your" "Base" "Are" "Belong" "To" "Us!") 7)
+           (U Int Str)
+           (TT FF Ø))))
+
+(check-false
+ (judgment-holds
+  (typeof* ()
+           (vec-ref (vec 42 "All" "Your" "Base" "Are" "Belong" "To" "Us!") ((* 2) 4))
+           (U Int Str)
+           (TT FF Ø))))
+
 ;;; Example 1
 ;(check-true 
 ; (judgment-holds 

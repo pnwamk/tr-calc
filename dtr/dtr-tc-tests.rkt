@@ -90,7 +90,7 @@
  (judgment-holds 
   (typeof* ()
            (add1 41)
-           (z : Int where [((id z) ≤ 42) (42 ≤ (id z))])
+           (Int= 42)
            (TT FF 42))))
 
 ;; T-If
@@ -100,7 +100,7 @@
            (if (ann x (U #t #f))
                (add1 41)
                42)
-           (z : Int where [((id z) ≤ 42) (42 ≤ (id z))])
+           (Int= 42)
            (TT FF 42))))
 
 (check-true

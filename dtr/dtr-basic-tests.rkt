@@ -19,20 +19,21 @@
 
 ;; fme tests
 (check-true (judgment-holds (fme-sat [])))
-(check-true (judgment-holds (fme-sat [((id x) ≤ (id y))])))
-(check-true (judgment-holds (fme-sat [((id x) ≤ (id y))
-                                      ((+ 1 (id y)) ≤ (id z))])))
-(check-false (judgment-holds (fme-sat [((id x) ≤ (id y))
-                                       ((+ 1 (id y)) ≤ (id z))
-                                       ((id z) ≤ (id x))])))
-(check-true (judgment-holds (fme-imp (((id x) ≤ 3)) 
-                                     (((id x) ≤ 5)))))
-(check-equal? (term (subst (((id x) ≤ (id z))
-                            ((id z) ≤ (o-car (id z)))
-                            ((o-car (id z)) ≤ (id y)))
+(check-true (judgment-holds (fme-sat [(≤ (id x) (id y))])))
+(check-true (judgment-holds (fme-sat [(≤ (id x) (id y))
+                                      (≤ (+ 1 (id y)) (id z))])))
+(check-false (judgment-holds (fme-sat [(≤ (id x) (id y))
+                                       (≤ (+ 1 (id y)) (id z))
+                                       (≤ (id z) (id x))])))
+(check-true (judgment-holds (fme-imp ((≤ (id x) 3)) 
+                                     ((≤ (id x) 5)))))
+(check-equal? (term (subst ((≤ (id x) (id z))
+                            (≤ (id z) (o-car (id z)))
+                            (≤ (o-car (id z)) (id y)))
                            Ø
                            z))
-              (term (((* 1 (() @ x)) ≤ (* 1 (() @ y))))))
+              (term ((≤ (* 1 (() @ x)) 
+                        (* 1 (() @ y))))))
 
 
 ;; subtype tests
@@ -56,11 +57,11 @@
                       (y : Int → (U Int #t #f) (TT TT Ø)))))
 
 ;; subtype tests w/ refinements
-(check-true (judgment-holds (subtype (x : Int where [((id x) ≤ 5)]) Int)))
-(check-true (judgment-holds (subtype (y : Int where [((id y) ≤ 3)]) 
-                                     (x : Int where [((id x) ≤ 5)]))))
-(check-false (judgment-holds (subtype (y : Int where [((id y) ≤ 13)]) 
-                                      (x : Int where [((id x) ≤ 5)]))))
+(check-true (judgment-holds (subtype (x : Int where [(≤ (id x) 5)]) Int)))
+(check-true (judgment-holds (subtype (y : Int where [(≤ (id y) 3)]) 
+                                     (x : Int where [(≤ (id x) 5)]))))
+(check-false (judgment-holds (subtype (y : Int where [(≤ (id y) 13)]) 
+                                      (x : Int where [(≤ (id x) 5)]))))
 
 
 ;; update* fact tests
@@ -94,18 +95,18 @@
 (check-equal? (term (update* [((id x) -: (♯ (U Int Str)))]
                              ((id x) -! (♯ Str))))
               (term (((id x) -: (♯ Int)))))
-(check-equal? (term (update* [((id x) -: (z : (U Int Str) where [((id z) ≤ (id z))]))]
+(check-equal? (term (update* [((id x) -: (z : (U Int Str) where [(≤ (id z) (id z))]))]
                              ((id x) -: Int)))
-              (term (((id x) -: (z : Int where [((id z) ≤ (id z))])))))
-(check-equal? (term (update* [((id x) -: (z : (U Int Str) where [((id z) ≤ (id z))]))]
+              (term (((id x) -: (z : Int where [(≤ (id z) (id z))])))))
+(check-equal? (term (update* [((id x) -: (z : (U Int Str) where [(≤ (id z) (id z))]))]
                              ((id x) -! Str)))
-              (term (((id x) -: (z : Int where (((id z) ≤ (id z))))))))
-(check-equal? (term (update* [((id x) -: (z : (U Int Str) where [((id z) ≤ (id z))]))]
-                             ((id x) -: (q : Int where [((id q) ≤ (+ 1 (id q)))]))))
-              (term (((id x) -: (z : Int where [((id z) ≤ (id z))
-                                                 ((id z) ≤ (+ 1 (id z)))])))))
-(check-equal? (term (update* [((id x) -: (z : (U Int Str) where [((+ 1 (id z)) ≤ (id x))]))]
-                              ((id x) -: (q : Int where [((+ 1 (id x)) ≤ (id q))]))))
+              (term (((id x) -: (z : Int where ((≤ (id z) (id z))))))))
+(check-equal? (term (update* [((id x) -: (z : (U Int Str) where [(≤ (id z) (id z))]))]
+                             ((id x) -: (q : Int where [(≤ (id q) (+ 1 (id q)))]))))
+              (term (((id x) -: (z : Int where [(≤ (id z) (id z))
+                                                 (≤ (id z) (+ 1 (id z)))])))))
+(check-equal? (term (update* [((id x) -: (z : (U Int Str) where [(≤ (+ 1 (id z)) (id x))]))]
+                              ((id x) -: (q : Int where [(≤ (+ 1 (id x)) (id q))]))))
               (term (((id x) -: (U)))))
 
 ;; update* other tests
@@ -152,5 +153,5 @@
                                       ∨ ((id z) -: (U #t #f)))] 
                                     ((id z) -: (U #t #f)))))
 
-(check-true (judgment-holds (proves ([((id x) ≤ 3)]) [((id x) ≤ 5)])))
+(check-true (judgment-holds (proves ([(≤ (id x) 3)]) [(≤ (id x) 5)])))
 

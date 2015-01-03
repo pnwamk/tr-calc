@@ -26,7 +26,7 @@
   (let parse ([e e])
     (match e
       [(list) (set)]
-      [(cons (list lhs ≤ rhs) rest) 
+      [(cons (list '≤ lhs rhs) rest) 
        (set-add (parse rest) (leq (parse lhs)
                                   (parse rhs)))]
       [(? int? i) (lexp i)]
@@ -53,7 +53,7 @@
 (define/contract (leq->redex e)
   (-> leq? list?)
   (define-values (l r) (leq-lexps e))
-  `(,(lexp->redex l) ≤ ,(lexp->redex r)))
+  `(≤ ,(lexp->redex l) ,(lexp->redex r)))
 
 (define/contract (sli->redex sli)
   (-> sli? list?)

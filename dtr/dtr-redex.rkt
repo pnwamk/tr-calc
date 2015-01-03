@@ -14,7 +14,7 @@
   [pe     ::= CAR CDR LEN]
   [π      ::= (pe ...)]
   [o      ::= i (π @ x) (* i o) (+ o o)]
-  [Φ      ::= ((o ≤ o) ...)] 
+  [Φ      ::= ((≤ o o) ...)] 
   [oo     ::= o Ø]
   [τ σ    ::= Top #t #f Int Str (U τ ...) (x : σ → τ (ψ ψ oo)) 
               (τ × σ) (♯ τ) (x : τ where Φ)]
@@ -578,20 +578,20 @@
   ≤: : oo oo -> Φ
   [(≤: Ø oo) []]
   [(≤: oo Ø) []]
-  [(≤: o_1 o_2) [(o_1 ≤ o_2)]])
+  [(≤: o_1 o_2) [(≤ o_1 o_2)]])
 
 (define-metafunction λDTR
   subst-Φ : Φ o x -> ψ
   [(subst-Φ [] o x) []]
-  [(subst-Φ [(o_1l ≤ o_1r) (o_2l ≤ o_2r) ...] o x) FF
-   (where FF (subst-Φ [(o_2l ≤ o_2r) ...] o x))]
-  [(subst-Φ [(o_1l ≤ o_1r) (o_2l ≤ o_2r) ...] o x) FF
+  [(subst-Φ [(≤ o_1l o_1r) (≤ o_2l o_2r) ...] o x) FF
+   (where FF (subst-Φ [(≤ o_2l o_2r) ...] o x))]
+  [(subst-Φ [(≤ o_1l o_1r) (≤ o_2l o_2r) ...] o x) FF
     (where [] (≤: (subst-oo o_1l o x)
                   (subst-oo o_1r o x)))]
-  [(subst-Φ [(o_1l ≤ o_1r) (o_2l ≤ o_2r) ...] o x) (app [(o_l ≤ o_r)] Φ_rest)
-   (where Φ_rest (subst-Φ [(o_2l ≤ o_2r) ...] o x))
-   (where [(o_l ≤ o_r)] (≤: (subst-oo o_1l o x)
-                              (subst-oo o_1r o x)))])
+  [(subst-Φ [(≤ o_1l o_1r) (≤ o_2l o_2r) ...] o x) (app [(≤ o_l o_r)] Φ_rest)
+   (where Φ_rest (subst-Φ [(≤ o_2l o_2r) ...] o x))
+   (where [(≤ o_l o_r)] (≤: (subst-oo o_1l o x)
+                            (subst-oo o_1r o x)))])
 
 ;; standard captura avoiding substitution
 ;; with smart constructors
@@ -627,25 +627,19 @@
 
 (define-metafunction λDTR
   op-τ : op -> τ
-  [(op-τ add1) (x : Int → 
-                  (z : Int where [((id z) ≤ (+ 1 (id x)))
-                                  ((+ 1 (id x)) ≤ (id z))]) 
+  [(op-τ add1) (x : Int → (Int= (+ 1 (id x))) 
                   (TT FF (+ 1 (id x))))]
   [(op-τ +) (x : Int → 
-               (y : Int → 
-                  (z : Int where [((id z) ≤ (+ (id x) (id y)))
-                                  ((+ (id x) (id y)) ≤ (id z))])
+               (y : Int → (Int= (+ (id x) (id y)))
                   (TT FF (+ (id x) (id y))))
                (TT FF Ø))]
-  [(op-τ (* i)) (x : Int → 
-                   (z : Int where [((id z) ≤ (* i (id x)))
-                                   ((* i (id x)) ≤ (id z))])
+  [(op-τ (* i)) (x : Int → (Int= (* i (id x)))
                    (TT FF (* i (id x))))]
   [(op-τ zero?) (x : Int → 
-                   (U #t #f) 
-                   ([((id x) ≤ 0) (0 ≤ (id x))] 
-                    (Or: [((id x) ≤ -1)]
-                         [(1 ≤ (id x))])
+                   (U #t #f)
+                   ((is x (Int= 0))
+                    (Or: (is x (Int> 0))
+                         (is x (Int< 0)))
                     Ø))]
   [(op-τ int?) (x : Top → 
                   (U #t #f)
@@ -656,12 +650,9 @@
   [(op-τ str-len) (x : Str → 
                      Int 
                      (TT FF Ø))]
-  [(op-τ vec-len) (x : (♯ Top) → 
-                     (z : Int where [((id z) ≤ ((LEN) @ x))
-                                     (((LEN) @ x) ≤ (id z))])
+  [(op-τ vec-len) (x : (♯ Top) → (Int= (o-len (id x)))
                      (TT FF ((LEN) @ x)))]
-  [(op-τ error) (λ x Str → 
-                  (U) 
+  [(op-τ error) (λ x Str → (U) 
                   (FF FF Ø))]
   [(op-τ bool?) (x : Top → 
                    (U #t #f)
@@ -685,9 +676,9 @@
 (define-judgment-form λDTR
   #:mode (typeof I I O O)
   #:contract (typeof Γ e τ (ψ ψ oo))
-  [(where/hidden (() @ x) (id ,(gensym)))
-   -------------- "T-Int"
-   (typeof Γ i (x : Int where [((id x) ≤ i) (i ≤ (id x))]) (TT FF i))]
+  
+  [-------------- "T-Int"
+   (typeof Γ i (Int= i) (TT FF i))]
   
   [-------------- "T-Str"
    (typeof Γ string Str (TT FF Ø))]
@@ -716,7 +707,7 @@
   
   [(where/hidden #f ,(member (term e_1) '(car cdr vec-ref)))
    (typeof Γ e_1 σ_λ (ψ_1+ ψ_1- oo_1))
-   (where (x : σ_f → τ_f (ψ_f+ ψ_f- oo_f)) (fun-τ σ_λ))
+   (where (x : σ_f → τ_f (ψ_f+ ψ_f- oo_f)) (exists/fun-τ σ_λ))
    (typeof Γ e_2 σ_2 (ψ_2+ ψ_2- oo_2))
    (subtype/ctx Γ (id ,(gensym)) σ_2 σ_f)
    -------------- "T-App"
@@ -759,8 +750,8 @@
    (typeof Γ (cons e_1 e_2) (τ × σ) (TT FF Ø))]
 
   [(typeof Γ e σ_c (ψ_+ ψ_- oo))
-   (where (τ × σ) (pair-τ σ_c))
-   (where/hidden (() @ x) (id ,(gensym)))
+   (where (τ × σ) (exists/pair-τ σ_c))
+   (where/hidden x ,(gensym))
    ------------------------- "T-Car"
    (typeof Γ
            (car e) 
@@ -772,7 +763,7 @@
             (subst ((CAR) @ x) oo x)))]
   
   [(typeof Γ e σ_c (ψ_+ ψ_- oo))
-   (where (τ × σ) (pair-τ σ_c))
+   (where (τ × σ) (exists/pair-τ σ_c))
    (where/hidden (() @ x) (id ,(gensym)))
    ------------------------- "T-Cdr"
    (typeof Γ
@@ -790,44 +781,41 @@
    (where/hidden i ,(length (term (e_0 ... e_i))))
    (where x ,(gensym))
    ------------------------- "T-Vec"
-   (typeof Γ (vec e_0 ... e_i) (x : (♯ τ) where [(i ≤ ((LEN) @ x))
-                                                 (((LEN) @ x) ≤ i)])
+   (typeof Γ (vec e_0 ... e_i) (x : (♯ τ) where (Φ= i (o-len (id x))))
            (TT FF Ø))]
   
   [(typeof Γ e_1 σ_v (ψ_1+ ψ_1- oo_1))
    (typeof Γ e_2 σ_i (ψ_2+ ψ_2- oo_2))
-   (where (♯ τ) (vec-τ σ_v))
+   (where (♯ τ) (exists/vec-τ σ_v))
    (where x ,(gensym))
    (where o_1 ,(fresh-if-needed (term oo_1)))
    (where o_2 ,(fresh-if-needed (term oo_2)))
-   (subtype/ctx (ext Γ (o_1 -: σ_v)) o_2 σ_i (x : Int where [((id x) ≤ (+ -1 (o-len o_1)))
-                                                             (0 ≤ (id x))]))
+   (subtype/ctx (ext Γ (o_1 -: σ_v)) o_2 σ_i (IntRange 0 (+ -1 (o-len o_1))))
    ------------------------- "T-VecRef"
-   (typeof Γ (vec-ref e_1 e_2) τ ((true-ψ τ) 
-                                  (false-ψ τ) 
-                                  Ø))])
+   (typeof Γ (vec-ref e_1 e_2) τ 
+           ((true-ψ τ) (false-ψ τ) Ø))])
 
 (define-metafunction λDTR
-  pair-τ : τ -> τ
-  [(pair-τ (τ × σ)) (τ × σ)]
-  [(pair-τ (x : τ where Φ)) (pair-τ τ)]
-  [(pair-τ σ) (U)
+  exists/pair-τ : τ -> τ
+  [(exists/pair-τ (τ × σ)) (τ × σ)]
+  [(exists/pair-τ (x : τ where Φ)) (exists/pair-τ τ)]
+  [(exists/pair-τ σ) (U)
    (where #f (is-Refine σ))
    (where #f (is-Pair σ))])
 
 (define-metafunction λDTR
-  vec-τ : τ -> τ
-  [(vec-τ (♯ τ)) (♯ τ)]
-  [(vec-τ (x : τ where Φ)) (vec-τ τ)]
-  [(vec-τ σ) (U)
+  exists/vec-τ : τ -> τ
+  [(exists/vec-τ (♯ τ)) (♯ τ)]
+  [(exists/vec-τ (x : τ where Φ)) (exists/vec-τ τ)]
+  [(exists/vec-τ σ) (U)
    (where #f (is-Refine σ))
    (where #f (is-Vec σ))])
 
 (define-metafunction λDTR
-  fun-τ : τ -> τ
-  [(fun-τ (x : σ → τ (ψ_+ ψ_- oo))) (x : σ → τ (ψ_+ ψ_- oo))]
-  [(fun-τ (x : τ where Φ)) (fun-τ τ)]
-  [(fun-τ σ) (U)
+  exists/fun-τ : τ -> τ
+  [(exists/fun-τ (x : σ → τ (ψ_+ ψ_- oo))) (x : σ → τ (ψ_+ ψ_- oo))]
+  [(exists/fun-τ (x : τ where Φ)) (exists/fun-τ τ)]
+  [(exists/fun-τ σ) (U)
    (where #f (is-Refine σ))
    (where #f (is-Abs σ))])
 
@@ -1001,6 +989,45 @@
   [(Vec: τ) (♯ τ)
    (where #f (subtype τ (U)))])
 
+(define-metafunction λDTR
+  Int= : o -> τ
+  [(Int= o) (x : Int where [(≤ (id x) o) (≤ o (id x))])
+   (where x ,(gensym))])
+
+(define-metafunction λDTR
+  Int< : o -> τ
+  [(Int< o) (x : Int where [(≤ (+ 1 (id x)) o)])
+   (where x ,(gensym))])
+
+(define-metafunction λDTR
+  Int> : o -> τ
+  [(Int> o) (x : Int where [(≤ (+ 1 o) (id x))])
+   (where x ,(gensym))])
+
+
+(define-metafunction λDTR
+  Int<= : o -> τ
+  [(Int<= o) (x : Int where [(≤ (id x) o)])
+   (where x ,(gensym))])
+
+(define-metafunction λDTR
+  Int>= : o -> τ
+  [(Int>= o) (x : Int where [(≤ o (id x))])
+   (where x ,(gensym))])
+
+(define-metafunction λDTR
+  IntRange : o o -> τ
+  [(IntRange o_l o_h) (x : Int where (Φin-range (id x) o_l o_h))
+   (where x ,(gensym))])
+
+(define-metafunction λDTR
+  Φ= : o o -> Φ
+  [(Φ= o_1 o_2) [(≤ o_1 o_2) (≤ o_2 o_1)]])
+
+(define-metafunction λDTR
+  Φin-range : o o o -> Φ
+  [(Φin-range o o_low o_high) [(≤ o o_high)
+                             (≤ o_low o)]])
 
 (define-judgment-form λDTR
   #:mode (flat-U I)

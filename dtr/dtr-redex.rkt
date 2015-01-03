@@ -592,7 +592,9 @@
    (where Φ_rest (subst-Φ [(≤ o_2l o_2r) ...] o x))
    (where [(≤ o_l o_r)] (≤: (subst-oo o_1l o x)
                             (subst-oo o_1r o x)))])
-
+#;(subst-Φ ((≤ (() @ g17994) (+ (() @ x) (() @ g17989))) (≤ (+ (() @ x) (() @ g17989)) (() @ g17994))) 
+           Ø 
+           g17989)
 ;; standard captura avoiding substitution
 ;; with smart constructors
 (define-metafunction λDTR
@@ -621,7 +623,7 @@
   [(subst-τ (x : τ where Φ) oo x) (x : τ where Φ)]
   [(subst-τ (y : τ where Φ) oo x)
    (z : (subst-τ (subst-τ τ (id z) y) oo x) 
-      where (subst-Φ (subst-Φ Φ (id z) y) oo x))
+      where (subst (subst Φ (id z) y) oo x))
    (judgment-holds (<> x y))
    (where z ,(gensym))])
 
@@ -652,7 +654,7 @@
                      (TT FF Ø))]
   [(op-τ vec-len) (x : (♯ Top) → (Int= (o-len (id x)))
                      (TT FF ((LEN) @ x)))]
-  [(op-τ error) (λ x Str → (U) 
+  [(op-τ error) (x : Str → (U) 
                   (FF FF Ø))]
   [(op-τ bool?) (x : Top → 
                    (U #t #f)

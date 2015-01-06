@@ -65,60 +65,63 @@
 
 
 ;; update* fact tests
-(check-equal? (term (update* [((id x) -: Int)]
+(check-equal? (term (update* () 
+                             [((id x) -: Int)]
                              ((id x) -: Str))) 
               (term (((id x) -: (U)))))
-(check-equal? (term (update* [((id x) -: Str)]
+(check-equal? (term (update* ()
+                             [((id x) -: Str)]
                              ((id x) -! Str)))
               (term (((id x) -: (U)))))
-(check-equal? (term (update* [((id x) -: (U Int Str))]
+(check-equal? (term (update* () [((id x) -: (U Int Str))]
                              ((id x) -! Str))) 
               (term (((id x) -: Int))))
-(check-equal? (term (update* [((id x) -: (U Int Str))]
+(check-equal? (term (update* () [((id x) -: (U Int Str))]
                              ((id x) -: (U #t Str)))) 
               (term (((id x) -: Str))))
-(check-equal? (term (update* [((id x) -: (Top × Top))]
+(check-equal? (term (update* () [((id x) -: (Top × Top))]
                              (((CAR) @ x) -: Int))) 
               (term (((id x) -: (Int × Top)))))
-(check-equal? (term (update* [((id x) -: (Top × Top))]
+(check-equal? (term (update* () [((id x) -: (Top × Top))]
                              (((CDR) @ x) -: Int))) 
               (term (((id x) -: (Top × Int)))))
-(check-equal? (term (update* [((id x) -: (Int × Top))]
+(check-equal? (term (update* () [((id x) -: (Int × Top))]
                              (((CAR) @ x) -: Str))) 
               (term (((id x) -: (U)))))
-(check-equal? (term (update* [((id x) -: Int)]
+(check-equal? (term (update* () [((id x) -: Int)]
                              (((CAR) @ x) -: Str))) 
               (term (((id x) -: (U)))))
-(check-equal? (term (update* [((id x) -: (♯ (U Int Str)))]
+(check-equal? (term (update* () [((id x) -: (♯ (U Int Str)))]
                              ((id x) -: (♯ Str))))
               (term (((id x) -: (♯ Str)))))
-(check-equal? (term (update* [((id x) -: (♯ (U Int Str)))]
+(check-equal? (term (update* () [((id x) -: (♯ (U Int Str)))]
                              ((id x) -! (♯ Str))))
               (term (((id x) -: (♯ Int)))))
-(check-equal? (term (update* [((id x) -: (z : (U Int Str) where [(≤ (id z) (id z))]))]
+(check-equal? (term (update* () [((id x) -: (z : (U Int Str) where [(≤ (id z) (id z))]))]
                              ((id x) -: Int)))
               (term (((id x) -: (z : Int where [(≤ (id z) (id z))])))))
-(check-equal? (term (update* [((id x) -: (z : (U Int Str) where [(≤ (id z) (id z))]))]
+(check-equal? (term (update* () [((id x) -: (z : (U Int Str) where [(≤ (id z) (id z))]))]
                              ((id x) -! Str)))
               (term (((id x) -: (z : Int where ((≤ (id z) (id z))))))))
-(check-equal? (term (update* [((id x) -: (z : (U Int Str) where [(≤ (id z) (id z))]))]
+(check-equal? (term (update* () [((id x) -: (z : (U Int Str) where [(≤ (id z) (id z))]))]
                              ((id x) -: (q : Int where [(≤ (id q) (+ 1 (id q)))]))))
               (term (((id x) -: (z : Int where [(≤ (id z) (id z))
                                                  (≤ (id z) (+ 1 (id z)))])))))
-(check-equal? (term (update* [((id x) -: (z : (U Int Str) where [(≤ (+ 1 (id z)) (id x))]))]
+(check-equal? (term (update* () [((id x) -: (z : (U Int Str) where [(≤ (+ 1 (id z)) (id x))]))]
                               ((id x) -: (q : Int where [(≤ (+ 1 (id x)) (id q))]))))
               (term (((id x) -: (U)))))
 
-;; update* other tests
-(check-equal? (term (update* [((id x) -: Int)
+;; update* () other tests
+(check-equal? (term (update* () [((id x) -: Int)
                               ((id x) -: Int)]
                              ((id x) -: Str))) 
               (term (((id x) -: (U)) 
                      ((id x) -: (U)))))
-(check-equal? (term (update* [(TT ∧ ((id x) -: Int))]
+(check-equal? (term (update* () [(TT ∧ ((id x) -: Int))]
                              ((id x) -: Str))) 
               (term (((id x) -: (U)))))
-(check-equal? (term (update* [(((id x) -: Int) ∨ FF)]
+(check-equal? (term (update* () 
+                             [(((id x) -: Int) ∨ FF)]
                              ((id x) -: Str)))
               (term (((id x) -: (U)))))
 

@@ -5,9 +5,9 @@
 (define-judgment-form λDTR
   #:mode (typeof* I I I I)
   #:contract (typeof* Γ e τ (ψ ψ oo))
-  [(where o (fresh-o))
+  [(where o (id ,(gensym)))
    (typeof Γ e_1 τ_2 (ψ_2+ ψ_2- oo_2))
-   (proves (ext Γ (o -: τ_2)) (o -: τ_1))
+   (subtype/Γ Γ o τ_2 τ_1)
    (proves (ext Γ ψ_2+) ψ_1+)
    (proves (ext Γ ψ_2-) ψ_1-)
    (subobj oo_2 oo_1)
@@ -101,7 +101,7 @@
                (add1 41)
                42)
            (Int= 42)
-           (TT FF 42))))
+           (TT TT 42))))
 
 (check-true
  (judgment-holds 
@@ -212,35 +212,35 @@
   (typeof* ()
            (vec-ref (vec 42 "All" "Your" "Base" "Are" "Belong" "To" "Us!") 0)
            (U Int Str)
-           (TT FF Ø))))
+           (TT TT Ø))))
 
 (check-true
  (judgment-holds
   (typeof* ()
            (vec-ref (vec 42 "All" "Your" "Base" "Are" "Belong" "To" "Us!") ((* 2) 2))
            (U Int Str)
-           (TT FF Ø))))
+           (TT TT Ø))))
 
 (check-false
  (judgment-holds
   (typeof* ()
            (vec-ref (vec 42 "All" "Your" "Base" "Are" "Belong" "To" "Us!") ((+ 0) -1))
            (U Int Str)
-           (TT FF Ø))))
+           (TT TT Ø))))
 
 (check-true
  (judgment-holds
   (typeof* ()
            (vec-ref (vec 42 "All" "Your" "Base" "Are" "Belong" "To" "Us!") 7)
            (U Int Str)
-           (TT FF Ø))))
+           (TT TT Ø))))
 
 (check-false
  (judgment-holds
   (typeof* ()
            (vec-ref (vec 42 "All" "Your" "Base" "Are" "Belong" "To" "Us!") ((* 2) 4))
            (U Int Str)
-           (TT FF Ø))))
+           (TT TT Ø))))
 
 ;;; Example 1
 (check-true 

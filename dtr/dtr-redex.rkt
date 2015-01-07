@@ -17,7 +17,7 @@
   [o      ::= i (π @ x) (* i o) (+ o o)]
   [Φ      ::= ((≤ o o) ...)] 
   [oo     ::= o Ø]
-  [τ σ     ::= Top #t #f Int Str (U τ ...) (x : τ → τ (ψ ψ oo)) 
+  [τ σ    ::= Top #t #f Int Str (U τ ...) (x : τ → τ (ψ ψ oo)) 
               (τ × τ) (♯ τ) (x : τ where Φ)]
   [?      ::= -: -!]
   [δ      ::= (o ? τ)]
@@ -59,7 +59,7 @@
 (define-judgment-form λDTR
   #:mode (subtype I I)
   #:contract (subtype τ τ)
-  [(subtype/ctx () () (id ,(gensym)) σ τ)
+  [(subtype/ctx () () (id (fresh-var σ τ)) σ τ)
    --------------------------- "S-EmptyCtx"
    (subtype σ τ)])
 
@@ -91,17 +91,20 @@
    --------------- "S-UnionSub"
    (subtype/ctx Φ Δ o (U τ ...) σ)]
   
-  [(subtype/ctx Φ Δ o τ_1 τ_2)
-   (subtype/ctx Φ Δ o σ_1 σ_2)
+  [(subtype/ctx Φ Δ (o-car o) τ_1 τ_2)
+   (subtype/ctx Φ Δ (o-cdr o) σ_1 σ_2)
    ----------------- "S-Pair"
    (subtype/ctx Φ Δ o (τ_1 × σ_1) (τ_2 × σ_2))]
   
-  [(subtype/ctx Φ Δ (id ,(gensym)) τ σ)
+  [(subtype/ctx Φ Δ (id (fresh-var Φ Δ o τ σ)) τ σ)
    ----------------- "S-Vec"
    (subtype/ctx Φ Δ o (♯ τ) (♯ σ))]
   
-  [(subtype/ctx Φ Δ (id ,(gensym)) σ_2 σ_1) 
-   (subtype/ctx Φ Δ (id ,(gensym)) (subst τ_1 (id y) x) τ_2) 
+  [(where z (fresh-var Φ Δ o
+                      (x : σ_1 → τ_1 (ψ_1+ ψ_1- oo_1))
+                      (y : σ_2 → τ_2 (ψ_2+ ψ_2- oo_2))))
+   (subtype/ctx Φ Δ (id z) σ_2 σ_1) 
+   (subtype/ctx Φ Δ (id z) (subst τ_1 (id y) x) τ_2) 
    (proves-alg Φ Δ (sift-Γ [(subst ψ_1+ (id y) x)]) ψ_2+)
    (proves-alg Φ Δ (sift-Γ [(subst ψ_1- (id y) x)]) ψ_2-)
    (subobj (subst oo_1 (id y) x) oo_2)
@@ -110,17 +113,16 @@
                 (x : σ_1 → τ_1 (ψ_1+ ψ_1- oo_1))
                 (y : σ_2 → τ_2 (ψ_2+ ψ_2- oo_2)))]
   
-  [(proves-alg Φ Δ 
+  #;[(proves-alg Φ Δ 
                (sift-Γ ((o -: (subst τ_x o x)) (subst Φ_x o x))) 
                (And: (o -: (subst τ_y o y)) 
                      (subst Φ_y o y)))
    ------------------- "S-Refine-Refine"
    (subtype/ctx Φ Δ o (x : τ_x where Φ_x) (y : τ_y where Φ_y))]
   
-  [(proves-alg Φ Δ 
-               (sift-Γ ((o -: (subst τ_x o x)) (subst Φ_x o x))) 
+  [(proves-alg (app Φ (subst Φ_x o x)) Δ 
+               (sift-Γ ((o -: (subst τ_x o x))))
                (o -: τ))
-   (where #f (is-Refine τ))
    ------------------- "S-Refine-Sub"
    (subtype/ctx Φ Δ o (x : τ_x where Φ_x) τ)]
   
@@ -216,14 +218,14 @@
    (proves-alg Φ Δ (δ_1 ψ_2 ...) ψ)]
   
   [(proves-alg Φ
-               (update* Φ (ext Δ δ_1) δ_1) 
+               (ext (update* Φ (ext Δ) δ_1) δ_1)
                (update* Φ (δ_2 δ_3 ...) δ_1)
                ψ)
    ---------------------- "L-Update*"
    (proves-alg Φ Δ (δ_1 δ_2 δ_3 ...) ψ)]
   
   [(proves-alg Φ
-               (Φ-update-Δ (update* Φ (ext Δ δ) δ) Φ)
+               (Φ-update-Δ (ext (update* Φ Δ δ) δ) Φ)
                ()
                ψ)
    ---------------------- "L-Update*/Φ"
@@ -265,15 +267,15 @@
                                 ; boolean is fixed by caller already
   ; negation union
   [(π-update Φ -! τ -! σ ()) σ
-   (judgment-holds (subtype/ctx Φ () (id ,(gensym)) τ σ))]
+   (judgment-holds (subtype/ctx Φ () (id (fresh-var Φ τ σ)) τ σ))]
   [(π-update Φ -! τ -! σ ()) τ
-   (where/hidden #f (subtype/ctx Φ () (id ,(gensym)) τ σ))
-   (judgment-holds (subtype/ctx Φ () (id ,(gensym)) σ τ))]
+   (where/hidden #f (subtype/ctx Φ () (id (fresh-var Φ τ σ)) τ σ))
+   (judgment-holds (subtype/ctx Φ () (id (fresh-var Φ τ σ)) σ τ))]
   [(π-update Φ -! τ -! σ ()) (U: τ σ)
-   (where/hidden #f (subtype/ctx Φ () (id ,(gensym)) τ σ))
-   (where/hidden #f (subtype/ctx Φ () (id ,(gensym)) σ τ))])
+   (where/hidden #f (subtype/ctx Φ () (id (fresh-var Φ τ σ)) τ σ))
+   (where/hidden #f (subtype/ctx Φ () (id (fresh-var Φ τ σ)) σ τ))])
 
-;; restrict
+
 (define-metafunction λDTR
   restrict : Φ τ σ -> τ
   ;; No common value
@@ -301,22 +303,22 @@
    (where/hidden #f (type-conflict Φ τ (U σ ...)))]
   
   ;; Pairs
-  [(restrict (τ_0 × σ_0) (τ_1 × σ_1)) (Pair: (restrict Φ τ_0 τ_1) (restrict Φ σ_0 σ_1))
-   (where/hidden #f (subtype/ctx Φ () (id ,(gensym)) (τ_0 × σ_0) (τ_1 × σ_1)))]
+  [(restrict Φ (τ_0 × σ_0) (τ_1 × σ_1)) (Pair: (restrict Φ τ_0 τ_1) (restrict Φ σ_0 σ_1))
+   (where/hidden #f (subtype/ctx Φ () (id (fresh-var Φ τ_0 σ_0 τ_1 σ_1)) (τ_0 × σ_0) (τ_1 × σ_1)))]
   
   ;; Vecs
-  [(restrict (♯ τ) (♯ σ)) (Vec: (restrict τ σ))
-   (where/hidden #f (subtype/ctx Φ () (id ,(gensym)) (♯ τ) (♯ σ)))]
+  [(restrict Φ (♯ τ) (♯ σ)) (Vec: (restrict τ σ))
+   (where/hidden #f (subtype/ctx Φ () (id (fresh-var Φ τ σ)) (♯ τ) (♯ σ)))]
   
   ;; else if τ <: σ
   [(restrict Φ τ σ) τ
-   (judgment-holds (subtype/ctx Φ () (id ,(gensym)) τ σ))
+   (judgment-holds (subtype/ctx Φ () (id (fresh-var Φ τ σ)) τ σ))
    (where/hidden #f (is-U τ))
    (where/hidden #f (is-U σ))]
   
   ;; else
   [(restrict Φ τ σ) σ
-   (where #f (subtype/ctx Φ () (id ,(gensym)) τ σ))
+   (where #f (subtype/ctx Φ () (id (fresh-var Φ τ σ)) τ σ))
    (where/hidden #f (is-U τ))
    (where/hidden #f (is-U σ))])
 
@@ -329,25 +331,25 @@
   
   ;; Union
   [(remove Φ (U τ ...) σ) (U: ,@(map (λ (t) (term (remove Φ ,t σ))) (term (τ ...))))
-   (where/hidden #f (subtype/ctx Φ () (id ,(gensym)) (U τ ...) σ))]
+   (where/hidden #f (subtype/ctx Φ () (id (fresh-var Φ (U τ ...) σ)) (U τ ...) σ))]
   
   ;; Refinement
   [(remove Φ (x : τ where Φ_x) σ) (x : (remove Φ τ σ) where Φ_x)
-   (where/hidden #f (subtype/ctx Φ () (id ,(gensym)) (x : τ where Φ_x) σ))
+   (where/hidden #f (subtype/ctx Φ () (id (fresh-var Φ (x : τ where Φ_x) σ)) (x : τ where Φ_x) σ))
    (where/hidden #f (is-Refine σ))]
   
   ;; Pairs
   [(remove Φ (τ_0 × σ_0) (τ_1 × σ_1)) (Pair: (remove Φ τ_0 τ_1) 
                                              (remove Φ σ_0 σ_1))
-   (where/hidden #f (subtype/ctx Φ () (id ,(gensym)) (τ_0 × σ_0) (τ_1 × σ_1)))]
+   (where/hidden #f (subtype/ctx Φ () (id (fresh-var Φ (τ_0 × σ_0) (τ_1 × σ_1))) (τ_0 × σ_0) (τ_1 × σ_1)))]
   
   ;; Vecs
   [(remove Φ (♯ τ) (♯ σ)) (Vec: (remove Φ τ σ))
-   (where/hidden #f (subtype/ctx Φ () (id ,(gensym)) (♯ τ) (♯ σ)))]
+   (where/hidden #f (subtype/ctx Φ () (id (fresh-var Φ (♯ τ) (♯ σ))) (♯ τ) (♯ σ)))]
   
   ;; non-special-case
   [(remove Φ τ σ) τ
-   (where/hidden #f (subtype/ctx Φ () (id ,(gensym)) τ σ))
+   (where/hidden #f (subtype/ctx Φ () (id (fresh-var Φ τ σ)) τ σ))
    (where/hidden #f (is-U τ))
    (where/hidden #f (is-Refine τ))
    (where/hidden #f ,(and (term (is-Pair τ)) (term (is-Pair σ))))
@@ -424,6 +426,7 @@
    (common-val Φ (U τ_1 ... τ τ_2 ...) σ)]
   
   [(common-val Φ τ σ)
+   (where/hidden #f (is-U τ))
    ------------------ "CV-Union-rhs"
    (common-val Φ τ (U σ_1 ... σ σ_2 ...))]
   
@@ -452,7 +455,9 @@
    ----------------- "CV-Refine-R"
    (common-val Φ τ (y : σ where Φ_y))]
   
-  [(where o_f (id ,(gensym)))
+  [(where o_f (id (fresh-var Φ 
+                            (x : τ where Φ_x) 
+                            (y : σ where Φ_y))))
    (fme-sat (app (subst Φ_x o_f x) 
                  (subst Φ_y o_f y)
                  Φ))
@@ -647,9 +652,7 @@
    (where Φ_rest (subst-Φ [(≤ o_2l o_2r) ...] o x))
    (where [(≤ o_l o_r)] (≤: (subst-oo o_1l o x)
                             (subst-oo o_1r o x)))])
-#;(subst-Φ ((≤ (() @ g17994) (+ (() @ x) (() @ g17989))) (≤ (+ (() @ x) (() @ g17989)) (() @ g17994))) 
-           Ø 
-           g17989)
+
 ;; standard captura avoiding substitution
 ;; with smart constructors
 (define-metafunction λDTR
@@ -674,13 +677,13 @@
        (subst (subst-ψ ψ_- (id z) y) oo x)
        (subst-oo (subst-oo oo_f (id z) y) oo x)))
    (judgment-holds (<> x y))
-   (where z ,(gensym))]
+   (where z (fresh-var (y : σ → τ (ψ_+ ψ_- oo_f)) oo x))]
   [(subst-τ (x : τ where Φ) oo x) (x : τ where Φ)]
   [(subst-τ (y : τ where Φ) oo x)
    (z : (subst-τ (subst-τ τ (id z) y) oo x) 
       where (subst (subst Φ (id z) y) oo x))
    (judgment-holds (<> x y))
-   (where z ,(gensym))])
+   (where z (fresh-var (y : τ where Φ) oo x))])
 
 (define-metafunction λDTR
   op-τ : op -> τ
@@ -766,7 +769,7 @@
    (typeof Γ e_1 σ_λ (ψ_1+ ψ_1- oo_1))
    (where (x : σ_f → τ_f (ψ_f+ ψ_f- oo_f)) (exists/fun-τ σ_λ))
    (typeof Γ e_2 σ_2 (ψ_2+ ψ_2- oo_2))
-   (subtype/Γ Γ (id ,(gensym)) σ_2 σ_f)
+   (subtype/Γ Γ (id (fresh-var Γ (e_1 e_2))) σ_2 σ_f)
    -------------- "T-App"
    (typeof Γ
            (e_1 e_2)
@@ -808,35 +811,43 @@
 
   [(typeof Γ e σ_c (ψ_+ ψ_- oo))
    (where (τ × σ) (exists/pair-τ σ_c))
-   (where/hidden x ,(gensym))
+   (where/hidden x (fresh-var Γ (car e)))
    ------------------------- "T-Car"
    (typeof Γ
            (car e) 
            τ
            ((subst (And: (((CAR) @ x) -! #f)
-                         (((CAR) @ x) -: τ)) oo x)
+                         (And: (((CAR) @ x) -: τ)
+                               (true-ψ τ))) 
+                   oo x)
             (subst (And: (((CAR) @ x) -: #f)
-                         (((CAR) @ x) -: τ)) oo x)
+                         (And: (((CAR) @ x) -: τ)
+                               (false-ψ τ)))
+                   oo x)
             (subst ((CAR) @ x) oo x)))]
   
   [(typeof Γ e σ_c (ψ_+ ψ_- oo))
    (where (τ × σ) (exists/pair-τ σ_c))
-   (where/hidden (() @ x) (id ,(gensym)))
+   (where/hidden x (fresh-var Γ (cdr e)))
    ------------------------- "T-Cdr"
    (typeof Γ
            (cdr e) 
            σ
            ((subst (And: (((CDR) @ x) -! #f)
-                         (((CDR) @ x) -: σ)) oo x)
+                         (And: (((CDR) @ x) -: σ)
+                               (true-ψ σ))) 
+                   oo x)
             (subst (And: (((CDR) @ x) -: #f)
-                         (((CDR) @ x) -: σ)) oo x)
+                         (And: (((CDR) @ x) -: σ)
+                               (false-ψ σ)))
+                   oo x)
             (subst ((CDR) @ x) oo x)))]
   
   [(typeof Γ e_0 τ_0 (ψ_0+ ψ_0- oo_0)) ...
    (typeof Γ e_i τ_i (ψ_i+ ψ_i- oo_i))
    (where τ (τ-join τ_0 ... τ_i))
    (where/hidden i ,(length (term (e_0 ... e_i))))
-   (where x ,(gensym))
+   (where x (fresh-var Γ (vec e_0 ... e_i)))
    ------------------------- "T-Vec"
    (typeof Γ (vec e_0 ... e_i) (x : (♯ τ) where (Φ= i (o-len (id x))))
            (TT FF Ø))]
@@ -844,7 +855,7 @@
   [(typeof Γ e_1 σ_v (ψ_1+ ψ_1- oo_1))
    (typeof Γ e_2 σ_i (ψ_2+ ψ_2- oo_2))
    (where (♯ τ) (exists/vec-τ σ_v))
-   (where x ,(gensym))
+   (where x (fresh-var Γ (vec-ref e_1 e_2)))
    (where o_1 ,(fresh-if-needed (term oo_1)))
    (where o_2 ,(fresh-if-needed (term oo_2)))
    (subtype/Γ (ext Γ (o_1 -: σ_v)) o_2 σ_i (IntRange 0 (+ -1 (o-len o_1))))
@@ -876,7 +887,7 @@
    (where #f (is-Refine σ))
    (where #f (is-Abs σ))])
 
-(define (fresh-if-needed oo)
+(define (fresh-if-needed oo . rest)
   (match oo
     ['Ø (term (id ,(gensym)))]
     [_ oo]))
@@ -886,7 +897,7 @@
   [(true-ψ τ) TT
    (where #f (subtype #f τ))]
   [(true-ψ τ) FF
-   (judgment-holds (subtype τ #f))])
+   (judgment-holds (subtype #f τ))])
 
 (define-metafunction λDTR
   false-ψ : τ -> ψ
@@ -974,12 +985,6 @@
   [(dnf* ((Φ (δ ...)) ...) (o ? τ) (ψ ψ_1 ...))
    (dnf* ((Φ (update* () (ext (δ ...) (o ? τ)) (o ? τ))) ...) 
          (ψ-update () ψ (o ? τ))
-         (update* () (ψ_1 ...) (o ? τ)))]
-  #;[(dnf* ((Φ (δ ...)) ...) (o ? τ) ())
-   (((app Φ (implied-Φ o ? τ)) (update* () (ext (δ ...) (o ? τ)) (o ? τ))) ...)] ;; trying it w/o implied-Φ
-  #;[(dnf* ((Φ (δ ...)) ...) (o ? τ) (ψ ψ_1 ...))
-   (dnf* (((app Φ (implied-Φ o ? τ)) (update* () (ext (δ ...) (o ? τ)) (o ? τ))) ...) 
-         (ψ-update ψ (o ? τ))
          (update* () (ψ_1 ...) (o ? τ)))])
 
 
@@ -989,8 +994,8 @@
   [(id x) (() @ x)])
 
 (define-metafunction λDTR
-  fresh-o : any ... -> o
-  [(fresh-o any ...) (id ,(gensym 'fresh))])
+  fresh-var : any ... -> x
+  [(fresh-var any ...) ,(gensym 'fresh)])
 
 (define-metafunction λDTR
   ext : any any ... -> any
@@ -1017,23 +1022,6 @@
   [(o-len (+ o_1 o_2)) (+ o_1 o_2)]
   [(o-len ((pe ...) @ x)) ((LEN pe ...) @ x)])
 
-
-#;(define-metafunction λDTR
-  implied-Φ : o ? τ -> Φ
-  [(implied-Φ o -! τ) ()]
-  [(implied-Φ o -: Top) ()]
-  [(implied-Φ o -: #t) ()]
-  [(implied-Φ o -: #f) ()]
-  [(implied-Φ o -: Int) ()]
-  [(implied-Φ o -: Str) ()]
-  [(implied-Φ o -: (U τ ...)) ()]
-  [(implied-Φ o -: (x : σ → τ (ψ_+ ψ_- oo))) ()]
-  [(implied-Φ o -: (τ × σ)) (app (implied-Φ (o-car o) -: τ)
-                                 (implied-Φ (o-cdr o) -: σ))]
-  [(implied-Φ o -: (♯ τ)) ()]
-  [(implied-Φ o -: (x : τ where Φ)) (app (subst Φ o x)
-                                         (implied-Φ o -: τ))])
-
 (define-metafunction λDTR
   sift-δ : δ b -> ψ
   [(sift-δ (o -! τ) b) (o -! τ)]
@@ -1058,9 +1046,12 @@
                                     (sift-δ ((o-cdr o) -: σ) #f))]
   [(sift-δ (o -: (♯ τ)) #t) (And: (o -: (♯ τ))
                                   (subst (sift-δ ((id x) -: τ) #f) Ø x))
-                            (where x ,(gensym))]
+                            (where x (fresh-var (o -: (♯ τ))))]
+  [(sift-δ (o -: (♯ τ)) #f) (subst (sift-δ ((id x) -: τ) #f) Ø x)
+                                  
+                            (where x (fresh-var (o -: (♯ τ))))]
   [(sift-δ (o -: (x : τ where Φ)) b) (And: (subst Φ o x)
-                                           (sift-δ (o -: τ) b))])
+                                           (sift-δ (o -: (subst τ o x)) b))])
 
 (define-metafunction λDTR
   sift-ψ : ψ -> ψ
@@ -1099,13 +1090,13 @@
   [(Φ-update-τ o -: (U τ ...) Φ) (U  (Φ-update-τ o -: τ Φ) ...)]
   [(Φ-update-τ o -: (x : σ → τ (ψ_+ ψ_- oo)) Φ) (x : σ → τ (ψ_+ ψ_- oo))]
   [(Φ-update-τ o -: (τ × σ) Φ) ((Φ-update-τ (o-car o) -: τ Φ) × (Φ-update-τ (o-cdr o) -: σ Φ))]
-  [(Φ-update-τ o -: (♯ τ) Φ) (Φ-update-τ (id ,(gensym)) -: τ Φ)]
+  [(Φ-update-τ o -: (♯ τ) Φ) (♯ (Φ-update-τ (id (fresh-var o τ Φ)) -: τ Φ))]
   [(Φ-update-τ o -: (x : τ where Φ_x) Φ) (z : (Φ-update-τ o -: (subst τ (id z) x) Φ) 
                                             where (subst Φ_x (id z) x))
-   (judgment-holds (fme-sat (app Φ (subst Φ_x (id ,(gensym)) x))))
-   (where z ,(gensym))]
+   (judgment-holds (fme-sat (app Φ (subst Φ_x (id (fresh-var o x τ Φ_x Φ z)) x))))
+   (where z (fresh-var o x τ Φ_x Φ))]
   [(Φ-update-τ o -: (x : τ where Φ_x) Φ) (U)
-   (where #f (fme-sat (app Φ (subst Φ_x (id ,(gensym)) x))))])
+   (where #f (fme-sat (app Φ (subst Φ_x (id (fresh-var o x τ Φ_x Φ)) x))))])
 
 (define-metafunction λDTR
   Pair: : τ τ -> τ
@@ -1128,33 +1119,33 @@
 (define-metafunction λDTR
   Int= : o -> τ
   [(Int= o) (x : Int where [(≤ (id x) o) (≤ o (id x))])
-   (where x ,(gensym))])
+   (where x (fresh-var o))])
 
 (define-metafunction λDTR
   Int< : o -> τ
   [(Int< o) (x : Int where [(≤ (+ 1 (id x)) o)])
-   (where x ,(gensym))])
+   (where x (fresh-var o))])
 
 (define-metafunction λDTR
   Int> : o -> τ
   [(Int> o) (x : Int where [(≤ (+ 1 o) (id x))])
-   (where x ,(gensym))])
+   (where x (fresh-var o))])
 
 
 (define-metafunction λDTR
   Int<= : o -> τ
   [(Int<= o) (x : Int where [(≤ (id x) o)])
-   (where x ,(gensym))])
+   (where x (fresh-var o))])
 
 (define-metafunction λDTR
   Int>= : o -> τ
   [(Int>= o) (x : Int where [(≤ o (id x))])
-   (where x ,(gensym))])
+   (where x (fresh-var o))])
 
 (define-metafunction λDTR
   IntRange : o o -> τ
   [(IntRange o_l o_h) (x : Int where (Φin-range (id x) o_l o_h))
-   (where x ,(gensym))])
+   (where x (fresh-var o_l o_h))])
 
 (define-metafunction λDTR
   Φ= : o o -> Φ
@@ -1181,7 +1172,8 @@
 
 (define-metafunction λDTR
   flatten+dedupe-U : (U τ ...) -> τ
-  [(flatten+dedupe-U (U τ ...)) (U ,@(remove-duplicates (cdr (term (flatten-U (U τ ...))))))])
+  [(flatten+dedupe-U (U τ ...)) 
+   (U ,@(remove-duplicates (cdr (term (flatten-U (U τ ...))))))])
 
 
 (define-metafunction λDTR
@@ -1226,3 +1218,15 @@
 (define-metafunction λDTR
   ! : x τ -> δ
   [(! x τ) ((id x) -! τ)])
+
+
+
+
+
+
+
+
+
+
+
+

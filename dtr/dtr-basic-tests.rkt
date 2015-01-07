@@ -2,8 +2,39 @@
 
 (require redex "dtr-redex.rkt" rackunit)
 
-;; substs tests
+;; oo substs tests
 (check-equal? (term (subst (id x) Ø x)) (term Ø))
+(check-equal? (term (subst (id y) Ø x)) (term (id y)))
+(check-equal? (term (subst Ø (id y) x)) (term Ø))
+
+;; type subst tests
+(check-equal? (term (subst Top (id z) x)) (term Top))
+(check-equal? (term (subst Top Ø x)) (term Top))
+(check-equal? (term (subst Int (id z) x)) (term Int))
+(check-equal? (term (subst Str (id z) x)) (term Str))
+(check-equal? (term (subst #t (id z) x)) #t)
+(check-equal? (term (subst #f (id z) x)) #f)
+(check-equal? (term (subst (U Int Str) (id z) x)) (term (U Int Str)))
+(check-equal? (term (subst (x : Top → (U #t #f) (((id x) -: Int) ((id x) -! Int) Ø)) 
+                           (id z) 
+                           x)) 
+              (term (x : Top → (U #t #f) (((id x) -: Int) ((id x) -! Int) Ø))))
+(check-true (match (term (subst (y : Top → (U #t #f) (((id x) -: Int) ((id x) -! Int) Ø)) 
+                                (id z) 
+                                x))
+              [`(,y : Top → (U #t #f) (((() @ z) -: Int) ((() @ z) -! Int) Ø)) #t]
+              [_ #f]))
+(check-true (match (term (subst (y : Int → Int (TT FF (id x)))
+                                (id z) 
+                                x))
+              [`(,y : Int → Int (TT FF (() @ z))) #t]
+              [_ #f]))
+(check-equal? (term (subst ((U Int Str) × (U Int Str)) (id z) x)) 
+              (term ((U Int Str) × (U Int Str))))
+(check-equal? (term (subst (♯ (U Int Str)) (id z) x)) 
+              (term (♯ (U Int Str))))
+
+
 (check-equal? (term (subst ((id x) -: Int) (id x) x)) 
               (term ((id x) -: Int)))
 (check-equal? (term (subst ((id x) -: Int) (id y) x)) 
@@ -14,9 +45,14 @@
               (term TT))
 (check-equal? (term (subst ((+ 42 (* 13 (id x))) -: Int) Ø x)) 
               (term TT))
-(check-equal? (term (subst ((+ 42 (* 13 (id x))) -: Int) (+ (id z) (id q)) x)) 
+(check-equal? (term (subst (((+ 42 (* 13 (id x))) -: Int) ∧ ((+ 42 (* 13 (id x))) -: Int)) Ø x)) 
+              (term TT))
+(check-equal? (term (subst ((+ 42 (* 13 (id x))) -: Int) (+ (id z) (id q)) x))
               (term ((+ 42 (* 13 (+ (id z) (id q)))) -: Int)))
-
+(check-equal? (term (subst (((+ 42 (* 13 (id x))) -: Int) ∨ ((+ 42 (* 13 (id x))) -: Int)) 
+                           (+ (id z) (id q)) x))
+              (term (((+ 42 (* 13 (+ (id z) (id q)))) -: Int) 
+                     ∨ ((+ 42 (* 13 (+ (id z) (id q)))) -: Int))))
 ;; fme tests
 (check-true (judgment-holds (fme-sat [])))
 (check-true (judgment-holds (fme-sat [(≤ (id x) (id y))])))
@@ -158,3 +194,8 @@
 
 (check-true (judgment-holds (proves ([(≤ (id x) 3)]) [(≤ (id x) 5)])))
 
+(check-true (judgment-holds (subtype/Γ () 
+                                       (id ,(gensym))
+                                       (U (x : Int where ((≤ (() @ x) (+ 1 (() @ x))) (≤ (+ 1 (() @ x)) (() @ x))))
+                                          (y : Int where ((≤ (() @ y) 0) (≤ 0 (() @ y)))))
+                                       Int)))

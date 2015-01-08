@@ -143,8 +143,9 @@
                              ((id x) -: (q : Int where [(≤ (id q) (+ 1 (id q)))]))))
               (term (((id x) -: (z : Int where [(≤ (id z) (id z))
                                                  (≤ (id z) (+ 1 (id z)))])))))
-(check-equal? (term (update* () [((id x) -: (z : (U Int Str) where [(≤ (+ 1 (id z)) (id x))]))]
-                              ((id x) -: (q : Int where [(≤ (+ 1 (id x)) (id q))]))))
+(check-equal? (term (update* () 
+                             [((id x) -: (z : (U Int Str) where (Φ< (id z) (id x))))]
+                             ((id x) -: (q : Int where (Φ< (id x) (id q))))))
               (term (((id x) -: (U)))))
 
 ;; update* () other tests
@@ -212,4 +213,17 @@
                                          (U (x : Int where ((≤ (() @ x) (+ 1 (() @ x))) (≤ (+ 1 (() @ x)) (() @ x))))
                                             (y : (z : Int where ((≤ (() @ z) 0))) 
                                                where ((≤ 0 (() @ y)))))
+                                         Int)))
+
+;; arbitrary refinement subtyping =O
+(check-true (judgment-holds (subtype/ctx (env: (is y Top)) 
+                                         (id x)
+                                         (z : (U Int Str) where (Or: (And: (is x Int) (is y Int))
+                                                                     (And: (is x Str) (is y Str))))
+                                         (U Int Str))))
+
+(check-true (judgment-holds (subtype/ctx (env: (is y Int)) 
+                                         (id x)
+                                         (z : (U Int Str) where (Or: (And: (is x Int) (is y Int))
+                                                                     (And: (is x Str) (is y Str))))
                                          Int)))

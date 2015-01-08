@@ -7,9 +7,9 @@
   #:contract (typeof* Γ e τ (ψ ψ oo))
   [(where o (id ,(gensym)))
    (typeof Γ e_1 τ_2 (ψ_2+ ψ_2- oo_2))
-   (subtype/Γ Γ o τ_2 τ_1)
-   (proves (ext Γ ψ_2+) ψ_1+)
-   (proves (ext Γ ψ_2-) ψ_1-)
+   (subtype/ctx Γ o τ_2 τ_1)
+   (proves (env/sift+ψ* Γ ψ_2+) ψ_1+)
+   (proves (env/sift+ψ* Γ ψ_2-) ψ_1-)
    (subobj oo_2 oo_1)
    -------------- "T-Subsume"
    (typeof* Γ e_1 τ_1 (ψ_1+ ψ_1- oo_1))])
@@ -32,7 +32,7 @@
 ;; T-Int
 (check-true 
  (judgment-holds 
-  (typeof* () 
+  (typeof* (empty-env) 
            42 
            Int 
            (TT FF Ø))))
@@ -40,7 +40,7 @@
 ;; T-Str
 (check-true 
  (judgment-holds 
-  (typeof* () 
+  (typeof* (empty-env) 
            "Hello World"
            Str 
            (TT FF Ø))))
@@ -48,7 +48,7 @@
 ;; T-True
 (check-true 
  (judgment-holds 
-  (typeof* () 
+  (typeof* (empty-env) 
            #t
            #t 
            (TT FF Ø))))
@@ -56,7 +56,7 @@
 ;; T-False
 (check-true 
  (judgment-holds 
-  (typeof* () 
+  (typeof* (empty-env) 
            #f
            #f
            (FF TT Ø))))
@@ -64,7 +64,7 @@
 ;; T-Var
 (check-true 
  (judgment-holds 
-  (typeof* ((is x Int))
+  (typeof* (env: (is x Int))
            (ann x Int)
            Int
            (TT FF Ø))))
@@ -73,7 +73,7 @@
 ;; T-Abs
 (check-true 
  (judgment-holds 
-  (typeof* ()
+  (typeof* (empty-env)
            (λ (x : Int) (ann x Int))
            (x : Int → Int (TT FF (id x)))
            (TT FF Ø))))
@@ -81,14 +81,14 @@
 ;; T-App
 (check-true
  (judgment-holds 
-  (typeof* ()
+  (typeof* (empty-env)
            (add1 41)
            Int
            (TT FF Ø))))
 
 (check-true
  (judgment-holds 
-  (typeof* ()
+  (typeof* (empty-env)
            (add1 41)
            (Int= 42)
            (TT FF 42))))
@@ -96,7 +96,7 @@
 ;; T-If
 (check-true
  (judgment-holds 
-  (typeof* ((is x (U #t #f)))
+  (typeof* (env: (is x (U #t #f)))
            (if (ann x (U #t #f))
                (add1 41)
                42)
@@ -105,7 +105,7 @@
 
 (check-true
  (judgment-holds 
-  (typeof* ((is x (U #t #f)))
+  (typeof* (env: (is x (U #t #f)))
            (if (ann x (U #t #f))
                42
                "Hello World")
@@ -115,7 +115,7 @@
 ;; T-Let
 (check-true
  (judgment-holds 
-  (typeof* ((is x (U #t #f)))
+  (typeof* (env: (is x (U #t #f)))
            (let (y (ann x (U #t #f)))
             (if (ann y (U #t #f))
                42
@@ -125,7 +125,7 @@
 
 (check-true
  (judgment-holds 
-  (typeof* ((is x Top))
+  (typeof* (env: (is x Top))
            (let (y (ann x Top))
              (ann y Top))
            Top
@@ -133,7 +133,7 @@
 
 (check-true
  (judgment-holds 
-  (typeof* ((is x Top))
+  (typeof* (env: (is x Top))
            (let (y (int? (ann x Top)))
              (ann y (U #t #f)))
            (U #t #f)
@@ -142,14 +142,14 @@
 ;; T-Cons
 (check-true
  (judgment-holds 
-  (typeof* ()
+  (typeof* (empty-env)
            (cons 42 "Hello World")
            (Int × Str)
            (TT FF Ø))))
 
 (check-true
  (judgment-holds 
-  (typeof* ()
+  (typeof* (empty-env)
            (cons (cons 40 2) (cons "Hello" "World"))
            ((Int × Int) × (Str × Str))
            (TT FF Ø))))
@@ -157,14 +157,14 @@
 ;; T-Car
 (check-true
  (judgment-holds 
-  (typeof* ()
+  (typeof* (empty-env)
            (car (cons 42 "Hello World"))
            Int
            (TT FF Ø))))
 
 (check-true
  (judgment-holds 
-  (typeof* ((is p (Int × Str)))
+  (typeof* (env: (is p (Int × Str)))
            (car (ann p (Int × Str)))
            Int
            (TT FF ((CAR) @ p)))))
@@ -172,14 +172,14 @@
 ;; T-Cdr
 (check-true
  (judgment-holds 
-  (typeof* ()
+  (typeof* (empty-env)
            (cdr (cons 42 "Hello World"))
            Str
            (TT FF Ø))))
 
 (check-true
  (judgment-holds 
-  (typeof* ((is p (Int × Str)))
+  (typeof* (env: (is p (Int × Str)))
            (cdr (ann p (Int × Str)))
            Str
            (TT FF ((CDR) @ p)))))
@@ -187,21 +187,21 @@
 ;; T-Vec
 (check-true
  (judgment-holds
-  (typeof* ()
+  (typeof* (empty-env)
            (vec 42)
            (♯ Int)
            (TT FF Ø))))
 
 (check-true
  (judgment-holds
-  (typeof* ()
+  (typeof* (empty-env)
            (vec 42 "Hello World")
            (♯ (U Int Str))
            (TT FF Ø))))
 
 (check-true
  (judgment-holds
-  (typeof* ()
+  (typeof* (empty-env)
            (vec 42 "All" "Your" "Base" "Are" "Belong" "To" "Us!")
            (♯ (U Int Str))
            (TT FF Ø))))
@@ -209,35 +209,35 @@
 ;; T-VecRef
 (check-true
  (judgment-holds
-  (typeof* ()
+  (typeof* (empty-env)
            (vec-ref (vec 42 "All" "Your" "Base" "Are" "Belong" "To" "Us!") 0)
            (U Int Str)
            (TT TT Ø))))
 
 (check-true
  (judgment-holds
-  (typeof* ()
+  (typeof* (empty-env)
            (vec-ref (vec 42 "All" "Your" "Base" "Are" "Belong" "To" "Us!") ((* 2) 2))
            (U Int Str)
            (TT TT Ø))))
 
 (check-false
  (judgment-holds
-  (typeof* ()
+  (typeof* (empty-env)
            (vec-ref (vec 42 "All" "Your" "Base" "Are" "Belong" "To" "Us!") ((+ 0) -1))
            (U Int Str)
            (TT TT Ø))))
 
 (check-true
  (judgment-holds
-  (typeof* ()
+  (typeof* (empty-env)
            (vec-ref (vec 42 "All" "Your" "Base" "Are" "Belong" "To" "Us!") 7)
            (U Int Str)
            (TT TT Ø))))
 
 (check-false
  (judgment-holds
-  (typeof* ()
+  (typeof* (empty-env)
            (vec-ref (vec 42 "All" "Your" "Base" "Are" "Belong" "To" "Us!") ((* 2) 4))
            (U Int Str)
            (TT TT Ø))))
@@ -245,7 +245,7 @@
 ;;; Example 1
 (check-true 
  (judgment-holds 
-  (typeof* [(is x Top)] 
+  (typeof* (env: (is x Top))
            (if (int? (ann x Top))
                (add1 (ann x Int))
                0) 
@@ -254,7 +254,7 @@
 
 (check-true 
  (judgment-holds 
-  (typeof* []
+  (typeof* (empty-env)
            (λ (x : Int)
              (add1 (ann x Int)))
            (x : Int → Int (TT FF Ø))
@@ -262,7 +262,7 @@
 
 (check-true 
  (judgment-holds 
-  (typeof* [(is x (U Str Int))] 
+  (typeof* (env: (is x (U Str Int)))
            (if (int? (ann x Top))
                (add1 (ann x Int))
                (str-len (ann x Str)))
@@ -271,14 +271,14 @@
 
 (check-true 
  (judgment-holds 
-  (typeof* [(is x Top)]
+  (typeof* (env: (is x Top))
            (int? (ann x Top))
            (U #t #f)
            ((is x Int) (! x Int) Ø))))
 
 (check-true 
  (judgment-holds 
-  (typeof* []
+  (typeof* (empty-env)
            (λ (x : Top)
              (int? (ann x Top)))
            (x : Top → (U #t #f) ((is x Int) (! x Int) Ø))
@@ -288,7 +288,7 @@
 ;;; Example 2
 (check-true 
  (judgment-holds 
-  (typeof* []
+  (typeof* (empty-env)
            (λ (x : (U Str Int))
              (if (int? (ann x Top))
                  (add1 (ann x Int))
@@ -298,7 +298,7 @@
 
 (check-true 
  (judgment-holds 
-  (typeof* [(is x Top)]
+  (typeof* (env: (is x Top))
            (if (int? (ann x Top))
                #t
                (str? (ann x Top)))
@@ -308,7 +308,7 @@
 ;;; Example 3
 (check-true 
  (judgment-holds 
-  (typeof* [(is x (Option Str))]
+  (typeof* (env: (is x (Option Str)))
            (if (ann x Top)
                (str-len (ann x Str))
                (error "string not found!"))
@@ -318,7 +318,7 @@
 
 (check-true
  (judgment-holds 
-  (typeof* [(is x Top)]
+  (typeof* (env: (is x Top))
            (let (tmp (int? (ann x Top))) 
              (ann tmp (U #t #f)))
            (U #t #f)
@@ -326,7 +326,7 @@
 
 (check-true
  (judgment-holds 
-  (typeof* [(is x Top)]
+  (typeof* (env: (is x Top))
            (let (tmp (int? (ann x Top))) 
              (if (ann tmp (U #t #f))
                  (ann tmp (U #t #f))
@@ -336,7 +336,7 @@
 
 (check-true 
  (judgment-holds 
-  (typeof* [(is x Top)]
+  (typeof* (env: (is x Top))
            (or (int? (ann x Top))
                (str? (ann x Top)))
            (U #t #f)
@@ -344,8 +344,8 @@
 
 ;;; Example 4
 (check-true (judgment-holds 
-             (typeof* [(is f (x : (U Int Str) → Int (TT FF Ø)))
-                       (is x Top)]
+             (typeof* (env: (is f (x : (U Int Str) → Int (TT FF Ø)))
+                            (is x Top))
                       (if (or (int? (ann x Top))
                               (str? (ann x Top)))
                           ((ann f (x : (U Int Str) → Int (TT FF Ø)))
@@ -358,7 +358,7 @@
 ;;; Example 5
 (check-true 
  (judgment-holds 
-  (typeof* [(is x Top) (is y Top)]
+  (typeof* (env: (is x Top) (is y Top))
            (if (and (int? (ann x Top)) (str? (ann y Top)))
                ((+ (ann x Int)) (str-len (ann y Str)))
                0)
@@ -368,7 +368,7 @@
 ;;; Example 6
 (check-false 
  (judgment-holds 
-  (typeof* [(is x Top) (is y Top)]
+  (typeof* (env: (is x Top) (is y Top))
            (if (and (int? (ann x Top)) (str? (ann y Top)))
                ((+ (ann x Int)) (str-len (ann y Str)))
                (str-len (ann y Str)))
@@ -378,7 +378,7 @@
 ;;; Example 7
 (check-true 
  (judgment-holds 
-  (typeof* [(is x Top) (is y Top)]
+  (typeof* (env: (is x Top) (is y Top))
            (if (if (int? (ann x Top)) (str? (ann y Top)) #f)
                ((+ (ann x Int)) (str-len (ann y Str)))
                0)
@@ -388,7 +388,7 @@
 ;;; Example 8
 (check-true 
  (judgment-holds 
-  (typeof* [(is x Top)]
+  (typeof* (env: (is x Top))
            (let (tmp (str? (ann x Top)))
              (if (ann tmp Top)
                  (ann tmp Top)
@@ -399,7 +399,7 @@
 ;;; Example 9
 (check-true 
  (judgment-holds 
-  (typeof* [(is x Top)]
+  (typeof* (env: (is x Top))
            (if (let (tmp (int? (ann x Top)))
                  (if (ann tmp Top)
                      (ann tmp Top)
@@ -417,7 +417,7 @@
 ;;; Example 10
 (check-true 
  (judgment-holds 
-  (typeof* [(is p (Top × Top))]
+  (typeof* (env: (is p (Top × Top)))
            (if (int? (car (ann p (Top × Top))))
                (add1 (car (ann p (Int × Top))))
                7)
@@ -427,8 +427,8 @@
 ;;; Example 11
 (check-true 
  (judgment-holds 
-  (typeof* [(is p (Top × Top))
-            (is g (x : (Int × Int) → Int (TT FF Ø)))]
+  (typeof* (env: (is p (Top × Top))
+                 (is g (x : (Int × Int) → Int (TT FF Ø))))
            (if (and (int? (car (ann p (Top × Top))))
                     (int? (cdr (ann p (Top × Top)))))
                ((ann g (x : (Int × Int) → Int (TT FF Ø)))
@@ -440,7 +440,7 @@
 ;;; Example 12
 (check-true 
  (judgment-holds 
-  (typeof* []
+  (typeof* (empty-env)
            (λ (p : (Top × Top))
              (int? (car (ann p (Top × Top)))))
            (x : (Top × Top) →
@@ -452,7 +452,7 @@
 
 (check-true 
  (judgment-holds 
-  (typeof* []
+  (typeof* (empty-env)
            (λ (p : (Top × Top))
              (int? (cdr (ann p (Top × Top)))))
            (x : (Top × Top) →
@@ -465,7 +465,7 @@
 ;;; Example 13
 (check-true 
  (judgment-holds 
-  (typeof* [(is x Top) (is y (U Int Str))]
+  (typeof* (env: (is x Top) (is y (U Int Str)))
            (if (and (int? (ann x Top)) (str? (ann y Top)))
                ((+ (ann x Int)) (str-len (ann y Str)))
                (if (int? (ann x Top))
@@ -477,7 +477,7 @@
 ;;; Example 14
 (check-true 
  (judgment-holds 
-  (typeof* [(is x Top)]
+  (typeof* (env: (is x Top))
            (λ (y : (U Int Str))
              (if (and (int? (ann x Top)) (str? (ann y Top)))
                  ((+ (ann x Int)) (str-len (ann y Str)))

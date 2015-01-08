@@ -162,40 +162,40 @@
               (term (((id x) -: (U)))))
 
 ;;logic tests
-(check-false (judgment-holds (proves [] FF)))
-(check-true (judgment-holds (proves [((id x) -: Int)]
+(check-false (judgment-holds (proves (empty-env) FF)))
+(check-true (judgment-holds (proves (env: ((id x) -: Int))
                                     ((id x) -: Int))))
-(check-true (judgment-holds (proves [((id x) -: Int)]
+(check-true (judgment-holds (proves (env: ((id x) -: Int))
                                     ((id x) -! Str))))
-(check-true (judgment-holds (proves [(((id x) -: Int) 
-                                      ∧ ((id y) -: #f))] 
+(check-true (judgment-holds (proves (env: (((id x) -: Int) 
+                                           ∧ ((id y) -: #f))) 
                                     (((id y) -: #f) 
                                      ∧ ((id x) -: Int)))))
-(check-true (judgment-holds (proves [((id x) -: Int)] 
+(check-true (judgment-holds (proves (env: ((id x) -: Int)) 
                                     (((id x) -: Int) 
                                      ∨ ((id x) -: (U #t #f))))))
-(check-true (judgment-holds (proves [((id x) -: Int)
-                                     ((id x) -! Int)] 
+(check-true (judgment-holds (proves (env: ((id x) -: Int)
+                                          ((id x) -! Int)) 
                                     FF)))
-(check-true (judgment-holds (proves [((id x) -: Int) 
-                                     ((id x) -: Str)] 
+(check-true (judgment-holds (proves (env: ((id x) -: Int) 
+                                          ((id x) -: Str)) 
                                     FF)))
-(check-true (judgment-holds (proves [((id x) -: (U #t #f Int)) 
-                                     (((id x) -! #t) 
-                                      ∧ ((id x) -: (U #t Int)))]
+(check-true (judgment-holds (proves (env: ((id x) -: (U #t #f Int)) 
+                                          (((id x) -! #t) 
+                                           ∧ ((id x) -: (U #t Int))))
                                     ((id x) -: Int))))
-(check-true (judgment-holds (proves [((((id z) -: (U)) ∨ FF)
-                                      ∨ ((id x) -: Int))
-                                     (((id x) -! Int) 
-                                      ∨ ((id y) -: (U #t #f)))
-                                     (((id y) -: Int) 
-                                      ∨ ((id z) -: (U #t #f)))] 
+(check-true (judgment-holds (proves (env: ((((id z) -: (U)) ∨ FF)
+                                           ∨ ((id x) -: Int))
+                                          (((id x) -! Int) 
+                                           ∨ ((id y) -: (U #t #f)))
+                                          (((id y) -: Int) 
+                                           ∨ ((id z) -: (U #t #f)))) 
                                     ((id z) -: (U #t #f)))))
 
-(check-true (judgment-holds (proves ([(≤ (id x) 3)]) [(≤ (id x) 5)])))
+(check-true (judgment-holds (proves (env: [(≤ (id x) 3)]) [(≤ (id x) 5)])))
 
-(check-true (judgment-holds (subtype/Γ () 
-                                       (id ,(gensym))
-                                       (U (x : Int where ((≤ (() @ x) (+ 1 (() @ x))) (≤ (+ 1 (() @ x)) (() @ x))))
-                                          (y : Int where ((≤ (() @ y) 0) (≤ 0 (() @ y)))))
-                                       Int)))
+(check-true (judgment-holds (subtype/ctx (empty-env) 
+                                         (id ,(gensym))
+                                         (U (x : Int where ((≤ (() @ x) (+ 1 (() @ x))) (≤ (+ 1 (() @ x)) (() @ x))))
+                                            (y : Int where ((≤ (() @ y) 0) (≤ 0 (() @ y)))))
+                                         Int)))

@@ -199,3 +199,17 @@
                                          (U (x : Int where ((≤ (() @ x) (+ 1 (() @ x))) (≤ (+ 1 (() @ x)) (() @ x))))
                                             (y : Int where ((≤ (() @ y) 0) (≤ 0 (() @ y)))))
                                          Int)))
+
+(check-true (judgment-holds (subtype/ctx (empty-env) 
+                                         (id ,(gensym))
+                                         (U (x : (z : Int where ((≤ (() @ x) (+ 1 (() @ z))))) 
+                                               where ((≤ (+ 1 (() @ x)) (() @ x))))
+                                            (y : Int where ((≤ (() @ y) 0) (≤ 0 (() @ y)))))
+                                         Int)))
+
+(check-true (judgment-holds (subtype/ctx (empty-env) 
+                                         (id ,(gensym))
+                                         (U (x : Int where ((≤ (() @ x) (+ 1 (() @ x))) (≤ (+ 1 (() @ x)) (() @ x))))
+                                            (y : (z : Int where ((≤ (() @ z) 0))) 
+                                               where ((≤ 0 (() @ y)))))
+                                         Int)))

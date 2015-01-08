@@ -242,6 +242,19 @@
            (U Int Str)
            (TT TT Ø))))
 
+
+(check-true 
+ (judgment-holds 
+  (typeof* (env: (is x Int) (is v (♯ Str)))
+           (if (and ((<= 0) (ann x Int))
+                    ((<= (ann x Int)) ((+ -1) (vec-len (ann v (♯ Str))))))
+               (vec-ref (ann v (♯ Str)) (ann x (IntRange 0 (+ -1 (o-len (id v))))))
+               (error "bad index!"))
+           Str
+           (TT FF Ø))))
+
+;;; Original tests+
+
 ;;; Example 1
 (check-true 
  (judgment-holds 

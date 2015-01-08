@@ -11,7 +11,7 @@
               op b i string (let (x e) e) (cons e e) (vec e ...)
               (car e) (cdr e) (vec-ref e e)]
   [op     ::= add1 zero? int? str? bool? proc? 
-              str-len vec-len + (* i) error cons? vec?]
+              str-len vec-len + <= (* i) error cons? vec?]
   [pe     ::= CAR CDR LEN]
   [π      ::= (pe ...)]
   [o      ::= i (π @ x) (* i o) (+ o o)]
@@ -727,6 +727,14 @@
                     (Or: (is x (Int> 0))
                          (is x (Int< 0)))
                     Ø))]
+  [(op-τ <=) (x : Int → 
+                (y : Int → (U #t #f)
+                   ((And: (is x (Int<= (id y)))
+                          (is y (Int>= (id x))))
+                    (And: (is x (Int> (id y)))
+                          (is y (Int< (id x))))
+                    Ø))
+                (TT FF Ø))]
   [(op-τ int?) (x : Top → 
                   (U #t #f)
                   ((is x Int) (! x Int) Ø))]

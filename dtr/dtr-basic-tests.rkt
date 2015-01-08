@@ -133,16 +133,21 @@
 (check-equal? (term (update* () [((id x) -: (♯ (U Int Str)))]
                              ((id x) -! (♯ Str))))
               (term (((id x) -: (♯ Int)))))
-(check-equal? (term (update* () [((id x) -: (z : (U Int Str) where [(≤ (id z) (id z))]))]
-                             ((id x) -: Int)))
-              (term (((id x) -: (z : Int where [(≤ (id z) (id z))])))))
-(check-equal? (term (update* () [((id x) -: (z : (U Int Str) where [(≤ (id z) (id z))]))]
-                             ((id x) -! Str)))
-              (term (((id x) -: (z : Int where ((≤ (id z) (id z))))))))
-(check-equal? (term (update* () [((id x) -: (z : (U Int Str) where [(≤ (id z) (id z))]))]
-                             ((id x) -: (q : Int where [(≤ (id q) (+ 1 (id q)))]))))
-              (term (((id x) -: (z : Int where [(≤ (id z) (id z))
-                                                 (≤ (id z) (+ 1 (id z)))])))))
+(check-not-false 
+ (redex-match λDTR
+              (((() @ x) -: (y : Int where ((≤ (() @ y) (() @ y))))))
+              (term (update* () [((id x) -: (z : (U Int Str) where [(≤ (id z) (id z))]))]
+                             ((id x) -: Int)))))
+(check-not-false 
+ (redex-match λDTR
+              (((() @ x) -: (z : Int where ((≤ (() @ z) (() @ z))))))
+              (term (update* () [((id x) -: (z : (U Int Str) where [(≤ (id z) (id z))]))]
+                             ((id x) -! Str)))))
+(check-not-false (term (redex-match λDTR 
+                                    (((id x) -: (z : Int where [(≤ (id z) (id z))
+                                                                (≤ (id z) (+ 1 (id z)))])))
+                                    (term (update* () [((id x) -: (z : (U Int Str) where [(≤ (id z) (id z))]))]
+                                                   ((id x) -: (q : Int where [(≤ (id q) (+ 1 (id q)))])))))))
 (check-equal? (term (update* () 
                              [((id x) -: (z : (U Int Str) where (Φ< (id z) (id x))))]
                              ((id x) -: (q : Int where (Φ< (id x) (id q))))))
@@ -227,3 +232,12 @@
                                          (z : (U Int Str) where (Or: (And: (is x Int) (is y Int))
                                                                      (And: (is x Str) (is y Str))))
                                          Int)))
+
+(check-true (judgment-holds (subtype (fresh142766
+                                      :
+                                      (U Int #t #f)
+                                      where
+                                      (((41 -: (fresh142768 : Int where ((≤ (() @ fresh142768) 41) (≤ 41 (() @ fresh142768))))) ∧ ((() @ fresh142766) -: Int))
+                                       ∨
+                                       ((41 -: (U)) ∧ ((() @ fresh142766) -: (U #t #f)))))
+                                     Int)))

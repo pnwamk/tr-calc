@@ -93,6 +93,28 @@
            (Int= 42)
            (TT FF 42))))
 
+;; T-App w/ τ-update
+(check-true
+ (judgment-holds 
+  (typeof* (empty-env)
+           (neg 41)
+           Int
+           (TT FF Ø))))
+
+(check-true
+ (judgment-holds 
+  (typeof* (env: (is x Int))
+           (neg (ann x Int))
+           Int
+           (TT FF Ø))))
+
+(check-true
+ (judgment-holds 
+  (typeof* (env: (is x Int))
+           (neg (zero? (ann x Int)))
+           (U #t #f)
+           (TT FF Ø))))
+
 ;; T-If
 (check-true
  (judgment-holds 

@@ -22,7 +22,7 @@
   [?      ::= -: -!]
   [δ      ::= (o ? τ)]
   [ψ      ::= δ (ψ ∧ ψ) (ψ ∨ ψ) TT FF Φ]
-  [Δ      ::= (δ ...)]
+  [δ*      ::= (δ ...)]
   [Γ      ::= (ψ ...)])
 
 (define-judgment-form λDTR
@@ -76,63 +76,63 @@
 ;; σ : supertype
 (define-judgment-form λDTR
   #:mode (subtype/ctx I I I I I)
-  #:contract (subtype/ctx Φ Δ o τ σ)
+  #:contract (subtype/ctx Φ δ* o τ σ)
   [--------------- "S-Refl"
-   (subtype/ctx Φ Δ o τ τ)]
+   (subtype/ctx Φ δ* o τ τ)]
   
   [--------------- "S-Top"
-   (subtype/ctx Φ Δ o τ Top)]
+   (subtype/ctx Φ δ* o τ Top)]
   
-  [(subtype/ctx Φ Δ o σ τ)
+  [(subtype/ctx Φ δ* o σ τ)
    --------------- "S-UnionSuper"
-   (subtype/ctx Φ Δ o σ (U τ_1 ... τ τ_2 ...))]
+   (subtype/ctx Φ δ* o σ (U τ_1 ... τ τ_2 ...))]
   
-  [(subtype/ctx Φ Δ o τ σ) ...
+  [(subtype/ctx Φ δ* o τ σ) ...
    --------------- "S-UnionSub"
-   (subtype/ctx Φ Δ o (U τ ...) σ)]
+   (subtype/ctx Φ δ* o (U τ ...) σ)]
   
-  [(subtype/ctx Φ Δ (o-car o) τ_1 τ_2)
-   (subtype/ctx Φ Δ (o-cdr o) σ_1 σ_2)
+  [(subtype/ctx Φ δ* (o-car o) τ_1 τ_2)
+   (subtype/ctx Φ δ* (o-cdr o) σ_1 σ_2)
    ----------------- "S-Pair"
-   (subtype/ctx Φ Δ o (τ_1 × σ_1) (τ_2 × σ_2))]
+   (subtype/ctx Φ δ* o (τ_1 × σ_1) (τ_2 × σ_2))]
   
-  [(subtype/ctx Φ Δ (id (fresh-var Φ Δ o τ σ)) τ σ)
+  [(subtype/ctx Φ δ* (id (fresh-var Φ δ* o τ σ)) τ σ)
    ----------------- "S-Vec"
-   (subtype/ctx Φ Δ o (♯ τ) (♯ σ))]
+   (subtype/ctx Φ δ* o (♯ τ) (♯ σ))]
   
-  [(where z (fresh-var Φ Δ o
+  [(where z (fresh-var Φ δ* o
                       (x : σ_1 → τ_1 (ψ_1+ ψ_1- oo_1))
                       (y : σ_2 → τ_2 (ψ_2+ ψ_2- oo_2))))
-   (subtype/ctx Φ Δ (id z) σ_2 σ_1) 
-   (subtype/ctx Φ Δ (id z) (subst τ_1 (id y) x) τ_2) 
-   (proves-alg Φ Δ (sift-Γ [(subst ψ_1+ (id y) x)]) ψ_2+)
-   (proves-alg Φ Δ (sift-Γ [(subst ψ_1- (id y) x)]) ψ_2-)
+   (subtype/ctx Φ δ* (id z) σ_2 σ_1) 
+   (subtype/ctx Φ δ* (id z) (subst τ_1 (id y) x) τ_2) 
+   (proves-alg Φ δ* (sift-Γ [(subst ψ_1+ (id y) x)]) ψ_2+)
+   (proves-alg Φ δ* (sift-Γ [(subst ψ_1- (id y) x)]) ψ_2-)
    (subobj (subst oo_1 (id y) x) oo_2)
    ------------------------------------------ "S-Abs"
-   (subtype/ctx Φ Δ o
+   (subtype/ctx Φ δ* o
                 (x : σ_1 → τ_1 (ψ_1+ ψ_1- oo_1))
                 (y : σ_2 → τ_2 (ψ_2+ ψ_2- oo_2)))]
   
-  #;[(proves-alg Φ Δ 
+  #;[(proves-alg Φ δ* 
                (sift-Γ ((o -: (subst τ_x o x)) (subst Φ_x o x))) 
                (And: (o -: (subst τ_y o y)) 
                      (subst Φ_y o y)))
    ------------------- "S-Refine-Refine"
-   (subtype/ctx Φ Δ o (x : τ_x where Φ_x) (y : τ_y where Φ_y))]
+   (subtype/ctx Φ δ* o (x : τ_x where Φ_x) (y : τ_y where Φ_y))]
   
-  [(proves-alg (app Φ (subst Φ_x o x)) Δ 
+  [(proves-alg (app Φ (subst Φ_x o x)) δ* 
                (sift-Γ ((o -: (subst τ_x o x))))
                (o -: τ))
    ------------------- "S-Refine-Sub"
-   (subtype/ctx Φ Δ o (x : τ_x where Φ_x) τ)]
+   (subtype/ctx Φ δ* o (x : τ_x where Φ_x) τ)]
   
-  [(proves-alg Φ Δ 
+  [(proves-alg Φ δ* 
                [(sift-ψ (o -: τ))]
                (And: (o -: (subst τ_y o y)) 
                      (subst Φ_y o y)))
    (where #f (is-Refine τ))
    ------------------- "S-Refine-Super"
-   (subtype/ctx Φ Δ o τ (y : τ_y where Φ_y))])
+   (subtype/ctx Φ δ* o τ (y : τ_y where Φ_y))])
 
 (define-judgment-form λDTR
   #:mode (proves I I)
@@ -143,7 +143,7 @@
 
 (define-judgment-form λDTR
   #:mode (proves-alg I I I I)
-  #:contract (proves-alg Φ Δ Γ ψ)
+  #:contract (proves-alg Φ δ* Γ ψ)
   
   [(subtype/ctx Φ [δ_1 ... δ_2 ...] o_1 τ σ)
    (lexp-equal o_1 o_2)
@@ -162,74 +162,74 @@
   
   [(fme-imp Φ Φ_1)
    ---------------- "L-FME"
-   (proves-alg Φ Δ () Φ_1)]
+   (proves-alg Φ δ* () Φ_1)]
   
   [(where #f (fme-sat Φ))
    ---------------- "L-FME-Unsat"
-   (proves-alg Φ Δ () ψ)]
+   (proves-alg Φ δ* () ψ)]
   
   [---------------------- "L-Bot"
    (proves-alg Φ (δ_1 ... (o -: (U)) δ_2 ...) () ψ)]
   
   [---------------------- "L-True"
-   (proves-alg Φ Δ Γ TT)]
+   (proves-alg Φ δ* Γ TT)]
   
-  [(proves-alg Φ Δ (ψ_1 ...) ψ)
+  [(proves-alg Φ δ* (ψ_1 ...) ψ)
    ---------------------- "L-Weaken"
-   (proves-alg Φ Δ (TT ψ_1 ...) ψ)]
+   (proves-alg Φ δ* (TT ψ_1 ...) ψ)]
   
   [---------------------- "L-ExFalso"
-   (proves-alg Φ Δ (FF ψ_1 ...) ψ)]
+   (proves-alg Φ δ* (FF ψ_1 ...) ψ)]
   
-  [(proves-alg Φ Δ [ψ_1 ψ_2 ψ_3 ...] ψ)
+  [(proves-alg Φ δ* [ψ_1 ψ_2 ψ_3 ...] ψ)
    ---------------------- "L-Simp"
-   (proves-alg Φ Δ ((ψ_1 ∧ ψ_2) ψ_3 ...) ψ)]
+   (proves-alg Φ δ* ((ψ_1 ∧ ψ_2) ψ_3 ...) ψ)]
   
-  [(proves-alg Φ Δ () ψ_1)
-   (proves-alg Φ Δ () ψ_2)
+  [(proves-alg Φ δ* () ψ_1)
+   (proves-alg Φ δ* () ψ_2)
    ---------------------- "L-Conj"
-   (proves-alg Φ Δ () (ψ_1 ∧ ψ_2))]
+   (proves-alg Φ δ* () (ψ_1 ∧ ψ_2))]
   
-  [(proves-alg Φ Δ (ψ_1 ψ_3 ...) ψ)
-   (proves-alg Φ Δ (ψ_2 ψ_3 ...) ψ)
+  [(proves-alg Φ δ* (ψ_1 ψ_3 ...) ψ)
+   (proves-alg Φ δ* (ψ_2 ψ_3 ...) ψ)
    ---------------------- "L-DisjElim"
-   (proves-alg Φ Δ ((ψ_1 ∨ ψ_2) ψ_3 ...) ψ)]
+   (proves-alg Φ δ* ((ψ_1 ∨ ψ_2) ψ_3 ...) ψ)]
   
-  [(proves-alg Φ Δ () ψ_1)
+  [(proves-alg Φ δ* () ψ_1)
    ---------------------- "L-Add-L"
-   (proves-alg Φ Δ () (ψ_1 ∨ ψ_2))]
+   (proves-alg Φ δ* () (ψ_1 ∨ ψ_2))]
   
-  [(proves-alg Φ Δ () ψ_2)
+  [(proves-alg Φ δ* () ψ_2)
    ---------------------- "L-Add-R"
-   (proves-alg Φ Δ () (ψ_1 ∨ ψ_2))]
+   (proves-alg Φ δ* () (ψ_1 ∨ ψ_2))]
   
-  [(proves-alg (app Φ Φ_1) Δ (ψ_2 ψ_3 ...) ψ)
+  [(proves-alg (app Φ Φ_1) δ* (ψ_2 ψ_3 ...) ψ)
    ---------------------- "L-SLI"
-   (proves-alg Φ Δ (Φ_1 ψ_2 ψ_3 ...) ψ)]
+   (proves-alg Φ δ* (Φ_1 ψ_2 ψ_3 ...) ψ)]
   
   [(where Φ_2 (app Φ Φ_1))
-   (proves-alg Φ_2 (Φ-update-Δ Δ Φ_2) () ψ)
+   (proves-alg Φ_2 (Φ-update-δ* δ* Φ_2) () ψ)
    ---------------------- "L-SLI/Φ"
-   (proves-alg Φ Δ (Φ_1) ψ)]
+   (proves-alg Φ δ* (Φ_1) ψ)]
   
   [(contains-non-δ (ψ_2 ...))
-   (proves-alg Φ Δ (ψ_2 ... δ_1) ψ)
+   (proves-alg Φ δ* (ψ_2 ... δ_1) ψ)
    ---------------------- "L-Delay-δ"
-   (proves-alg Φ Δ (δ_1 ψ_2 ...) ψ)]
+   (proves-alg Φ δ* (δ_1 ψ_2 ...) ψ)]
   
   [(proves-alg Φ
-               (ext (update* Φ (ext Δ) δ_1) δ_1)
+               (ext (update* Φ (ext δ*) δ_1) δ_1)
                (update* Φ (δ_2 δ_3 ...) δ_1)
                ψ)
    ---------------------- "L-Update*"
-   (proves-alg Φ Δ (δ_1 δ_2 δ_3 ...) ψ)]
+   (proves-alg Φ δ* (δ_1 δ_2 δ_3 ...) ψ)]
   
   [(proves-alg Φ
-               (Φ-update-Δ (ext (update* Φ Δ δ) δ) Φ)
+               (Φ-update-δ* (ext (update* Φ δ* δ) δ) Φ)
                ()
                ψ)
    ---------------------- "L-Update*/Φ"
-   (proves-alg Φ Δ (δ) ψ)])
+   (proves-alg Φ δ* (δ) ψ)])
 
 
 (define-judgment-form λDTR
@@ -307,7 +307,7 @@
    (where/hidden #f (subtype/ctx Φ () (id (fresh-var Φ τ_0 σ_0 τ_1 σ_1)) (τ_0 × σ_0) (τ_1 × σ_1)))]
   
   ;; Vecs
-  [(restrict Φ (♯ τ) (♯ σ)) (Vec: (restrict τ σ))
+  [(restrict Φ (♯ τ) (♯ σ)) (Vec: (restrict Φ τ σ))
    (where/hidden #f (subtype/ctx Φ () (id (fresh-var Φ τ σ)) (♯ τ) (♯ σ)))]
   
   ;; else if τ <: σ
@@ -1076,8 +1076,8 @@
   [(sift-Γ (ψ ...)) ((sift-ψ ψ) ...)])
 
 (define-metafunction λDTR
-  Φ-update-Δ : Δ Φ -> Δ
-  [(Φ-update-Δ ((o ? τ) ...) Φ) ((o ? (Φ-update-τ o ? τ Φ)) ...)]) ;; TODO
+  Φ-update-δ* : δ* Φ -> δ*
+  [(Φ-update-δ* ((o ? τ) ...) Φ) ((o ? (Φ-update-τ o ? τ Φ)) ...)]) ;; TODO
 
 (define-metafunction λDTR
   Φ-update-τ : o ? τ Φ -> τ

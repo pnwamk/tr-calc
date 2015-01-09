@@ -1,6 +1,6 @@
 #lang racket
 
-(require redex "dtr-redex.rkt" rackunit)
+(require redex "dtr-lang.rkt" "dtr-logic.rkt" "dtr-fme.rkt" rackunit)
 
 ;; oo substs tests
 (check-equal? (term (subst (id x) Ø x)) (term Ø))

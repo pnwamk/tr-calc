@@ -1,6 +1,6 @@
 #lang racket
 
-(require redex "dtr-redex.rkt" rackunit)
+(require redex "dtr-lang.rkt" "dtr-logic.rkt" "dtr-tc.rkt" rackunit)
 
 (define-judgment-form λDTR
   #:mode (typeof* I I I I)

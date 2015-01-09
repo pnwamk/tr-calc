@@ -7,7 +7,7 @@
   #:contract (typeof* Γ e τ (ψ ψ oo))
   [(where o (id ,(gensym)))
    (typeof Γ e_1 τ_2 (ψ_2+ ψ_2- oo_2))
-   (subtype/ctx Γ o τ_2 τ_1)
+   (subtype Γ o τ_2 τ_1)
    (proves (env/sift+ψ* Γ ψ_2+) ψ_1+)
    (proves (env/sift+ψ* Γ ψ_2-) ψ_1-)
    (subobj oo_2 oo_1)
@@ -480,8 +480,8 @@
              (int? (car (ann p (Top × Top)))))
            (x : (Top × Top) →
              (U #t #f)
-             ((((CAR) @ x) -: Int)
-              (((CAR) @ x) -! Int)
+             ((((CAR) @ x) ~ Int)
+              (((CAR) @ x) ¬ Int)
               Ø))
            (TT FF Ø))))
 
@@ -492,8 +492,8 @@
              (int? (cdr (ann p (Top × Top)))))
            (x : (Top × Top) →
              (U #t #f)
-             ((((CDR) @ x) -: Int)
-              (((CDR) @ x) -! Int)
+             ((((CDR) @ x) ~ Int)
+              (((CDR) @ x) ¬ Int)
               Ø))
            (TT FF Ø))))
 

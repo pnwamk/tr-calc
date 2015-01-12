@@ -19,7 +19,8 @@
 (define-judgment-form λDTR
   #:mode (simple-subtype I I)
   #:contract (simple-subtype τ τ)
-  [(subtype (empty-env) (id (fresh-var σ τ)) σ τ)
+  [(where/hidden ν (fresh-var σ τ))
+   (subtype (empty-env) (id ν) σ τ)
    --------------------------- "S-EmptyCtx"
    (simple-subtype σ τ)])
 
@@ -49,22 +50,23 @@
    ----------------- "S-Pair"
    (subtype Γ o (τ_1 × σ_1) (τ_2 × σ_2))]
   
-  [(subtype Γ (id (fresh-var Γ o τ σ)) τ σ)
+  [(where/hidden ν (fresh-var Γ o τ σ))
+   (subtype Γ (id ν) τ σ)
    ----------------- "S-Vec"
    (subtype Γ o (♯ τ) (♯ σ))]
   
-  [(where z (fresh-var Γ o
-                      (x : σ_1 → τ_1 (ψ_1+ ψ_1- oo_1))
-                      (y : σ_2 → τ_2 (ψ_2+ ψ_2- oo_2))))
-   (subtype Γ (id z) σ_2 σ_1) 
-   (subtype Γ (id z) (subst τ_1 (id y) x) τ_2) 
+  [(where/hidden ν (fresh-var Γ o
+                              (x : σ_1 → τ_1 (ψ_1+ ψ_1- oo_1))
+                              (y : σ_2 → τ_2 (ψ_2+ ψ_2- oo_2))))
+   (subtype Γ (id ν) σ_2 σ_1) 
+   (subtype Γ (id ν) (subst τ_1 (id y) x) τ_2) 
    (proves (env/sift+ψ* Γ (subst ψ_1+ (id y) x)) ψ_2+)
    (proves (env/sift+ψ* Γ (subst ψ_1- (id y) x)) ψ_2-)
    (subobj (subst oo_1 (id y) x) oo_2)
    ------------------------------------------ "S-Abs"
    (subtype Γ o
-                (x : σ_1 → τ_1 (ψ_1+ ψ_1- oo_1))
-                (y : σ_2 → τ_2 (ψ_2+ ψ_2- oo_2)))]
+            (x : σ_1 → τ_1 (ψ_1+ ψ_1- oo_1))
+            (y : σ_2 → τ_2 (ψ_2+ ψ_2- oo_2)))]
   
   [(proves (env/sift+ψ* Γ (o ~ (subst τ_x o x)) (subst ψ_x o x))
            (o ~ τ))
@@ -251,13 +253,16 @@
                                 ; boolean is fixed by caller already
   ; negation union
   [(update-π Γ ¬ τ ¬ σ ()) σ
-   (judgment-holds (subtype Γ (id (fresh-var Γ τ σ)) τ σ))]
+   (where/hidden ν (fresh-var Γ τ σ))
+   (judgment-holds (subtype Γ (id ν) τ σ))]
   [(update-π Γ ¬ τ ¬ σ ()) τ
-   (where/hidden #f (subtype Γ (id (fresh-var Γ τ σ)) τ σ))
-   (judgment-holds (subtype Γ (id (fresh-var Γ τ σ)) σ τ))]
+   (where/hidden ν (fresh-var Γ τ σ))
+   (where/hidden #f (subtype Γ (id ν) τ σ))
+   (judgment-holds (subtype Γ (id ν) σ τ))]
   [(update-π Γ ¬ τ ¬ σ ()) (U: τ σ)
-   (where/hidden #f (subtype Γ (id (fresh-var Γ τ σ)) τ σ))
-   (where/hidden #f (subtype Γ (id (fresh-var Γ τ σ)) σ τ))])
+   (where/hidden ν (fresh-var Γ τ σ))
+   (where/hidden #f (subtype Γ (id ν) τ σ))
+   (where/hidden #f (subtype Γ (id ν) σ τ))])
 
 
 (define-metafunction λDTR
@@ -289,21 +294,25 @@
   
   ;; Pairs
   [(restrict Γ (τ_0 × σ_0) (τ_1 × σ_1)) (Pair: (restrict Γ τ_0 τ_1) (restrict Γ σ_0 σ_1))
-   (where/hidden #f (subtype Γ (id (fresh-var Γ τ_0 σ_0 τ_1 σ_1)) (τ_0 × σ_0) (τ_1 × σ_1)))]
+   (where/hidden ν (fresh-var Γ τ_0 σ_0 τ_1 σ_1))
+   (where/hidden #f (subtype Γ (id ν) (τ_0 × σ_0) (τ_1 × σ_1)))]
   
   ;; Vecs
   [(restrict Γ (♯ τ) (♯ σ)) (Vec: (restrict Γ τ σ))
-   (where/hidden #f (subtype Γ (id (fresh-var Γ τ σ)) (♯ τ) (♯ σ)))]
+   (where/hidden ν (fresh-var Γ τ σ))
+   (where/hidden #f (subtype Γ (id ν) (♯ τ) (♯ σ)))]
   
   ;; else if τ <: σ
   [(restrict Γ τ σ) τ
-   (judgment-holds (subtype Γ (id (fresh-var Γ τ σ)) τ σ))
+   (where/hidden ν (fresh-var Γ τ σ))
+   (judgment-holds (subtype Γ (id ν) τ σ))
    (where/hidden #f (is-U τ))
    (where/hidden #f (is-U σ))]
   
   ;; else
   [(restrict Γ τ σ) σ
-   (where #f (subtype Γ (id (fresh-var Γ τ σ)) τ σ))
+   (where/hidden ν (fresh-var Γ τ σ))
+   (where #f (subtype Γ (id ν) τ σ))
    (where/hidden #f (is-U τ))
    (where/hidden #f (is-U σ))])
 
@@ -312,29 +321,35 @@
   remove : Γ τ σ -> τ
   ;; τ_1 <: τ_2
   [(remove Γ τ σ) (U)
-   (judgment-holds (simple-subtype τ σ))]
+   (where/hidden ν (fresh-var Γ τ σ))
+   (judgment-holds (subtype Γ (id ν) τ σ))]
   
   ;; Union
   [(remove Γ (U τ ...) σ) (U: ,@(map (λ (t) (term (remove Γ ,t σ))) (term (τ ...))))
-   (where/hidden #f (subtype Γ (id (fresh-var Γ (U τ ...) σ)) (U τ ...) σ))]
+   (where/hidden ν (fresh-var Γ (U τ ...) σ))
+   (where/hidden #f (subtype Γ (id ν) (U τ ...) σ))]
   
   ;; Refinement
   [(remove Γ (x : τ where ψ_x) σ) (x : (remove Γ τ σ) where ψ_x)
-   (where/hidden #f (subtype Γ (id (fresh-var Γ (x : τ where ψ_x) σ)) (x : τ where ψ_x) σ))
+   (where/hidden ν (fresh-var Γ (x : τ where ψ_x) σ))
+   (where/hidden #f (subtype Γ (id ν) (x : τ where ψ_x) σ))
    (where/hidden #f (is-Refine σ))]
   
   ;; Pairs
   [(remove Γ (τ_0 × σ_0) (τ_1 × σ_1)) (Pair: (remove Γ τ_0 τ_1) 
                                              (remove Γ σ_0 σ_1))
-   (where/hidden #f (subtype Γ (id (fresh-var Γ (τ_0 × σ_0) (τ_1 × σ_1))) (τ_0 × σ_0) (τ_1 × σ_1)))]
+   (where/hidden ν (fresh-var Γ (τ_0 × σ_0) (τ_1 × σ_1)))
+   (where/hidden #f (subtype Γ (id ν) (τ_0 × σ_0) (τ_1 × σ_1)))]
   
   ;; Vecs
   [(remove Γ (♯ τ) (♯ σ)) (Vec: (remove Γ τ σ))
-   (where/hidden #f (subtype Γ (id (fresh-var Γ (♯ τ) (♯ σ))) (♯ τ) (♯ σ)))]
+   (where/hidden ν (fresh-var Γ (♯ τ) (♯ σ)))
+   (where/hidden #f (subtype Γ (id ν) (♯ τ) (♯ σ)))]
   
   ;; non-special-case
   [(remove Γ τ σ) τ
-   (where/hidden #f (subtype Γ (id (fresh-var Γ τ σ)) τ σ))
+   (where/hidden ν (fresh-var Γ τ σ))
+   (where/hidden #f (subtype Γ (id ν) τ σ))
    (where/hidden #f (is-U τ))
    (where/hidden #f (is-Refine τ))
    (where/hidden #f ,(and (term (is-Pair τ)) (term (is-Pair σ))))
@@ -356,21 +371,21 @@
    (x : (update-τ Γ σ (o ♢ σ_new)) → τ (ψ_+ ψ_- oo_f))
    (where #t (var-in-o x o))]
   [(update-τ Γ (y : σ → τ (ψ_+ ψ_- oo_f)) (o ♢ σ_new))
-   (z : (update-τ Γ (subst-τ σ (id z) y) (o ♢ σ_new))
+   (ν : (update-τ Γ (subst-τ σ (id ν) y) (o ♢ σ_new))
       →
-      (update-τ Γ (subst-τ τ (id z) y) (o ♢ σ_new))
-      ((update-ψ Γ (subst ψ_+ (id z) y) (o ♢ σ_new))
-       (update-ψ Γ (subst ψ_- (id z) y) (o ♢ σ_new))
-       (subst-oo oo_f (id z) y)))
+      (update-τ Γ (subst-τ τ (id ν) y) (o ♢ σ_new))
+      ((update-ψ Γ (subst ψ_+ (id ν) y) (o ♢ σ_new))
+       (update-ψ Γ (subst ψ_- (id ν) y) (o ♢ σ_new))
+       (subst-oo oo_f (id ν) y)))
    (where #f (var-in-o y o))
-   (where z (fresh-var Γ (y : σ → τ (ψ_+ ψ_- oo_f)) (o ♢ σ_new)))]
+   (where/hidden ν (fresh-var Γ (y : σ → τ (ψ_+ ψ_- oo_f)) (o ♢ σ_new)))]
   [(update-τ Γ (x : τ where ψ) (o ♢ σ)) (x : τ where ψ)
                                         (where #t (var-in-o x o))]
   [(update-τ Γ (y : τ where ψ) (o ♢ σ))
-   (z : (update-τ Γ (subst-τ τ (id z) y) (o ♢ σ))
-      where (update-ψ Γ (subst ψ (id z) y) (o ♢ σ)))
+   (ν : (update-τ Γ (subst-τ τ (id ν) y) (o ♢ σ))
+      where (update-ψ Γ (subst ψ (id ν) y) (o ♢ σ)))
    (where #f (var-in-o y o))
-   (where z (fresh-var Γ (y : τ where ψ) (o ♢ σ)))])
+   (where/hidden ν (fresh-var Γ (y : τ where ψ) (o ♢ σ)))])
 
 
 
@@ -463,12 +478,12 @@
    ----------------- "CV-Refine-R"
    (common-val (env Φ δ* ψ*) τ (y : σ where ψ_y))]
   
-  [(where o_f (id (fresh-var (env Φ δ* ψ*)
-                            (x : τ where ψ_x) 
-                            (y : σ where ψ_y))))
-   (where #f (proves (env Φ () (sift-ψ* ((subst ψ_x o_f x) 
-                                         (subst ψ_y o_f y))))
-                     FF)) ;; Γ make this more complete?
+  [(where/hidden o_ν (id (fresh-var (env Φ δ* ψ*)
+                                    (x : τ where ψ_x) 
+                                    (y : σ where ψ_y))))
+   (where #f (proves (env Φ () (sift-ψ* ((subst ψ_x o_ν x) 
+                                         (subst ψ_y o_ν y))))
+                     FF))
    (common-val (env Φ δ* ψ*) τ σ)
    ----------------- "CV-Refine"
    (common-val (env Φ δ* ψ*) 
@@ -520,7 +535,8 @@
    (judgment-holds (lexp-equal o_1 o_2))])
 
 (define-metafunction λDTR
-  τ-join : τ σ ... -> τ
+  τ-join : τ ... -> τ
+  [(τ-join) Top]
   [(τ-join τ) τ]
   [(τ-join τ σ) σ
    (judgment-holds (simple-subtype τ σ))]
@@ -646,11 +662,10 @@
   [(sift-δ (o ~ (τ × σ)) #f) (And: (sift-δ ((o-car o) ~ τ) #f)
                                     (sift-δ ((o-cdr o) ~ σ) #f))]
   [(sift-δ (o ~ (♯ τ)) #t) (And: (o ~ (♯ τ))
-                                  (subst (sift-δ ((id x) ~ τ) #f) Ø x))
-                            (where x (fresh-var (o ~ (♯ τ))))]
-  [(sift-δ (o ~ (♯ τ)) #f) (subst (sift-δ ((id x) ~ τ) #f) Ø x)
-                                  
-                            (where x (fresh-var (o ~ (♯ τ))))]
+                                 (subst (sift-δ ((id ν) ~ τ) #f) Ø ν))
+                            (where/hidden ν (fresh-var (o ~ (♯ τ))))]
+  [(sift-δ (o ~ (♯ τ)) #f) (subst (sift-δ ((id ν) ~ τ) #f) Ø ν)
+                            (where/hidden ν (fresh-var (o ~ (♯ τ))))]
   [(sift-δ (o ~ (x : τ where ψ)) boolean) (And: (sift-ψ (subst ψ o x))
                                            (sift-δ (o ~ (subst τ o x)) boolean))])
 
@@ -709,15 +724,16 @@
   [(Φ-update-τ o ~ (U τ ...) Φ) (U  (Φ-update-τ o ~ τ Φ) ...)]
   [(Φ-update-τ o ~ (x : σ → τ (ψ_+ ψ_- oo)) Φ) (x : σ → τ (ψ_+ ψ_- oo))]
   [(Φ-update-τ o ~ (τ × σ) Φ) ((Φ-update-τ (o-car o) ~ τ Φ) × (Φ-update-τ (o-cdr o) ~ σ Φ))]
-  [(Φ-update-τ o ~ (♯ τ) Φ) (♯ (Φ-update-τ (id (fresh-var o τ Φ)) ~ τ Φ))]
-  [(Φ-update-τ o ~ (x : τ where ψ_x) Φ) (z : (Φ-update-τ o ~ (subst τ (id z) x) Φ) 
+  [(Φ-update-τ o ~ (♯ τ) Φ) (♯ (Φ-update-τ (id ν) ~ τ Φ))
+                            (where/hidden ν (fresh-var o τ Φ))]
+  [(Φ-update-τ o ~ (x : τ where ψ_x) Φ) (ν : (Φ-update-τ o ~ (subst τ (id ν) x) Φ)
                                             where ψ_new)
-   (where ψ_new (dnf (Φ-update-ψ (subst ψ_x (id z) x) Φ)))
+   (where ψ_new (dnf (Φ-update-ψ (subst ψ_x (id ν) x) Φ)))
    (judgment-holds (<> ψ_new FF))
-   (where z (fresh-var o x τ Φ_x Φ))]
+   (where/hidden ν (fresh-var o x τ Φ_x Φ))]
   [(Φ-update-τ o ~ (x : τ where ψ_x) Φ) (U)
-   (where FF (dnf (Φ-update-ψ (subst ψ_x (id z) x) Φ)))
-   (where z (fresh-var o x τ Φ_x Φ))])
+   (where FF (dnf (Φ-update-ψ (subst ψ_x (id ν) x) Φ)))
+   (where/hidden ν (fresh-var o x τ Φ_x Φ))])
 
 
 
@@ -826,20 +842,20 @@
   [(subst-τ (x : σ → τ (ψ_+ ψ_- oo_f)) oo x) 
    (x : (subst-τ σ oo x) → τ (ψ_+ ψ_- oo_f))]
   [(subst-τ (y : σ → τ (ψ_+ ψ_- oo_f)) oo x)
-   (z : (subst-τ (subst-τ σ (id z) y) oo x)
+   (ν : (subst-τ (subst-τ σ (id ν) y) oo x)
       →
-      (subst (subst-τ τ (id z) y) oo x)
-      ((subst (subst-ψ ψ_+ (id z) y) oo x)
-       (subst (subst-ψ ψ_- (id z) y) oo x)
-       (subst-oo (subst-oo oo_f (id z) y) oo x)))
+      (subst (subst-τ τ (id ν) y) oo x)
+      ((subst (subst-ψ ψ_+ (id ν) y) oo x)
+       (subst (subst-ψ ψ_- (id ν) y) oo x)
+       (subst-oo (subst-oo oo_f (id ν) y) oo x)))
    (judgment-holds (<> x y))
-   (where z (fresh-var (y : σ → τ (ψ_+ ψ_- oo_f)) oo x))]
+   (where/hidden ν (fresh-var (y : σ → τ (ψ_+ ψ_- oo_f)) oo x))]
   [(subst-τ (x : τ where ψ) oo x) (x : τ where ψ)]
   [(subst-τ (y : τ where ψ) oo x)
-   (z : (subst-τ (subst-τ τ (id z) y) oo x) 
-      where (subst (subst ψ (id z) y) oo x))
+   (ν : (subst-τ (subst-τ τ (id ν) y) oo x) 
+      where (subst (subst ψ (id ν) y) oo x))
    (judgment-holds (<> x y))
-   (where z (fresh-var (y : τ where ψ) oo x))])
+   (where/hidden ν (fresh-var (y : τ where ψ) oo x))])
 
 
 (define-metafunction λDTR

@@ -4,26 +4,26 @@
 (provide (all-defined-out))
 
 (define-language λDTR
-  [x y z  ::= variable-not-otherwise-mentioned]
-  [i      ::= integer]
-  [b      ::= boolean]
-  [e      ::= (ann x τ) (e e) (λ (x : τ) e) (if e e e) op b i string
+  [x y z ν ::= variable-not-otherwise-mentioned] ;; TODO ν for fresh vars!
+  [i       ::= integer]
+  [b       ::= boolean]
+  [e       ::= (ann x τ) (e e) (λ (x : τ) e) (if e e e) op b i string
               (let (x e) e) (cons e e) (vec e ...) (vec-ref e e)]
-  [op     ::= add1 zero? int? str? bool? proc? str-len vec-len 
+  [op      ::= add1 zero? int? str? bool? proc? str-len vec-len 
               + <= (* i) error cons? vec? neg car cdr]
-  [pe     ::= CAR CDR LEN]
-  [π      ::= (pe ...)]
-  [o      ::= i (π @ x) (* i o) (+ o o)]
-  [Φ      ::= ((≤ o o) ...)]
-  [oo     ::= o Ø]
-  [τ σ    ::= Top #t #f Int Str (U τ ...) (x : σ → τ (ψ ψ oo)) 
+  [pe      ::= CAR CDR LEN]
+  [π       ::= (pe ...)]
+  [o       ::= i (π @ x) (* i o) (+ o o)]
+  [Φ       ::= ((≤ o o) ...)]
+  [oo      ::= o Ø]
+  [τ σ     ::= Top #t #f Int Str (U τ ...) (x : σ → τ (ψ ψ oo)) 
               (τ × τ) (♯ τ) (x : τ where ψ)]
-  [♢      ::= ~ ¬]
-  [δ      ::= (o ♢ τ)]
-  [ψ      ::= δ (ψ ∧ ψ) (ψ ∨ ψ) TT FF Φ]
-  [δ*     ::= (δ ...)]
-  [ψ*     ::= (ψ ...)]
-  [Γ      ::= (env Φ δ* ψ*)])
+  [♢       ::= ~ ¬]
+  [δ       ::= (o ♢ τ)]
+  [ψ       ::= δ (ψ ∧ ψ) (ψ ∨ ψ) TT FF Φ]
+  [δ*      ::= (δ ...)]
+  [ψ*      ::= (ψ ...)]
+  [Γ       ::= (env Φ δ* ψ*)])
 
 
 ;; Basic Constructors / Helpers
@@ -212,34 +212,34 @@
 
 (define-metafunction λDTR
   Int= : o -> τ
-  [(Int= o) (x : Int where [(≤ (id x) o) (≤ o (id x))])
-   (where x (fresh-var o))])
+  [(Int= o) (ν : Int where [(≤ (id ν) o) (≤ o (id ν))])
+   (where ν (fresh-var o))])
 
 (define-metafunction λDTR
   Int< : o -> τ
-  [(Int< o) (x : Int where [(≤ (+ 1 (id x)) o)])
-   (where x (fresh-var o))])
+  [(Int< o) (ν : Int where [(≤ (+ 1 (id ν)) o)])
+   (where ν (fresh-var o))])
 
 (define-metafunction λDTR
   Int> : o -> τ
-  [(Int> o) (x : Int where [(≤ (+ 1 o) (id x))])
-   (where x (fresh-var o))])
+  [(Int> o) (ν : Int where [(≤ (+ 1 o) (id ν))])
+   (where ν (fresh-var o))])
 
 
 (define-metafunction λDTR
   Int<= : o -> τ
-  [(Int<= o) (x : Int where [(≤ (id x) o)])
-   (where x (fresh-var o))])
+  [(Int<= o) (ν : Int where [(≤ (id ν) o)])
+   (where ν (fresh-var o))])
 
 (define-metafunction λDTR
   Int>= : o -> τ
-  [(Int>= o) (x : Int where [(≤ o (id x))])
-   (where x (fresh-var o))])
+  [(Int>= o) (ν : Int where [(≤ o (id ν))])
+   (where ν (fresh-var o))])
 
 (define-metafunction λDTR
   IntRange : o o -> τ
-  [(IntRange o_l o_h) (x : Int where (Φin-range (id x) o_l o_h))
-   (where x (fresh-var o_l o_h))])
+  [(IntRange o_l o_h) (ν : Int where (Φin-range (id ν) o_l o_h))
+   (where ν (fresh-var o_l o_h))])
 
 (define-metafunction λDTR
   Φ= : o o -> Φ
@@ -252,7 +252,7 @@
 (define-metafunction λDTR
   Φin-range : o o o -> Φ
   [(Φin-range o o_low o_high) [(≤ o o_high)
-                             (≤ o_low o)]])
+                               (≤ o_low o)]])
 
 
 (define-metafunction λDTR
@@ -261,7 +261,7 @@
 
 (define-metafunction λDTR
   fresh-var : any ... -> x
-  [(fresh-var any ...) ,(gensym 'fresh)])
+  [(fresh-var any ...) ,(gensym 'ν)])
 
 (define-metafunction λDTR
   ext : any any ... -> any
@@ -314,10 +314,10 @@
    (where #f (is-Refine σ))
    (where #f (is-Abs σ))])
 
-(define (fresh-if-needed oo . rest)
-  (match oo
-    ['Ø (term (id ,(gensym)))]
-    [_ oo]))
+(define-metafunction λDTR
+  fresh-if-needed : oo any ... -> o
+  [(fresh-if-needed o any ...) o]
+  [(fresh-if-needed Ø any ...) (id (fresh-var any ...))])
 
 
 (define-judgment-form λDTR
@@ -339,3 +339,7 @@
   #:contract (<> any any)
   [------------ "NotEqual"
    (<> any_!_1 any_!_1)])
+
+(define-metafunction λDTR
+  len : (any ...) -> integer
+  [(len (any ...)) ,(length (term (any ...)))])

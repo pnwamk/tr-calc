@@ -43,7 +43,7 @@
                           (And: (is x #f) (is x τ)) 
                           (id x)))]
   
-  [(typeof (env/sift+ψ* Γ (is x σ)) e τ (ψ_+ ψ_- oo))
+  [(typeof (env/implied-by-ψ* Γ (is x σ)) e τ (ψ_+ ψ_- oo))
    -------------- "T-Abs"
    (typeof Γ
            (λ (x : σ) e)
@@ -66,8 +66,8 @@
             (subst oo_f oo_2 x)))]
   
   [(typeof Γ e_1 τ_1 (ψ_1+ ψ_1- oo_1))
-   (typeof (env/sift+ψ* Γ ψ_1+) e_2 τ_2 (ψ_2+ ψ_2- oo_2))
-   (typeof (env/sift+ψ* Γ ψ_1-) e_3 τ_3 (ψ_3+ ψ_3- oo_3))
+   (typeof (env/implied-by-ψ* Γ ψ_1+) e_2 τ_2 (ψ_2+ ψ_2- oo_2))
+   (typeof (env/implied-by-ψ* Γ ψ_1-) e_3 τ_3 (ψ_3+ ψ_3- oo_3))
    ------------------------------ "T-If"
    (typeof Γ
            (if e_1 e_2 e_3)
@@ -82,7 +82,7 @@
    (where ψ (And: (is x τ)
                   (Or: (And: (! x #f)  ψ_x+) 
                        (And: (is x #f) ψ_x-))))
-   (typeof (env/sift+ψ* Γ ψ) e σ (ψ_+ ψ_- oo))
+   (typeof (env/implied-by-ψ* Γ ψ) e σ (ψ_+ ψ_- oo))
    -------------------------- "T-Let"
    (typeof Γ
            (let (x e_x) e)
@@ -143,7 +143,7 @@
    (where (♯ τ) (exists/vec-τ σ_v))
    (where o_1 (fresh-if-needed oo_1 Γ e_1 e_2))
    (where o_2 (fresh-if-needed oo_2 o_1 Γ e_1 e_2))
-   (subtype (env/sift+ψ* Γ (o_1 ~ σ_v)) o_2 σ_i (IntRange 0 (+ -1 (o-len o_1))))
+   (subtype (env/implied-by-ψ* Γ (o_1 ~ σ_v)) o_2 σ_i (IntRange 0 (+ -1 (o-len o_1))))
    ------------------------- "T-VecRef"
    (typeof Γ (vec-ref e_1 e_2) τ 
            ((true-ψ τ) (false-ψ τ) Ø))])

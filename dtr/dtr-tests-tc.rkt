@@ -8,8 +8,8 @@
   [(where o (id ,(gensym)))
    (typeof Γ e_1 τ_2 (ψ_2+ ψ_2- oo_2))
    (subtype Γ o τ_2 τ_1)
-   (proves (env/sift+ψ* Γ ψ_2+) ψ_1+)
-   (proves (env/sift+ψ* Γ ψ_2-) ψ_1-)
+   (proves (env/implied-by-ψ* Γ ψ_2+) ψ_1+)
+   (proves (env/implied-by-ψ* Γ ψ_2-) ψ_1-)
    (subobj oo_2 oo_1)
    -------------- "T-Subsume"
    (typeof* Γ e_1 τ_1 (ψ_1+ ψ_1- oo_1))])

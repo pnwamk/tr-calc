@@ -60,20 +60,20 @@
                               (y : σ_2 → τ_2 (ψ_2+ ψ_2- oo_2))))
    (subtype Γ (id ν) σ_2 σ_1) 
    (subtype Γ (id ν) (subst τ_1 (id y) x) τ_2) 
-   (proves (env/sift+ψ* Γ (subst ψ_1+ (id y) x)) ψ_2+)
-   (proves (env/sift+ψ* Γ (subst ψ_1- (id y) x)) ψ_2-)
+   (proves (env/implied-by-ψ* Γ (subst ψ_1+ (id y) x)) ψ_2+)
+   (proves (env/implied-by-ψ* Γ (subst ψ_1- (id y) x)) ψ_2-)
    (subobj (subst oo_1 (id y) x) oo_2)
    ------------------------------------------ "S-Abs"
    (subtype Γ o
             (x : σ_1 → τ_1 (ψ_1+ ψ_1- oo_1))
             (y : σ_2 → τ_2 (ψ_2+ ψ_2- oo_2)))]
   
-  [(proves (env/sift+ψ* Γ (o ~ (subst τ_x o x)) (subst ψ_x o x))
+  [(proves (env/implied-by-ψ* Γ (o ~ (subst τ_x o x)) (subst ψ_x o x))
            (o ~ τ))
    ------------------- "S-Refine-Sub"
    (subtype Γ o (x : τ_x where ψ_x) τ)]
   
-  [(proves (env/sift+ψ* Γ (o ~ τ))
+  [(proves (env/implied-by-ψ* Γ (o ~ τ))
            (And: (o ~ (subst τ_y o y)) 
                  (subst ψ_y o y)))
    ------------------- "S-Refine-Super"
@@ -232,7 +232,7 @@
 
 
 (define-metafunction λDTR
-  update-π : Γ ♢ τ ♢ σ π -> τ ;; TODO all Γ's in update, rest, rem
+  update-π : Γ ♢ τ ♢ σ π -> τ
   ;; updates CAR/CDR
   [(update-π Γ ♢_τ τ ♢_σ σ [pe ... CAR])
    (update-π Γ ♢_τ τ ♢_σ (σ × Top) [pe ... ])]
@@ -466,13 +466,15 @@
   ;; Φ is the only case where the indirect relationships
   ;; bewteen values can help prove a contradiction that
   ;; otherwise wouldn't be apparent
-  [(where #f (proves (env Φ () ((sift-ψ ψ_x))) FF))
+  [(implied-by-ψ ψ_x ψ_x*)
+   (where #f (proves (env Φ () (ψ_x*)) FF))
    (common-val (env Φ δ* ψ*) τ σ)
    (not-Refine σ)
    ----------------- "CV-Refine-L"
    (common-val (env Φ δ* ψ*) (x : τ where ψ_x) σ)]
   
-  [(where #f (proves (env Φ () ((sift-ψ ψ_y))) FF))
+  [(implied-by-ψ ψ_y ψ_y*)
+   (where #f (proves (env Φ () (ψ_y*)) FF))
    (common-val (env Φ δ* ψ*) τ σ)
    (not-Refine τ)
    ----------------- "CV-Refine-R"
@@ -481,8 +483,10 @@
   [(where/hidden o_ν (id (fresh-var (env Φ δ* ψ*)
                                     (x : τ where ψ_x) 
                                     (y : σ where ψ_y))))
-   (where #f (proves (env Φ () (sift-ψ* ((subst ψ_x o_ν x) 
-                                         (subst ψ_y o_ν y))))
+   (implied-by-ψs ((subst ψ_x o_ν x) 
+                   (subst ψ_y o_ν y))
+                  ψ*_1)
+   (where #f (proves (env Φ () ψ*_1)
                      FF))
    (common-val (env Φ δ* ψ*) τ σ)
    ----------------- "CV-Refine"
@@ -579,7 +583,7 @@
 
 (define-metafunction λDTR
   dnf : ψ -> ψ
-  [(dnf ψ) ,(let* ([unfolded-ψ (term (dnf* (([] [])) (sift-ψ ψ) []))]
+  [(dnf ψ) ,(let* ([unfolded-ψ (term (dnf* (([] [])) ψ_2 []))]
                    [disjuncts (map (λ (univ)
                                      (match univ
                                        [(list) (term TT)]
@@ -599,7 +603,8 @@
               (foldl 
                (λ (disj dnf) (term (Or: ,disj ,dnf)))
                (term FF) 
-               disjuncts))])
+               disjuncts))
+           (judgment-holds (implied-by-ψ ψ ψ_2))])
 
 (define-metafunction λDTR
   ;; ((Φ (δ ...)) ...) disjuncts so far
@@ -636,58 +641,70 @@
          (update-ψ* (empty-env) (ψ_1 ...) (o ♢ τ)))])
 
 
+(define-judgment-form λDTR
+  #:mode (atomic-type I)
+  #:contract (atomic-type τ)
+  [(where #t ,(not (not (member (term τ) (term (Top #t #f Int Str))))))
+   ------------------------------- "Atomic Type"
+   (atomic-type τ)])
 
+(define-judgment-form λDTR
+  #:mode (implied-by-δ I O)
+  #:contract (implied-by-δ δ ψ)
+  [-------------------------- "Implied-Not"
+   (implied-by-δ (o ¬ τ) (o ¬ τ))]
+  [(atomic-type τ)
+   -------------------------- "Implied-Is-Atomic"
+   (implied-by-δ (o ~ τ) (o ~ τ))]
+  [-------------------------- "Implied-Is-Union"
+   (implied-by-δ (o ~ (U τ ...)) (o ~ (U τ ...)))]
+  [-------------------------- "Implied-Is-Abs"
+   (implied-by-δ (o ~ (x : σ → τ (ψ_+ ψ_- oo))) (o ~ (x : σ → τ (ψ_+ ψ_- oo))))]
+  [(implied-by-δ ((o-car o) ~ τ) ψ_τ)
+   (implied-by-δ ((o-car o) ~ σ) ψ_σ)
+   ---------------------------- "Implied-Is-Pair"
+   (implied-by-δ (o ~ (τ × σ)) (And: (o ~ (τ × σ))
+                                     (And: ψ_τ ψ_σ)))]
+  [(where/hidden ν (fresh-var (o ~ (♯ τ))))
+   (implied-by-δ ((id ν) ~ τ) ψ_τ)
+   --------------------------- "Implied-Is-Vec"
+   (implied-by-δ (o ~ (♯ τ)) (And: (o ~ (♯ τ))
+                                   (subst ψ_τ Ø ν)))]
+  [(implied-by-ψ (subst ψ o x) ψ_R)
+   (implied-by-δ (o ~ (subst τ o x)) ψ_τ)
+   -------------------------- "Implied-Is-Ref"
+   (implied-by-δ (o ~ (x : τ where ψ)) (And: ψ_τ ψ_R))])
 
-
-(define-metafunction λDTR
-  sift-δ : δ boolean -> ψ
-  [(sift-δ (o ¬ τ) boolean) (o ¬ τ)]
-  [(sift-δ (o ~ Top) #t) (o ~ Top)]
-  [(sift-δ (o ~ Top) #f) TT]
-  [(sift-δ (o ~ #t) #t) (o ~ #t)]
-  [(sift-δ (o ~ #t) #f) TT]
-  [(sift-δ (o ~ #f) #t) (o ~ #f)]
-  [(sift-δ (o ~ #f) #f) TT]
-  [(sift-δ (o ~ Int) #t) (o ~ Int)]
-  [(sift-δ (o ~ Int) #f) TT]
-  [(sift-δ (o ~ Str) #t) (o ~ Str)]
-  [(sift-δ (o ~ Str) #f) TT]
-  [(sift-δ (o ~ (U τ ...)) #t) (o ~ (U τ ...))]
-  [(sift-δ (o ~ (U τ ...)) #f) TT]
-  [(sift-δ (o ~ (x : σ → τ (ψ_+ ψ_- oo))) #t) (o ~ (x : σ → τ (ψ_+ ψ_- oo)))]
-  [(sift-δ (o ~ (x : σ → τ (ψ_+ ψ_- oo))) #f) TT]
-  [(sift-δ (o ~ (τ × σ)) #t) (And: (o ~ (τ × σ))
-                                    (And: (sift-δ ((o-car o) ~ τ) #f)
-                                          (sift-δ ((o-cdr o) ~ σ) #f)))]
-  [(sift-δ (o ~ (τ × σ)) #f) (And: (sift-δ ((o-car o) ~ τ) #f)
-                                    (sift-δ ((o-cdr o) ~ σ) #f))]
-  [(sift-δ (o ~ (♯ τ)) #t) (And: (o ~ (♯ τ))
-                                 (subst (sift-δ ((id ν) ~ τ) #f) Ø ν))
-                            (where/hidden ν (fresh-var (o ~ (♯ τ))))]
-  [(sift-δ (o ~ (♯ τ)) #f) (subst (sift-δ ((id ν) ~ τ) #f) Ø ν)
-                            (where/hidden ν (fresh-var (o ~ (♯ τ))))]
-  [(sift-δ (o ~ (x : τ where ψ)) boolean) (And: (sift-ψ (subst ψ o x))
-                                           (sift-δ (o ~ (subst τ o x)) boolean))])
-
-(define-metafunction λDTR
-  sift-ψ : ψ -> ψ
-  ;; TT/FF
-  [(sift-ψ TT) TT]
-  [(sift-ψ FF) FF]
-  ;; fact
-  [(sift-ψ δ) (sift-δ δ #t)]
+(define-judgment-form λDTR
+  #:mode (implied-by-ψ I O)
+  #:contract (implied-by-ψ ψ ψ)
+  [------------------- "Implied-True"
+   (implied-by-ψ TT TT)]
+  [------------------- "Implied-False"
+   (implied-by-ψ FF FF)]
+  [(implied-by-δ δ ψ)
+   ------------------ "Implied-Atom"
+   (implied-by-ψ δ ψ)]
   ;; And/Or
-  [(sift-ψ (ψ_1 ∧ ψ_2)) (And: (sift-ψ ψ_1)
-                              (sift-ψ ψ_2))]
-  [(sift-ψ (ψ_1 ∨ ψ_2)) (Or: (sift-ψ ψ_1)
-                             (sift-ψ ψ_2))]
+  [(implied-by-ψ ψ_1 ψ_1*)
+   (implied-by-ψ ψ_2 ψ_2*)
+   ----------------- "Implied-And"
+   (implied-by-ψ (ψ_1 ∧ ψ_2) (And: ψ_1* ψ_2*))]
+  [(implied-by-ψ ψ_1 ψ_1*)
+   (implied-by-ψ ψ_2 ψ_2*)
+   ----------------- "Implied-Or"
+   (implied-by-ψ (ψ_1 ∨ ψ_2) (Or: ψ_1* ψ_2*))]
   ;; Φ
-  [(sift-ψ Φ) Φ])
+  [---------------------- "Implied SLI"
+   (implied-by-ψ Φ Φ)])
 
 
-(define-metafunction λDTR
-  sift-ψ* : ψ* -> ψ*
-  [(sift-ψ* (ψ ...)) ((sift-ψ ψ) ...)])
+(define-judgment-form λDTR
+  #:mode (implied-by-ψs I O)
+  #:contract (implied-by-ψs ψ* ψ*)
+  [(implied-by-ψ ψ ψ_*) ...
+   ----------------------- "Implied-by-ψs"
+   (implied-by-ψs (ψ ...) (ψ_* ...))])
 
 (define-metafunction λDTR
   Φ-update-δ* : δ* Φ -> δ*
@@ -859,9 +876,11 @@
 
 
 (define-metafunction λDTR
-  env/sift+ψ* : Γ ψ ... -> Γ
-  [(env/sift+ψ* (env Φ δ* ψ*) ψ ...) (env Φ δ* (app ψ* (sift-ψ* (ψ ...))))])
+  env/implied-by-ψ* : Γ ψ ... -> Γ
+  [(env/implied-by-ψ* (env Φ δ* ψ*) ψ ...) (env Φ δ* (app ψ* ψ*_2))
+                                           (judgment-holds (implied-by-ψs (ψ ...) ψ*_2))])
 
 (define-metafunction λDTR
   env: : ψ ... -> Γ
-  [(env: ψ ...) (env () () (sift-ψ* (ψ ...)))])
+  [(env: ψ ...) (env () () ψ*_2)
+                (judgment-holds (implied-by-ψs (ψ ...) ψ*_2))])

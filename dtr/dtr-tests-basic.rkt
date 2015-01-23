@@ -6,6 +6,12 @@
 (check-equal? (term (subst (id x) Ø x)) (term Ø))
 (check-equal? (term (subst (id y) Ø x)) (term (id y)))
 (check-equal? (term (subst Ø (id y) x)) (term Ø))
+(check-equal? (term (subst ((CAR) @ y) (id z) y)) (term ((CAR) @ z)))
+(check-equal? (term (subst ((CDR) @ y) (id z) y)) (term ((CDR) @ z)))
+(check-equal? (term (subst ((LEN) @ y) (id z) y)) (term ((LEN) @ z)))
+(check-equal? (term (subst ((CAR) @ y) ((CDR) @ z) y)) (term ((CAR CDR) @ z)))
+(check-equal? (term (subst ((CDR) @ y) ((CAR) @ z) y)) (term ((CDR CAR) @ z)))
+(check-equal? (term (subst ((LEN) @ y) ((CAR) @ z) y)) (term ((LEN CAR) @ z)))
 
 ;; type subst tests
 (check-equal? (term (subst Top (id z) x)) (term Top))
@@ -53,6 +59,7 @@
                            (+ (id z) (id q)) x))
               (term (((+ 42 (* 13 (+ (id z) (id q)))) ~ Int) 
                      ∨ ((+ 42 (* 13 (+ (id z) (id q)))) ~ Int))))
+
 ;; fme tests
 (check-true (judgment-holds (fme-sat [])))
 (check-true (judgment-holds (fme-sat [(≤ (id x) (id y))])))

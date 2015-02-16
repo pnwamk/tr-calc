@@ -58,10 +58,22 @@
   [(where/hidden ν (fresh-var Γ o
                               (x : σ_1 → τ_1 (ψ_1+ ψ_1- oo_1))
                               (y : σ_2 → τ_2 (ψ_2+ ψ_2- oo_2))))
-   (subtype Γ (id ν) σ_2 σ_1) 
-   (subtype Γ (id ν) (subst τ_1 (id y) x) τ_2) 
-   (proves (env/implied-by-ψ* Γ (subst ψ_1+ (id y) x)) ψ_2+)
-   (proves (env/implied-by-ψ* Γ (subst ψ_1- (id y) x)) ψ_2-)
+   (where/hidden ν_x (fresh-var ν Γ o
+                              (x : σ_1 → τ_1 (ψ_1+ ψ_1- oo_1))
+                              (y : σ_2 → τ_2 (ψ_2+ ψ_2- oo_2))))
+   (subtype Γ (id ν_x) σ_2 σ_1)
+   (proves (env/implied-by-ψ* Γ 
+                              ((id ν_x) ~ σ_2)
+                              ((id ν) ~ (subst τ_1 (id ν_x) x)))
+           ((id ν) ~ (subst τ_2 (id ν_x) x)))
+   (proves (env/implied-by-ψ* Γ 
+                              ((id ν_x) ~ σ_2)
+                              (subst ψ_1+ (id ν_x) x)) 
+           (subst ψ_2+ (id ν_x) y))
+   (proves (env/implied-by-ψ* Γ
+                              ((id ν_x) ~ σ_2)
+                              (subst ψ_1- (id ν_x) x))
+           (subst ψ_2- (id ν_x) y))
    (subobj (subst oo_1 (id y) x) oo_2)
    ------------------------------------------ "S-Abs"
    (subtype Γ o

@@ -105,6 +105,12 @@
                                      (x : Int where [(≤ (id x) 5)]))))
 (check-false (judgment-holds (simple-subtype (y : Int where [(≤ (id y) 13)]) 
                                       (x : Int where [(≤ (id x) 5)]))))
+(check-true (judgment-holds (simple-subtype (x : (U Int Str) 
+                                               → (y : Top where (Or: (And: ((id x) ~ Int) ((id y) ~ Int))
+                                                                     (And: ((id x) ~ Str) ((id y) ~ Str))))
+                                                 (TT FF Ø))
+                                            (x : Int → Int (TT FF Ø)))))
+
 
 
 ;; update* fact tests

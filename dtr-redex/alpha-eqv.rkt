@@ -14,84 +14,56 @@
   (nat ::= natural))
  
 
+;; ----------------------------------------------------------
+;; DeBruijn Conversion
 (define-metafunction DTR+DB
   sd : any -> any
   [(sd any) (sd/a any ())])
 
 (define-metafunction DTR+DB
   sd/a : any ((x ...) ...) -> any
-  [(sd/a e ((x ...) ...)) (sd/a-e e ((x ...) ...))]
-  [(sd/a τ ((x ...) ...)) (sd/a-τ τ ((x ...) ...))]
-  [(sd/a ψ ((x ...) ...)) (sd/a-ψ ψ ((x ...) ...))]
-  [(sd/a o ((x ...) ...)) (sd/a-o o ((x ...) ...))]
-  [(sd/a θ ((x ...) ...)) (sd/a-θ θ ((x ...) ...))]
-  [(sd/a φ ((x ...) ...)) (sd/a-φ φ ((x ...) ...))]
-  [(sd/a Φ ((x ...) ...)) (sd/a-Φ Φ ((x ...) ...))]
-  [(sd/a Γ ((x ...) ...)) (sd/a-Γ Γ ((x ...) ...))]
-  [(sd/a Ψ ((x ...) ...)) (sd/a-Ψ Ψ ((x ...) ...))])
-
-(define-metafunction DTR+DB
-  sd/a : any ((x ...) ...) -> any
-  [(sd/a e ((x ...) ...)) (sd/a-e e ((x ...) ...))]
-  [(sd/a τ ((x ...) ...)) (sd/a-τ τ ((x ...) ...))]
-  [(sd/a ψ ((x ...) ...)) (sd/a-ψ ψ ((x ...) ...))]
-  [(sd/a o ((x ...) ...)) (sd/a-o o ((x ...) ...))]
-  [(sd/a θ ((x ...) ...)) (sd/a-θ θ ((x ...) ...))]
-  [(sd/a φ ((x ...) ...)) (sd/a-φ φ ((x ...) ...))]
-  [(sd/a Φ ((x ...) ...)) (sd/a-Φ Φ ((x ...) ...))]
-  [(sd/a Γ ((x ...) ...)) (sd/a-Γ Γ ((x ...) ...))]
-  [(sd/a Ψ ((x ...) ...)) (sd/a-Ψ Ψ ((x ...) ...))])
-
-
-;; ----------------------------------------------------------
-;; Object DeBruijn-ification
-(define-metafunction DTR+DB
-  sd/a-o : o ((x ...) ...) -> o
-  [(sd/a-o x ((x_1 ...) ... (x_0 ... x x_2 ...) (x_3 ...) ...))
-   ; bound variable 
+  ;; bound variable 
+  [(sd/a x ((x_1 ...) ... (x_0 ... x x_2 ...) (x_3 ...) ...))
    (K n_rib n_pos)
    (where n_rib ,(length (term ((x_1 ...) ...))))
    (where n_pos ,(length (term (x_0 ...))))
    (where #false ,(member (term x) (term (x_1 ... ...))))]
-  [(sd/a-o o (any ...)) o])
-
-(module+ test
-  (test*-equal (sd/a-o x ()) x)
-  (test*-equal (sd/a-o x ((y))) x)
-  (test*-equal (sd/a-o x ((x))) (K 0 0))
-  (test*-equal (sd/a-o x ((y) (x))) (K 1 0)))
-
-;; ----------------------------------------------------------
-;; Expression DeBruijn-ification
-(define-metafunction DTR+DB
-  sd/a-e : e ((x ...) ...) -> e
-  [(sd/a-e x (any ...)) (sd/a-o x (any ...))]
-  [(sd/a-e n (any ...)) n]
-  [(sd/a-e b (any ...)) b]
-  [(sd/a-e p (any ...)) p]
+  ;; free variables
+  [(sd/a x (any ...)) x]
   ;; λ
-  [(sd/a-e (λ ([x : τ] ...) e) (any ...))
-   (λ ((sd/a-τ τ (any ...)) ...)
-     (sd/a-e e ((x ...) any ...)))]
-  ;; if
-  [(sd/a-e (if e_1 e_2 e_3) (any ...))
-   (if (sd/a-e e_1 (any ...))
-       (sd/a-e e_2 (any ...))
-       (sd/a-e e_3 (any ...)))]
+  [(sd/a (λ ([x : τ] ...) e) (any ...))
+   (λ ((sd/a τ (any ...)) ...)
+     (sd/a e ((x ...) any ...)))]
   ;; let
-  [(sd/a-e (let (x e_x) e) (any ...))
-   (let ((sd/a-e e_x (any ...)))
-     (sd/a-e e ((x) any ...)))]
-  ;; app
-  [(sd/a-e (e ...) (any ...))
-   ((sd/a e (any ...)) ...)])
+  [(sd/a (let (x e_x) e) (any ...))
+   (let ((sd/a e_x (any ...)))
+     (sd/a e ((x) any ...)))]
+  ;; function types
+  [(sd/a ([x : σ] ... → τ (ψ_+ ∣ ψ_-)) (any ...))
+   ((sd/a σ (any ...)) ...
+    → (sd/a τ ((x ...) any ...))
+    ((sd/a ψ_+ ((x ...) any ...))
+     ∣
+     (sd/a ψ_- ((x ...) any ...))))]
+  ;; refinement types
+  [(sd/a {x : τ ∣ ψ} (any ...))
+   { : (sd/a τ (any ...))
+       ∣ (sd/a ψ ((x) any ...))}]
+  ;; syntactic lists
+  [(sd/a (any ...) (any_x ...))
+   ((sd/a any (any_x ...)) ...)]
+  ;; other (ignore)
+  [(sd/a any (any_x ...)) any])
+
 
 ;; sd/a-e tests
 (module+ test
-  (test*-equal (sd x) x)
-  (test*-equal (sd/a-e x ((x))) (K 0 0))
-  (test*-equal (sd/a-e b ((a) (b c) (d e))) (K 1 0))
-  (test*-equal (sd/a-e c ((a) (b c) (d e))) (K 1 1))
+  (test*-equal (sd/a x ()) x)
+  (test*-equal (sd/a x ((y))) x)
+  (test*-equal (sd/a x ((x))) (K 0 0))
+  (test*-equal (sd/a x ((y) (x))) (K 1 0))
+  (test*-equal (sd/a b ((a) (b c) (d e))) (K 1 0))
+  (test*-equal (sd/a c ((a) (b c) (d e))) (K 1 1))
   (test*-equal (sd 42) 42)
   (test*-equal (sd #t) #t)
   (test*-equal (sd +) +)
@@ -116,27 +88,6 @@
                      (a a a)))
                (let ((λ (Int Int) (+ (K 0 0) (K 0 1))))
                      ((K 0 0) (K 0 0) (K 0 0)))))
-
-;; ----------------------------------------------------------
-;; Type DeBruijn-ification
-(define-metafunction DTR+DB
-  sd/a-τ : τ ((x ...) ...) -> τ
-  [(sd/a-τ ⊤ (any ...)) ⊤]
-  [(sd/a-τ ♯T (any ...)) ♯T]
-  [(sd/a-τ ♯F (any ...)) ♯F]
-  [(sd/a-τ Int (any ...)) Int]
-  [(sd/a-τ (U τ ...) (any ...))
-   (U (sd/a-τ τ (any ...)) ...)]
-  [(sd/a-τ ([x : σ] ... → τ (ψ_+ ∣ ψ_-)) (any ...))
-   ((sd/a-τ σ (any ...)) ...
-    → (sd/a-τ τ ((x ...) any ...))
-    ((sd/a-ψ ψ_+ ((x ...) any ...))
-     ∣
-     (sd/a-ψ ψ_- ((x ...) any ...))))]
-  [(sd/a-τ {x : τ ∣ ψ} (any ...))
-   { : (sd/a-τ τ (any ...))
-       ∣ (sd/a-ψ ψ ((x) any ...))}])
-
 
 ;; sd/a-τ tests
 (module+ test
@@ -173,60 +124,20 @@
                          ∣ ((y ~ Int) ∧ ((K 0 0) ~ Int))})))
 
 
-;; ----------------------------------------------------------
-;; Linear Expressions DeBruijn-ification
-(define-metafunction DTR+DB
-  sd/a-θ : θ ((x ...) ...) -> θ
-  [(sd/a-θ n (any ...)) n]
-  [(sd/a-θ x (any ...))
-   (sd/a-o x (any ...))]
-  [(sd/a-θ (n ⊗ θ) (any ...))
-   (n ⊗ (sd/a-θ θ (any ...)))]
-  [(sd/a-θ (θ_l ⊕ θ_r) (any ...))
-   ((sd/a-θ θ_l (any ...))
-    ⊕
-    (sd/a-θ θ_r (any ...)))])
-
 ;; sd/a-θ tests
 (module+ test
-  (test*-equal (sd/a-θ 42 ()) 42)
-  (test*-equal (sd/a-θ x ()) x)
-  (test*-equal (sd/a-θ x ((x))) (K 0 0))
+  (test*-equal (sd/a 42 ()) 42)
+  (test*-equal (sd/a x ()) x)
+  (test*-equal (sd/a x ((x))) (K 0 0))
   (test*-equal (sd (42 ⊗ x)) (42 ⊗ x))
-  (test*-equal (sd/a-θ (42 ⊗ x) ((x))) (42 ⊗ (K 0 0)))
-  (test*-equal (sd/a-θ (y ⊕ (42 ⊗ x)) ((x) (y)))
+  (test*-equal (sd/a (42 ⊗ x) ((x))) (42 ⊗ (K 0 0)))
+  (test*-equal (sd/a (y ⊕ (42 ⊗ x)) ((x) (y)))
                ((K 1 0) ⊕ (42 ⊗ (K 0 0)))))
-
-;; ----------------------------------------------------------
-;; Inequality DeBruijn-ification
-(define-metafunction DTR+DB
-  sd/a-φ : φ ((x ...) ...) -> φ
-  [(sd/a-φ (θ_l ≤ θ_r) (any ...))
-   ((sd/a-θ θ_l (any ...)) ≤ (sd/a-θ θ_r (any ...)))])
 
 ;; sd/a-φ tests
 (module+ tests
-  (test*-equal (sd/a-θ (x ≤ (y ⊕ (42 ⊗ x))) ((x) (y)))
+  (test*-equal (sd/a (x ≤ (y ⊕ (42 ⊗ x))) ((x) (y)))
                ((K 0 0) ≤ ((K 1 0) ⊕ (42 ⊗ (K 0 0))))))
-
-;; ----------------------------------------------------------
-;; Proposition DeBruijn-ification
-(define-metafunction DTR+DB
-  sd/a-ψ : ψ ((x ...) ...) -> ψ
-  [(sd/a-ψ tt (any ...)) tt]
-  [(sd/a-ψ ff (any ...)) ff]
-  [(sd/a-ψ (o ~¬ τ) (any ...))
-   ((sd/a-o o (any ...)) ~¬ (sd/a-τ τ (any ...)))]
-  [(sd/a-ψ (ψ_l ∨∧ ψ_r) (any ...))
-   ((sd/a-ψ ψ_l (any ...))
-    ∨∧
-    (sd/a-ψ ψ_r (any ...)))]
-  [(sd/a-ψ (x ⇒ o) (any ...))
-   ((sd/a-o x (any ...))
-    ⇒
-    (sd/a-o o (any ...)))]
-  [(sd/a-ψ φ (any ...))
-   (sd/a-φ φ (any ...))])
 
 ;; sd/a-ψ tests
 (module+ test
@@ -250,24 +161,14 @@
                (x ~ {: ⊤ ∣ ((K 0 0) ≤ y)})))
 
 
-;; ----------------------------------------------------------
-;; Inequality Env DeBruijn-ification
-(define-metafunction DTR+DB
-  sd/a-Φ : Φ ((x ...) ...) -> Φ
-  [(sd/a-Φ () (any ...)) ()]
-  [(sd/a-Φ (φ · Φ) (any ...))
-   ((sd/a-φ φ (any ...))
-    ·
-    (sd/a-Φ Φ (any ...)))])
-
 
 ;; sd/a-Φ tests
 (module+ test
   (test*-equal (sd ()) ())
-  (test*-equal (sd/a-Φ () ()) ())
-  (test*-equal (sd/a-Φ ((x ≤ (y ⊕ (42 ⊗ x))) · ()) ((x) (y)))
+  (test*-equal (sd/a () ()) ())
+  (test*-equal (sd/a ((x ≤ (y ⊕ (42 ⊗ x))) · ()) ((x) (y)))
                (((K 0 0) ≤ ((K 1 0) ⊕ (42 ⊗ (K 0 0)))) · ()))
-  (test*-equal (sd/a-Φ ((x ≤ (y ⊕ (42 ⊗ x)))
+  (test*-equal (sd/a ((x ≤ (y ⊕ (42 ⊗ x)))
                         · ((x ≤ (y ⊕ (42 ⊗ x)))
                            · ()))
                        ((x) (y)))
@@ -275,38 +176,17 @@
                 · (((K 0 0) ≤ ((K 1 0) ⊕ (42 ⊗ (K 0 0))))
                    · ()))))
 
-;; ----------------------------------------------------------
-;; Type Env DeBruijn-ification
-(define-metafunction DTR+DB
-  sd/a-Γ : Γ ((x ...) ...) -> Γ
-  [(sd/a-Γ () (any ...)) ()]
-  [(sd/a-Γ ((x : τ) · Γ) (any ...))
-   ((x : (sd/a-τ τ (any ...)))
-    ·
-    (sd/a-Γ Γ (any ...)))])
-
 ;; sd/a-Γ tests
 (module+ test
-  (test*-equal (sd/a-Γ () ()) ())
-  (test*-equal (sd/a-Γ ((y : ⊤) · ((x : ⊤) · ())) ())
+  (test*-equal (sd/a () ()) ())
+  (test*-equal (sd/a ((y : ⊤) · ((x : ⊤) · ())) ())
                ((y : ⊤) · ((x : ⊤) · ())))
-  (test*-equal (sd/a-Γ ((y : ⊤) · ((x : {y : ⊤ ∣ (a ~ ⊤)}) · ())) ((a)))
+  (test*-equal (sd/a ((y : ⊤) · ((x : {y : ⊤ ∣ (a ~ ⊤)}) · ())) ((a)))
                ((y : ⊤) · ((x : {: ⊤ ∣ ((K 1 0) ~ ⊤)}) · ()))))
-
-;; ----------------------------------------------------------
-;; Proposition Env DeBruijn-ification
-(define-metafunction DTR+DB
-  sd/a-Ψ : Ψ ((x ...) ...) -> Ψ
-  [(sd/a-Ψ () (any ...)) ()]
-  [(sd/a-Ψ (ψ · Ψ) (any ...))
-   ((sd/a-ψ ψ (any ...))
-    ·
-    (sd/a-Ψ Ψ (any ...)))])
-
 
 ;; sd/a-Ψ tests
 (module+ test
-  (test*-equal (sd/a-Ψ () ()) ())
+  (test*-equal (sd/a () ()) ())
   (test*-equal (sd ((x ~ {x : ⊤ ∣ (x ~ Int)}) · ()))
                ((x ~ {: ⊤ ∣ ((K 0 0) ~ Int)}) · ()))
   (test*-equal (sd ((x ~ {x : ⊤ ∣ (x ~ Int)})

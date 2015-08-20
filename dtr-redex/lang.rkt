@@ -98,11 +98,11 @@
    (id-at-refine Γ)])
 
 (define-metafunction DTR
-  fresh-var : any -> x
-  [(fresh-var any) ,(variable-not-in (term any))])
+  fresh-var : any x -> x
+  [(fresh-var any x) ,(variable-not-in (term any) (term x))])
 
 (define-metafunction DTR
-  fresh-vars : any (x ...) -> x
+  fresh-vars : any (x ...) -> (x ...)
   [(fresh-vars any (x ...)) ,(variables-not-in (term any) (term (x ...)))])
 
 (define is? (redex-match? DTR (x ~ τ)))

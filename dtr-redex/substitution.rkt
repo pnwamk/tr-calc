@@ -16,119 +16,39 @@
 ;; substitution
 (define-metafunction DTR
   subst : any ([x ↦ o] ...) -> any
-  [(subst e (any ...)) (subst-e e (any ...))]
-  [(subst τ (any ...)) (subst-τ τ (any ...))]
-  [(subst ψ (any ...)) (subst-ψ ψ (any ...))]
-  [(subst o (any ...)) (subst-o o (any ...))]
-  [(subst θ (any ...)) (subst-θ θ (any ...))]
-  [(subst φ (any ...)) (subst-φ φ (any ...))]
-  [(subst Φ (any ...)) (subst-Φ Φ (any ...))]
-  [(subst Γ (any ...)) (subst-Γ Γ (any ...))]
-  [(subst Ψ (any ...)) (subst-Ψ Ψ (any ...))])
-
-
-(define-metafunction DTR
-  subst-e : e ([x ↦ o] ...) -> e
-  [(subst-e y (any_1 ... (y ↦ o_y) any_2 ...)) o_y]
-  [(subst-e x (any ...)) x]
-  [(subst-e n (any ...)) n]
-  [(subst-e b (any ...)) b]
-  [(subst-e p (any ...)) p]
+  [(subst any ()) any]
+  ;; subst variable
+  [(subst y (any_1 ... [y ↦ o] any_2 ...)) o]
+  ;; non-subst variable
+  [(subst x (any ...)) x]
   ;; λ
-  [(subst-e (λ ([x : τ] ...) e) (any ...))
-   (λ ([z : (subst-τ τ (any ...))] ...)
+  [(subst (λ ([x : τ] ...) e) (any ...))
+   (λ ([z : (subst τ (any ...))] ...)
      (subst (subst-raw e [(x ↦ z) ...]) (any ...)))
    (where (z ...) (fresh-vars (e (any ...)) (x ...)))]
-  ;; if
-  [(subst-e (if e_1 e_2 e_3) (any ...))
-   (if (subst-e e_1 (any ...))
-       (subst-e e_2 (any ...))
-       (subst-e e_3 (any ...)))]
   ;; let
-  [(subst-e (let (x e_x) e) (any ...))
-   (let (z (subst-e e_x (any ...)))
-     (subst-e (subst-raw e [(x ↦ z)]) (any ...)))
-   (where z (fresh-var (e (any ...))))]
-  ;; app
-  [(subst-e (e ...) (any ...))
-   ((subst e (any ...)) ...)])
-
-(define-metafunction DTR
-  subst-o : o ([x ↦ o] ...) -> o
-  [(subst-o y (any_1 ... (y ↦ o) any_2 ...)) o]
-  [(subst-o x (any ...)) x])
-
-(define-metafunction DTR
-  subst-τ : τ ([x ↦ o] ...) -> τ
-  [(subst-τ ⊤ (any ...)) ⊤]
-  [(subst-τ ♯T (any ...)) ♯T]
-  [(subst-τ ♯F (any ...)) ♯F]
-  [(subst-τ Int (any ...)) Int]
-  [(subst-τ (U τ ...) (any ...))
-   (U (subst-τ τ (any ...)) ...)]
-  [(subst-τ ([x : σ] ... → τ (ψ_+ ∣ ψ_-)) (any ...))
-   ([z : (subst-τ σ (any ...))] ...
-    → (subst-τ (subst-raw τ [(x ↦ z) ...]) (any ...))
-    ((subst-ψ (subst-raw ψ_+ [(x ↦ z) ...]) (any ...))
+  [(subst (let (x e_x) e) (any ...))
+   (let (z (subst e_x (any ...)))
+     (subst (subst-raw e [(x ↦ z)]) (any ...)))
+   (where z (fresh-var (e (any ...)) x))]
+  ;; function type
+  [(subst ([x : σ] ... → τ (ψ_+ ∣ ψ_-)) (any ...))
+   ([z : (subst σ (any ...))] ...
+    → (subst (subst-raw τ [(x ↦ z) ...]) (any ...))
+    ((subst (subst-raw ψ_+ [(x ↦ z) ...]) (any ...))
      ∣
-     (subst-ψ (subst-raw ψ_- (x ↦ z) ...) (any ...))))
+     (subst (subst-raw ψ_- (x ↦ z) ...) (any ...))))
    (where (z ...) (fresh-vars (τ ψ_+ ψ_- (any ...)) (x ...)))]
-  [(subst-τ {x : τ ∣ ψ} (any ...))
-   {z : (subst-τ τ (any ...))
-      ∣ (subst-ψ (subst-raw ψ (x ↦ z)) (any ...))}
-   (where z (fresh-var (ψ (any ...))))])
-
-(define-metafunction DTR
-  subst-ψ : ψ ([x ↦ o] ...) -> ψ
-  [(subst-ψ (y ~¬ τ) (any_1 ... (y ↦ o) any_2 ...))
-   (o ~¬ (subst-τ τ (any_1 ... (y ↦ o) any_2 ...)))]
-  [(subst-ψ (x -? τ) (any ...))
-   (x -? (subst-τ τ (any ...)))]
-  ;; x ↦ other linear expression
-  [(subst-ψ (ψ_l ∨∧ ψ_r) (any ...))
-   ((subst-ψ ψ_l (any ...)) ∨∧ (subst-ψ ψ_r (any ...)))]
-  [(subst-ψ φ (x ↦ o) ...) (subst φ (x ↦ o) ...)])
-
-
-(define-metafunction DTR
-  subst-φ : φ (x ↦ o) ... -> φ
-  [(subst-φ (θ_l ≤ θ_r) (x ↦ o) ...)
-   ((subst-θ θ_l (x ↦ o) ...) ≤ (subst-θ θ_r (x ↦ o) ...))])
-
-(define-metafunction DTR
-  subst-θ : θ (x ↦ o) ... -> θ
-  [(subst-θ n (x ↦ o) ...) n]
-  [(subst-θ y (x ↦ o_x) ... (y ↦ o_y) (z ↦ o_z) ...) o_y]
-  [(subst-θ x (y ↦ o) ...) x]
-  [(subst-θ (n ⊗ θ) (x ↦ o) ...) (n ⊗ (subst-θ θ (x ↦ o) ...))]
-  [(subst-θ (θ_l ⊕ θ_r) (x ↦ o) ...)
-   ((subst-θ θ_l (x ↦ o) ...) ⊕ (subst-θ θ_r (x ↦ o) ...))])
-
-
-(define-metafunction DTR
-  subst-Φ : Φ (x ↦ o) ... -> Φ
-  [(subst-Φ () (x ↦ o) ...) ()]
-  [(subst-Φ (φ · Φ) (x ↦ o) ...)
-   ((subst-φ φ (x ↦ o) ...)
-    ·
-    (subst-Φ Φ (x ↦ o) ...))])
-
-(define-metafunction DTR
-  subst-Γ : Γ (x ↦ o) ... -> Γ
-  [(subst-Γ () (x ↦ o) ...) ()]
-  [(subst-Γ ((x : τ) · Γ) (y ↦ o) ...)
-   ((x : (subst-τ τ (y ↦ o) ...))
-    ·
-    (subst-Γ Γ (x ↦ o) ...))])
-
-(define-metafunction DTR
-  subst-Ψ : Ψ (x ↦ o) ... -> Ψ
-  [(subst-Ψ () (x ↦ o) ...) ()]
-  [(subst-Ψ (ψ · Ψ) (x ↦ o) ...)
-   ((subst-ψ ψ (x ↦ o) ...)
-    ·
-    (subst-Ψ Ψ (x ↦ o) ...))])
-
+  ;; refinement type
+  [(subst {x : τ ∣ ψ} (any ...))
+   {z : (subst τ (any ...))
+      ∣ (subst (subst-raw ψ ([x ↦ z])) (any ...))}
+   (where z (fresh-var (ψ (any ...)) x))]
+  ;; syntactic list
+  [(subst (any ...) (any_subst ...))
+   ((subst any (any_subst ...)) ...)]
+  ;; other (ignore)
+  [(subst any (any_subst ...)) any])
 
 ;; very 'raw' function, does substitution w/o respecting
 ;; scope.
@@ -148,48 +68,40 @@
 ;; substitution tests
 (module+ test
   ;; expressions
-  (test*-α= (subst x [x ↦ y]) y)
-  (test*-α= (subst x [z ↦ y]) x)
-  (test*-α= (subst (x y z) [x ↦ y]) (y y z))
-  (test*-α= (subst (x y z) [x ↦ y] [z ↦ y]) (y y y))
-  (test*-α= (subst (+ x y) [x ↦ 1] [y ↦ 2]) (+ 1 2))
-  (test*-α= (subst (if x y z) [x ↦ y]) (if y y z))
-  (test*-α= (subst (let (x y) z) [x ↦ y]) (let (q y) z))
-  (test*-α= (subst (let (f x) (f z)) [x ↦ y]) (let (g y) (g z)))
-  (test*-α= (subst (λ ([g : I]) (f g)) [f ↦ g])
-            (λ ([x : I]) (g x)))
+  (test*-α= (subst x ([x ↦ y])) y)
+  (test*-α= (subst x ([z ↦ y])) x)
+  (test*-α= (subst (x y z) ([x ↦ y])) (y y z))
+  (test*-α= (subst (x y z) ([x ↦ y] [z ↦ y])) (y y y))
+  (test*-α= (subst (+ x y) ([x ↦ a] [y ↦ b])) (+ a b))
+  (test*-α= (subst (if x y z) ([x ↦ y])) (if y y z))
+  (test*-α= (subst (let (x y) z) ([x ↦ y])) (let (q y) z))
+  (test*-α= (subst (let (f x) (f z)) ([x ↦ y])) (let (g y) (g z)))
+  (test*-α= (subst (λ ([g : Int]) (f g)) ([f ↦ g]))
+            (λ ([x : Int]) (g x)))
   ;; types
-  (test*-α= (subst ⊤ [x ↦ y]) ⊤)
-  (test*-α= (subst I [x ↦ y]) I)
-  (test*-α= (subst ♯t [x ↦ y]) ♯t)
-  (test*-α= (subst ♯f [x ↦ y]) ♯f)
+  (test*-α= (subst ⊤ ([x ↦ y])) ⊤)
+  (test*-α= (subst Int ([x ↦ y])) Int)
+  (test*-α= (subst ♯t ([x ↦ y])) ♯t)
+  (test*-α= (subst ♯f ([x ↦ y])) ♯f)
   (test*-α= (subst (I ∪ ♯f) ([x ↦ y])) (I ∪ ♯f))
   
-  (test*-α= (subst {x : I ∣ [(x ≤ x)]} ([x ↦ y]))
-            {a : I ∣ [(a ≤ a)]})
-  (test*-α= (subst {x : I ∣ [(x ≤ y)]} ([y ↦ x]))
-            {a : I ∣ [(a ≤ x)]})
-  (test*-α= (subst {y : {a : I ∣ [(x ≤ a)]} ∣ [(y ≤ x)]} ([x ↦ y]))
-            {z : {a : I ∣ [(y ≤ a)]} ∣ [(z ≤ y)]})
+  (test*-α= (subst {x : Int ∣ (x ≤ x)} ([x ↦ y]))
+            {a : Int ∣ (a ≤ a)})
+  (test*-α= (subst {x : Int ∣ (x ≤ y)} ([y ↦ x]))
+            {a : Int ∣ (a ≤ x)})
+  (test*-α= (subst {y : {a : Int ∣ (x ≤ a)} ∣ (y ≤ x)} ([x ↦ y]))
+            {z : {a : Int ∣ (y ≤ a)} ∣ (z ≤ y)})
 
   ;; propositions
-  (test*-α= (subst (x ~ I) ([x ↦ y])) (y ~ I))
-  (test*-α= (subst (x ¬ I) ([x ↦ y])) (y ¬ I))
-  (test*-α= (subst (x ~ I) ([x ↦ 42])) tt)
-  (test*-α= (subst (x ¬ I) ([x ↦ 42])) ff)
+  (test*-α= (subst (x ~ Int) ([x ↦ y])) (y ~ Int))
+  (test*-α= (subst (x ¬ Int) ([x ↦ y])) (y ¬ Int))
 
-  ;; environments
-  (test*-α= (subst [() ((x : I)) ()] ((x ↦ y))) [() () ((y ~ I))])
-  (test*-α= (subst [() ((x : I)) ()] ((y ↦ x))) [() ((x : I)) ()])
-  (test*-α= (subst [((x ≤ z)) () ()] ((x ↦ y))) [((y ≤ z)) () ()])
-  (test*-α= (subst [(((2 ⊛ x) ≤ z)) () ()] ((x ↦ y))) [(((2 ⊛ y) ≤ z)) () ()])
-  
   )
 
 
 ;; *******************************************************************
 ;; fv tests
-(module+ test
+#;(module+ test
   ;; Expressions
   (test*-set-equal (fv 42) ())
   (test*-set-equal (fv int?) ())

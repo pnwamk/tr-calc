@@ -1,7 +1,7 @@
 #lang racket
 (require redex
          "lang.rkt"
-         "alpha-eqv.rkt"
+         "scope.rkt"
          "test-utils.rkt")
 
 (provide (all-defined-out))

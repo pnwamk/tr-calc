@@ -99,6 +99,21 @@
   fresh-vars : any (x ...) -> (x ...)
   [(fresh-vars any (x ...)) ,(variables-not-in (term any) (term (x ...)))])
 
+(define-metafunction DTR
+  Un : τ ... -> τ
+  [(Un τ) τ]
+  [(Un σ ... ⊤ τ ...) ⊤]
+  [(Un σ ... (U) τ ...)
+   (Un σ ... τ ...)]
+  [(Un σ ... (U τ_inner ...) τ ...)
+   (Un σ ... τ_inner ... τ ...)]
+  [(Un τ ...)
+   (U σ ...)
+   (where (σ ...) ,(sort (term (τ ...))
+                         (λ (a b)
+                           (<= (equal-hash-code a)
+                               (equal-hash-code b)))))])
+
 (define is? (redex-match? DTR (x ~ τ)))
 (define not? (redex-match? DTR (x ¬ τ)))
 (define ineq? (redex-match? DTR φ))
@@ -107,5 +122,5 @@
 (define conj? (redex-match? DTR (ψ_l ∧ ψ_r)))
 (define disj? (redex-match? DTR (ψ_l ∨ ψ_r)))
 (define ff? (redex-match? DTR ff))
-(define tt? (redex-match? DTR tt?))
+(define tt? (redex-match? DTR tt))
 

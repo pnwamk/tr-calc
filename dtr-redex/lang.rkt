@@ -20,6 +20,9 @@
   [τ σ ::= ⊤ ♯T ♯F Int (U τ ...)
      ([x : σ] ... → τ (ψ ∣ ψ)) {x : τ ∣ ψ}]
   [φ ::= (θ ≤ θ)]
+  ;; ignore next 2, used for simpler metafunctions
+  [~¬ ::= ~ ¬]
+  [∨∧ ::= ∨ ∧]
   ;; propositions
   [ψ ::= (o ~ τ) (o ¬ τ) (x ⇒ o)
      (ψ ∧ ψ) (ψ ∨ ψ) tt ff φ]

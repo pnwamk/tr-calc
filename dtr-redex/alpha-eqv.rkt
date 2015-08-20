@@ -3,6 +3,8 @@
          "lang.rkt"
          "test-utils.rkt")
 
+(provide α= test*-α=)
+
 (define-extended-language DTR+DB DTR
   [e ::= .... (K nat nat) (λ (τ ...) e)
      (let (e) e)]
@@ -28,6 +30,18 @@
   [(sd/a Γ ((x ...) ...)) (sd/a-Γ Γ ((x ...) ...))]
   [(sd/a Ψ ((x ...) ...)) (sd/a-Ψ Ψ ((x ...) ...))])
 
+(define-metafunction DTR+DB
+  sd/a : any ((x ...) ...) -> any
+  [(sd/a e ((x ...) ...)) (sd/a-e e ((x ...) ...))]
+  [(sd/a τ ((x ...) ...)) (sd/a-τ τ ((x ...) ...))]
+  [(sd/a ψ ((x ...) ...)) (sd/a-ψ ψ ((x ...) ...))]
+  [(sd/a o ((x ...) ...)) (sd/a-o o ((x ...) ...))]
+  [(sd/a θ ((x ...) ...)) (sd/a-θ θ ((x ...) ...))]
+  [(sd/a φ ((x ...) ...)) (sd/a-φ φ ((x ...) ...))]
+  [(sd/a Φ ((x ...) ...)) (sd/a-Φ Φ ((x ...) ...))]
+  [(sd/a Γ ((x ...) ...)) (sd/a-Γ Γ ((x ...) ...))]
+  [(sd/a Ψ ((x ...) ...)) (sd/a-Ψ Ψ ((x ...) ...))])
+
 
 ;; ----------------------------------------------------------
 ;; Object DeBruijn-ification
@@ -39,7 +53,7 @@
    (where n_rib ,(length (term ((x_1 ...) ...))))
    (where n_pos ,(length (term (x_0 ...))))
    (where #false ,(member (term x) (term (x_1 ... ...))))]
-  [(sd/a-o o (any_rest ...)) o])
+  [(sd/a-o o (any ...)) o])
 
 (module+ test
   (test*-equal (sd/a-o x ()) x)
@@ -51,26 +65,26 @@
 ;; Expression DeBruijn-ification
 (define-metafunction DTR+DB
   sd/a-e : e ((x ...) ...) -> e
-  [(sd/a-e x (any_rest ...)) (sd/a-o x (any_rest ...))]
-  [(sd/a-e n (any_rest ...)) n]
-  [(sd/a-e b (any_rest ...)) b]
-  [(sd/a-e p (any_rest ...)) p]
+  [(sd/a-e x (any ...)) (sd/a-o x (any ...))]
+  [(sd/a-e n (any ...)) n]
+  [(sd/a-e b (any ...)) b]
+  [(sd/a-e p (any ...)) p]
   ;; λ
-  [(sd/a-e (λ ([x : τ] ...) e) (any_rest ...))
-   (λ ((sd/a-τ τ (any_rest ...)) ...)
-     (sd/a-e e ((x ...) any_rest ...)))]
+  [(sd/a-e (λ ([x : τ] ...) e) (any ...))
+   (λ ((sd/a-τ τ (any ...)) ...)
+     (sd/a-e e ((x ...) any ...)))]
   ;; if
-  [(sd/a-e (if e_1 e_2 e_3) (any_rest ...))
-   (if (sd/a-e e_1 (any_rest ...))
-       (sd/a-e e_2 (any_rest ...))
-       (sd/a-e e_3 (any_rest ...)))]
+  [(sd/a-e (if e_1 e_2 e_3) (any ...))
+   (if (sd/a-e e_1 (any ...))
+       (sd/a-e e_2 (any ...))
+       (sd/a-e e_3 (any ...)))]
   ;; let
-  [(sd/a-e (let (x e_x) e) (any_rest ...))
-   (let ((sd/a-e e_x (any_rest ...)))
-     (sd/a-e e ((x) any_rest ...)))]
+  [(sd/a-e (let (x e_x) e) (any ...))
+   (let ((sd/a-e e_x (any ...)))
+     (sd/a-e e ((x) any ...)))]
   ;; app
-  [(sd/a-e (e ...) (any_rest ...))
-   ((sd/a e (any_rest ...)) ...)])
+  [(sd/a-e (e ...) (any ...))
+   ((sd/a e (any ...)) ...)])
 
 ;; sd/a-e tests
 (module+ test
@@ -107,21 +121,21 @@
 ;; Type DeBruijn-ification
 (define-metafunction DTR+DB
   sd/a-τ : τ ((x ...) ...) -> τ
-  [(sd/a-τ ⊤ (any_rest ...) ...) ⊤]
-  [(sd/a-τ ♯T (any_rest ...)) ♯T]
-  [(sd/a-τ ♯F (any_rest ...)) ♯F]
-  [(sd/a-τ Int (any_rest ...)) Int]
-  [(sd/a-τ (U τ ...) (any_rest ...))
-   (U (sd/a-τ τ (any_rest ...)) ...)]
-  [(sd/a-τ ([x : σ] ... → τ (ψ_+ ∣ ψ_-)) (any_rest ...))
-   ((sd/a-τ σ (any_rest ...)) ...
-    → (sd/a-τ τ ((x ...) any_rest ...))
-    ((sd/a-ψ ψ_+ ((x ...) any_rest ...))
+  [(sd/a-τ ⊤ (any ...)) ⊤]
+  [(sd/a-τ ♯T (any ...)) ♯T]
+  [(sd/a-τ ♯F (any ...)) ♯F]
+  [(sd/a-τ Int (any ...)) Int]
+  [(sd/a-τ (U τ ...) (any ...))
+   (U (sd/a-τ τ (any ...)) ...)]
+  [(sd/a-τ ([x : σ] ... → τ (ψ_+ ∣ ψ_-)) (any ...))
+   ((sd/a-τ σ (any ...)) ...
+    → (sd/a-τ τ ((x ...) any ...))
+    ((sd/a-ψ ψ_+ ((x ...) any ...))
      ∣
-     (sd/a-ψ ψ_- ((x ...) any_rest ...))))]
-  [(sd/a-τ {x : τ ∣ ψ} (any_rest ...))
-   { : (sd/a-τ τ (any_rest ...))
-       ∣ (sd/a-ψ ψ ((x) any_rest ...))}])
+     (sd/a-ψ ψ_- ((x ...) any ...))))]
+  [(sd/a-τ {x : τ ∣ ψ} (any ...))
+   { : (sd/a-τ τ (any ...))
+       ∣ (sd/a-ψ ψ ((x) any ...))}])
 
 
 ;; sd/a-τ tests
@@ -163,15 +177,15 @@
 ;; Linear Expressions DeBruijn-ification
 (define-metafunction DTR+DB
   sd/a-θ : θ ((x ...) ...) -> θ
-  [(sd/a-θ n (any_rest ...)) n]
-  [(sd/a-θ x (any_rest ...))
-   (sd/a-o x (any_rest ...))]
-  [(sd/a-θ (n ⊗ θ) (any_rest ...))
-   (n ⊗ (sd/a-θ θ (any_rest ...)))]
-  [(sd/a-θ (θ_l ⊕ θ_r) (any_rest ...))
-   ((sd/a-θ θ_l (any_rest ...))
+  [(sd/a-θ n (any ...)) n]
+  [(sd/a-θ x (any ...))
+   (sd/a-o x (any ...))]
+  [(sd/a-θ (n ⊗ θ) (any ...))
+   (n ⊗ (sd/a-θ θ (any ...)))]
+  [(sd/a-θ (θ_l ⊕ θ_r) (any ...))
+   ((sd/a-θ θ_l (any ...))
     ⊕
-    (sd/a-θ θ_r (any_rest ...)))])
+    (sd/a-θ θ_r (any ...)))])
 
 ;; sd/a-θ tests
 (module+ test
@@ -187,8 +201,8 @@
 ;; Inequality DeBruijn-ification
 (define-metafunction DTR+DB
   sd/a-φ : φ ((x ...) ...) -> φ
-  [(sd/a-φ (θ_l ≤ θ_r) (any_rest ...))
-   ((sd/a-θ θ_l (any_rest ...)) ≤ (sd/a-θ θ_r (any_rest ...)))])
+  [(sd/a-φ (θ_l ≤ θ_r) (any ...))
+   ((sd/a-θ θ_l (any ...)) ≤ (sd/a-θ θ_r (any ...)))])
 
 ;; sd/a-φ tests
 (module+ tests
@@ -199,28 +213,20 @@
 ;; Proposition DeBruijn-ification
 (define-metafunction DTR+DB
   sd/a-ψ : ψ ((x ...) ...) -> ψ
-  [(sd/a-ψ tt (any_rest ...)) tt]
-  [(sd/a-ψ ff (any_rest ...)) ff]
-  [(sd/a-ψ (o ~ τ) (any_rest ...))
-   ((sd/a-o o (any_rest ...)) ~ (sd/a-τ τ (any_rest ...)))]
-  [(sd/a-ψ (o ¬ τ) (any_rest ...))
-   ((sd/a-o o (any_rest ...)) ¬ (sd/a-τ τ (any_rest ...)))]
-  ;; x ↦ other linear expression
-  [(sd/a-ψ (ψ_l ∨ ψ_r) (any_rest ...))
-   ((sd/a-ψ ψ_l (any_rest ...))
-    ∨
-    (sd/a-ψ ψ_r (any_rest ...)))]
-  [(sd/a-ψ (ψ_l ∧ ψ_r) (any_rest ...))
-   ((sd/a-ψ ψ_l (any_rest ...))
-    ∧
-    (sd/a-ψ ψ_r (any_rest ...)))]
-  
-  [(sd/a-ψ (x ⇒ o) (any_rest ...))
-   ((sd/a-o x (any_rest ...))
+  [(sd/a-ψ tt (any ...)) tt]
+  [(sd/a-ψ ff (any ...)) ff]
+  [(sd/a-ψ (o ~¬ τ) (any ...))
+   ((sd/a-o o (any ...)) ~¬ (sd/a-τ τ (any ...)))]
+  [(sd/a-ψ (ψ_l ∨∧ ψ_r) (any ...))
+   ((sd/a-ψ ψ_l (any ...))
+    ∨∧
+    (sd/a-ψ ψ_r (any ...)))]
+  [(sd/a-ψ (x ⇒ o) (any ...))
+   ((sd/a-o x (any ...))
     ⇒
-    (sd/a-o o (any_rest ...)))]
-  [(sd/a-ψ φ (any_rest ...))
-   (sd/a-φ φ (any_rest ...))])
+    (sd/a-o o (any ...)))]
+  [(sd/a-ψ φ (any ...))
+   (sd/a-φ φ (any ...))])
 
 ;; sd/a-ψ tests
 (module+ test
@@ -248,11 +254,11 @@
 ;; Inequality Env DeBruijn-ification
 (define-metafunction DTR+DB
   sd/a-Φ : Φ ((x ...) ...) -> Φ
-  [(sd/a-Φ () (any_rest ...)) ()]
-  [(sd/a-Φ (φ · Φ) (any_rest ...))
-   ((sd/a-φ φ (any_rest ...))
+  [(sd/a-Φ () (any ...)) ()]
+  [(sd/a-Φ (φ · Φ) (any ...))
+   ((sd/a-φ φ (any ...))
     ·
-    (sd/a-Φ Φ (any_rest ...)))])
+    (sd/a-Φ Φ (any ...)))])
 
 
 ;; sd/a-Φ tests
@@ -273,11 +279,11 @@
 ;; Type Env DeBruijn-ification
 (define-metafunction DTR+DB
   sd/a-Γ : Γ ((x ...) ...) -> Γ
-  [(sd/a-Γ () (any_rest ...)) ()]
-  [(sd/a-Γ ((x : τ) · Γ) (any_rest ...))
-   ((x : (sd/a-τ τ (any_rest ...)))
+  [(sd/a-Γ () (any ...)) ()]
+  [(sd/a-Γ ((x : τ) · Γ) (any ...))
+   ((x : (sd/a-τ τ (any ...)))
     ·
-    (sd/a-Γ Γ (any_rest ...)))])
+    (sd/a-Γ Γ (any ...)))])
 
 ;; sd/a-Γ tests
 (module+ test
@@ -291,11 +297,11 @@
 ;; Proposition Env DeBruijn-ification
 (define-metafunction DTR+DB
   sd/a-Ψ : Ψ ((x ...) ...) -> Ψ
-  [(sd/a-Ψ () (any_rest ...)) ()]
-  [(sd/a-Ψ (ψ · Ψ) (any_rest ...))
-   ((sd/a-ψ ψ (any_rest ...))
+  [(sd/a-Ψ () (any ...)) ()]
+  [(sd/a-Ψ (ψ · Ψ) (any ...))
+   ((sd/a-ψ ψ (any ...))
     ·
-    (sd/a-Ψ Ψ (any_rest ...)))])
+    (sd/a-Ψ Ψ (any ...)))])
 
 
 ;; sd/a-Ψ tests
@@ -308,6 +314,32 @@
                ((x ~ {: ⊤ ∣ ((K 0 0) ~ Int)})
                 · ((x ~ {: ⊤ ∣ ((K 0 0) ~ Int)}) · ()))))
 
+
+;; ----------------------------------------------------------
+;; alpha-equivalence
+(define-metafunction DTR
+  α= : any any -> boolean
+  [(α= any_1 any_2)
+   ,(equal? (term any_1*) (term any_2*))
+   (where any_1* (sd any_1))
+   (where any_2* (sd any_2))])
+
+(module+ test
+  (test*-true (α= x x))
+  (test*-true (α= 42 42))
+  (test*-false (α= 42 x))
+  (test*-true (α= (λ ([x : ⊤]) x) (λ ([y : ⊤]) y)))
+  (test*-true (α= (λ ([x : ⊤] [y : ⊤])
+                    (λ ([z : ⊤])
+                      (x y z)))
+                  (λ ([a : ⊤] [b : ⊤])
+                    (λ ([c : ⊤])
+                      (a b c)))))
+  (test*-true (α= (let (x 42) (+ x x))
+                  (let (a 42) (+ a a)))))
+
+(define-syntax-rule (test*-α= t1 t2)
+  (test-equal (term (α= t1 t2)) #t))
 
 (module+ test
   (test-results))

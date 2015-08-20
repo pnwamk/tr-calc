@@ -158,6 +158,43 @@
                (U Int {: {: ⊤ ∣ (((K 0 0) ~ Int) ∧ (x ~ Int))}
                          ∣ ((y ~ Int) ∧ ((K 0 0) ~ Int))})))
 
+
+;; ----------------------------------------------------------
+;; Linear Expressions DeBruijn-ification
+(define-metafunction DTR+DB
+  sd/a-θ : θ ((x ...) ...) -> θ
+  [(sd/a-θ n (any_rest ...)) n]
+  [(sd/a-θ x (any_rest ...))
+   (sd/a-o x (any_rest ...))]
+  [(sd/a-θ (n ⊗ θ) (any_rest ...))
+   (n ⊗ (sd/a-θ θ (any_rest ...)))]
+  [(sd/a-θ (θ_l ⊕ θ_r) (any_rest ...))
+   ((sd/a-θ θ_l (any_rest ...))
+    ⊕
+    (sd/a-θ θ_r (any_rest ...)))])
+
+;; sd/a-θ tests
+(module+ test
+  (test*-equal (sd/a-θ 42 ()) 42)
+  (test*-equal (sd/a-θ x ()) x)
+  (test*-equal (sd/a-θ x ((x))) (K 0 0))
+  (test*-equal (sd (42 ⊗ x)) (42 ⊗ x))
+  (test*-equal (sd/a-θ (42 ⊗ x) ((x))) (42 ⊗ (K 0 0)))
+  (test*-equal (sd/a-θ (y ⊕ (42 ⊗ x)) ((x) (y)))
+               ((K 1 0) ⊕ (42 ⊗ (K 0 0)))))
+
+;; ----------------------------------------------------------
+;; Inequality DeBruijn-ification
+(define-metafunction DTR+DB
+  sd/a-φ : φ ((x ...) ...) -> φ
+  [(sd/a-φ (θ_l ≤ θ_r) (any_rest ...))
+   ((sd/a-θ θ_l (any_rest ...)) ≤ (sd/a-θ θ_r (any_rest ...)))])
+
+;; sd/a-φ tests
+(module+ tests
+  (test*-equal (sd/a-θ (x ≤ (y ⊕ (42 ⊗ x))) ((x) (y)))
+               ((K 0 0) ≤ ((K 1 0) ⊕ (42 ⊗ (K 0 0))))))
+
 ;; ----------------------------------------------------------
 ;; Proposition DeBruijn-ification
 (define-metafunction DTR+DB
@@ -181,43 +218,31 @@
   [(sd/a-ψ (x ⇒ o) (any_rest ...))
    ((sd/a-o x (any_rest ...))
     ⇒
-    (sd/a-o x (any_rest ...)))]
+    (sd/a-o o (any_rest ...)))]
   [(sd/a-ψ φ (any_rest ...))
    (sd/a-φ φ (any_rest ...))])
 
 ;; sd/a-ψ tests
 (module+ test
-  )
+  (test*-equal (sd (x ~ ⊤)) (x ~ ⊤))
+  (test*-equal (sd (x ~ {x : ⊤ ∣ (x ~ Int)}))
+               (x ~ {: ⊤ ∣ ((K 0 0) ~ Int)}))
+  (test*-equal (sd (x ¬ ⊤)) (x ¬ ⊤))
+  (test*-equal (sd (x ¬ {x : ⊤ ∣ (x ¬ Int)}))
+               (x ¬ {: ⊤ ∣ ((K 0 0) ¬ Int)}))
+  (test*-equal (sd ((x ¬ {x : ⊤ ∣ (x ¬ Int)})
+                    ∨ (x ¬ {x : ⊤ ∣ (x ¬ Int)})))
+               ((x ¬ {: ⊤ ∣ ((K 0 0) ¬ Int)})
+                ∨ (x ¬ {: ⊤ ∣ ((K 0 0) ¬ Int)})))
+  (test*-equal (sd ((x ¬ {x : ⊤ ∣ (x ¬ Int)})
+                    ∧ (x ¬ {x : ⊤ ∣ (x ¬ Int)})))
+               ((x ¬ {: ⊤ ∣ ((K 0 0) ¬ Int)})
+                ∧ (x ¬ {: ⊤ ∣ ((K 0 0) ¬ Int)})))
+  (test*-equal (sd (x ~ {x : ⊤ ∣ (x ⇒ y)}))
+               (x ~ {: ⊤ ∣ ((K 0 0) ⇒ y)}))
+  (test*-equal (sd (x ~ {x : ⊤ ∣ (x ≤ y)}))
+               (x ~ {: ⊤ ∣ ((K 0 0) ≤ y)})))
 
-
-;; ----------------------------------------------------------
-;; Linear Expressions DeBruijn-ification
-(define-metafunction DTR+DB
-  sd/a-θ : θ ((x ...) ...) -> θ
-  [(sd/a-θ n (any_rest ...)) n]
-  [(sd/a-θ x (any_rest ...))
-   (sd/a-o x (any_rest ...))]
-  [(sd/a-θ (n ⊗ θ) (any_rest ...))
-   (n ⊗ (sd/a-θ θ (any_rest ...)))]
-  [(sd/a-θ (θ_l ⊕ θ_r) (any_rest ...))
-   ((sd/a-θ θ_l (any_rest ...))
-    ⊕
-    (sd/a-θ θ_r (any_rest ...)))])
-
-;; sd/a-θ tests
-(module+ test
-  )
-
-;; ----------------------------------------------------------
-;; Inequality DeBruijn-ification
-(define-metafunction DTR+DB
-  sd/a-φ : φ ((x ...) ...) -> φ
-  [(sd/a-φ (θ_l ≤ θ_r) (any_rest ...))
-   ((sd/a-θ θ_l (any_rest ...)) ≤ (sd/a-θ θ_r (any_rest ...)))])
-
-;; sd/a-φ tests
-(module+ test
-  )
 
 ;; ----------------------------------------------------------
 ;; Inequality Env DeBruijn-ification
@@ -232,7 +257,17 @@
 
 ;; sd/a-Φ tests
 (module+ test
-  )
+  (test*-equal (sd ()) ())
+  (test*-equal (sd/a-Φ () ()) ())
+  (test*-equal (sd/a-Φ ((x ≤ (y ⊕ (42 ⊗ x))) · ()) ((x) (y)))
+               (((K 0 0) ≤ ((K 1 0) ⊕ (42 ⊗ (K 0 0)))) · ()))
+  (test*-equal (sd/a-Φ ((x ≤ (y ⊕ (42 ⊗ x)))
+                        · ((x ≤ (y ⊕ (42 ⊗ x)))
+                           · ()))
+                       ((x) (y)))
+               (((K 0 0) ≤ ((K 1 0) ⊕ (42 ⊗ (K 0 0))))
+                · (((K 0 0) ≤ ((K 1 0) ⊕ (42 ⊗ (K 0 0))))
+                   · ()))))
 
 ;; ----------------------------------------------------------
 ;; Type Env DeBruijn-ification
@@ -246,7 +281,11 @@
 
 ;; sd/a-Γ tests
 (module+ test
-  )
+  (test*-equal (sd/a-Γ () ()) ())
+  (test*-equal (sd/a-Γ ((y : ⊤) · ((x : ⊤) · ())) ())
+               ((y : ⊤) · ((x : ⊤) · ())))
+  (test*-equal (sd/a-Γ ((y : ⊤) · ((x : {y : ⊤ ∣ (a ~ ⊤)}) · ())) ((a)))
+               ((y : ⊤) · ((x : {: ⊤ ∣ ((K 1 0) ~ ⊤)}) · ()))))
 
 ;; ----------------------------------------------------------
 ;; Proposition Env DeBruijn-ification
@@ -261,7 +300,14 @@
 
 ;; sd/a-Ψ tests
 (module+ test
-  )
+  (test*-equal (sd/a-Ψ () ()) ())
+  (test*-equal (sd ((x ~ {x : ⊤ ∣ (x ~ Int)}) · ()))
+               ((x ~ {: ⊤ ∣ ((K 0 0) ~ Int)}) · ()))
+  (test*-equal (sd ((x ~ {x : ⊤ ∣ (x ~ Int)})
+                    · ((x ~ {x : ⊤ ∣ (x ~ Int)}) · ())))
+               ((x ~ {: ⊤ ∣ ((K 0 0) ~ Int)})
+                · ((x ~ {: ⊤ ∣ ((K 0 0) ~ Int)}) · ()))))
+
 
 (module+ test
   (test-results))

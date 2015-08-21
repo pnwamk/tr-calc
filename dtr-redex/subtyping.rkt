@@ -87,6 +87,21 @@
   Δ: : ψ ... -> Δ
   [(Δ: ψ ...) (() () ,(list->dot-list (term (ψ ...))))])
 
+(define-metafunction DTR
+  Δ* : ψ ... -> Δ
+  [(Δ* ψ ...)
+   (() () ,(list->dot-list (shuffle (term ((,(gensym) ~ Int)
+                                           (,(gensym) ~ Bool)
+                                           (,(gensym) ¬ Int)
+                                           (,(gensym) ¬ Bool)
+                                           ((,(gensym) ~ Bool)
+                                            ∨ (,(gensym) ~ Int))
+                                           ((,(gensym) ~ Bool)
+                                            ∧ (,(gensym) ~ Int))
+                                           (,(gensym) ⇒ ,(gensym))
+                                           (,(gensym) ≤ ,(gensym))
+                                           tt tt tt tt ψ ...)))))])
+
 
 ;; TODO replace ext w/ ext-Δ
 ;; and ext-Γ
@@ -97,10 +112,177 @@
    (ext-Δ [Φ Γ (ψ · Ψ)] ψ_rst ...)])
 
 (define-metafunction DTR
-  ext-Γ : Γ (x : τ) ... -> Δ
+  ext-Γ : Γ (x : τ) ... -> Γ
   [(ext-Γ Γ) Γ]
   [(ext-Γ Γ (x : τ) any_rst ...)
    (ext-Γ ((x : τ) · Γ) any_rst ...)])
+
+
+(define-judgment-form DTR
+  #:mode (subtype I I I)
+  #:contract (subtype Δ τ τ)
+  [--------------------- "S-Refl"
+   (subtype Δ τ τ)]
+
+  [--------------------- "S-Top"
+   (subtype Δ τ ⊤)]
+
+  [(subtype Δ σ τ) ...
+   --------------------- "S-UnionSub"
+   (subtype Δ (U σ ...) τ)]
+  
+  [(subtype Δ σ τ)
+   --------------------- "S-UnionSuper"
+   (subtype Δ σ (U τ_l ... τ τ_r ...))]
+
+  [(subtype Δ σ τ)
+   --------------------- "S-RefineWeaken"
+   (subtype Δ {x : σ ∣ ψ} τ)]
+  
+  [(where/hidden #f (subtype [Φ Γ Ψ] σ τ))
+   (where y (fresh-var [Φ Γ Ψ] x))
+   (proves [Φ ((y : σ) · Γ) ((subst ψ ([x ↦ y])) · Ψ)]
+           (y ~ τ))
+   --------------------- "S-RefineSub"
+   (subtype [Φ Γ Ψ] {x : σ ∣ ψ} τ)]
+
+  [(where y (fresh-var [Φ Γ Ψ] x))
+   (where Γ_y ((y : σ) · Γ))
+   (proves [Φ Γ_y Ψ] (y ~ τ))
+   (proves [Φ Γ_y Ψ] (subst ψ ([x ↦ y])))
+   --------------------- "S-RefineSuper"
+   (subtype [Φ Γ Ψ] σ {x : τ ∣ ψ})]
+
+  [(subtype [Φ Γ Ψ] σ_2 σ_1) ...
+   (where (y ...) (fresh-vars [Φ Γ Ψ] (x_1 ...)))
+   (where Γ_σ (ext-Γ Γ (y : σ_2) ...))
+   (subtype [Φ Γ_σ Ψ]
+            (subst τ_1 ([x_1 ↦ y] ...))
+            (subst τ_2 ([x_2 ↦ y] ...)))
+   (proves [Φ Γ_σ ((subst ψ_1+ ([x_1 ↦ y] ...)) · Ψ)]
+           (subst ψ_2+ ([x_2 ↦ y] ...)))
+   (proves [Φ Γ_σ ((subst ψ_1- ([x_1 ↦ y] ...)) · Ψ)]
+           (subst ψ_2- ([x_2 ↦ y] ...)))
+   --------------------- "S-Fun"
+   (subtype [Φ Γ Ψ]
+            ([x_1 : σ_1] ..._n → τ_1 (ψ_1+ ∣ ψ_1-))
+            ([x_2 : σ_2] ..._n → τ_2 (ψ_2+ ∣ ψ_2-)))])
+
+
+;; **************************************************************
+;; subtyping tests (basic (i.e. no 'proves' usage)
+(module+ test
+  ;; simple subtype tests
+  (test*-true (subtype mt-Δ ⊥ ⊤))
+  (test*-false (subtype mt-Δ ⊤ ⊥))
+  (test*-true (subtype mt-Δ ⊥ Int))
+  (test*-true (subtype mt-Δ Int Int))
+  (test*-false (subtype mt-Δ Int ⊥))
+  (test*-true (subtype mt-Δ Int ⊤))
+  (test*-true (subtype mt-Δ Int ⊤))
+  (test*-true (subtype mt-Δ Int (U Int Bool)))
+  (test*-false (subtype mt-Δ (U Int Bool) Int))
+  (test*-false (subtype mt-Δ (U Int Bool) ♯F))
+  (test*-true (subtype mt-Δ ♯F (U Int Bool)))
+
+  ;; function subtyping
+  ;;; reflexivity
+  (test*-true (subtype mt-Δ
+                       (→ Int (tt ∣ ff))
+                       (→ Int (tt ∣ ff))))
+  (test*-true (subtype mt-Δ
+                       ([x : ⊤] → {b : Bool ∣ (x ~ ⊤)} ((x ~ Int) ∣ (x ¬ Int)))
+                       ([y : ⊤] → {a : Bool ∣ (y ~ ⊤)} ((y ~ Int) ∣ (y ¬ Int)))))
+  
+  ;;; contravariant on domain
+  (test*-true (subtype mt-Δ
+                       ([x : ⊤] → ⊤ (ff ∣ ff))
+                       ([x : ⊥] → ⊤ (tt ∣ tt))))
+  (test*-false (subtype mt-Δ
+                        ([x : Int] → Int (tt ∣ ff))
+                        ([x : ⊤] → Int (tt ∣ ff))))
+  (test*-true (subtype mt-Δ
+                       ([a : ⊤] [b : (U Int Bool)] → Int (tt ∣ ff))
+                       ([x : Int] [y : Int] → Int (tt ∣ ff))))
+  (test*-false (subtype mt-Δ
+                        ([a : ⊤] [b : Bool] → Int (tt ∣ ff))
+                        ([x : Int] [y : Int] → Int (tt ∣ ff))))
+
+  ;;; covariant on range
+  (test*-true (subtype mt-Δ
+                       (→ Int (tt ∣ ff))
+                       (→ (U Int Bool) (tt ∣ ff))))
+  (test*-false (subtype mt-Δ
+                        (→ (U Int Bool) (tt ∣ ff))
+                        (→ Int (tt ∣ ff))))
+  (test*-true (subtype mt-Δ
+                       ([x : Int] → Int (tt ∣ ff))
+                       ([y : Int] → (U Int Bool) (tt ∣ ff))))
+  (test*-false (subtype mt-Δ
+                        ([x : Int] → (U Int Bool) (tt ∣ ff))
+                        ([y : Int] → Int (tt ∣ ff))))
+
+  ;;; matching number of args
+  (test*-false (subtype mt-Δ
+                        (→ Int (tt ∣ ff))
+                        ([x : ⊤] → Int (tt ∣ ff))))
+  (test*-false (subtype mt-Δ
+                        ([x : ⊥] → Int (tt ∣ ff))
+                        (→ Int (tt ∣ ff))))
+
+  ;; subtyping w/ populated Δ
+  )
+
+
+
+;;-------------------------------------------------------------
+;; restrict
+;; computes τ ∩ σ more or less
+(define-metafunction DTR
+  restrict : Δ τ σ -> τ
+  [(restrict Δ τ σ) ⊥
+   (where #false (overlap τ σ))]
+  [(restrict Δ (U τ ...) σ) (Un (restrict Δ τ σ) ...)]
+  [(restrict Δ τ σ) τ
+   (judgment-holds (subtype Δ τ σ))]
+  [(restrict Δ τ σ) σ])
+
+;;-------------------------------------------------------------
+;; remove
+;; computes τ - σ more or less
+(define-metafunction DTR
+  remove : Δ τ σ -> τ
+  [(remove Δ τ σ) ⊥
+   (judgment-holds (subtype Δ τ σ))]
+  [(remove Δ (U τ ...) σ) (Un (remove Δ τ σ) ...)]
+  [(remove Δ τ σ) τ])
+
+;; **************************************************************
+;; restrict, remove, update tests
+(module+ test
+  (test*-equal (restrict mt-Δ Int ⊤) Int)
+  (test*-equal (restrict mt-Δ Int ⊥) ⊥)
+  (test*-equal (restrict mt-Δ ⊤ Int) Int)
+  (test*-equal (restrict mt-Δ Int Bool) ⊥)
+  (test*-equal (restrict mt-Δ Bool Int) ⊥)
+  (test*-equal (restrict mt-Δ Bool (U Int ⊥)) ⊥)
+  (test*-equal (restrict mt-Δ Bool (U Int ♯T)) ♯T)
+  (test*-equal (restrict mt-Δ (U Int ♯T) Bool) ♯T)
+  (test*-equal (restrict mt-Δ (U Int Bool) Int) Int)
+  (test*-equal (restrict mt-Δ Int (U Int Bool)) Int)
+
+  (test*-equal (remove mt-Δ Int ⊤) ⊥)
+  (test*-equal (remove mt-Δ ⊤ Int) ⊤)
+  (test*-equal (remove mt-Δ ⊥ Int) ⊥)
+  (test*-equal (remove mt-Δ Int Bool) Int)
+  (test*-equal (remove mt-Δ Bool Int) Bool)
+  (test*-equal (remove mt-Δ Bool (U Int ⊥)) Bool)
+  (test*-equal (remove mt-Δ Bool (U Int ♯T)) ♯F)
+  (test*-equal (remove mt-Δ (U Int ♯T) Bool) Int)
+  (test*-equal (remove mt-Δ (U Int Bool) Int) Bool)
+  (test*-equal (remove mt-Δ Int (U Int Bool)) ⊥))
+
+
 
 ;; --------------------------------------------------------------
 ;; fme-unsat
@@ -252,160 +434,32 @@
    --------------------- "L-Remove"
    (proves  [Φ Γ ((x ¬ τ) · Ψ)] ψ)])
 
-(define-judgment-form DTR
-  #:mode (subtype I I I)
-  #:contract (subtype Δ τ τ)
-  [--------------------- "S-Refl"
-   (subtype Δ τ τ)]
 
-  [--------------------- "S-Top"
-   (subtype Δ τ ⊤)]
-
-  [(subtype Δ σ τ) ...
-   --------------------- "S-UnionSub"
-   (subtype Δ (U σ ...) τ)]
-  
-  [(subtype Δ σ τ)
-   --------------------- "S-UnionSuper"
-   (subtype Δ σ (U τ_l ... τ τ_r ...))]
-
-  [(subtype Δ σ τ)
-   --------------------- "S-RefineWeaken"
-   (subtype Δ {x : σ ∣ ψ} τ)]
-  
-  [(where/hidden #f (subtype [Φ Γ Ψ] σ τ))
-   (where y (fresh-var [Φ Γ Ψ] x))
-   (proves [Φ ((y : σ) · Γ) ((subst ψ ([x ↦ y])) · Ψ)]
-           (y ~ τ))
-   --------------------- "S-RefineSub"
-   (subtype [Φ Γ Ψ] {x : σ ∣ ψ} τ)]
-
-  [(where y (fresh-var [Φ Γ Ψ] x))
-   (where Γ_y ((y : σ) · Γ))
-   (proves [Φ Γ_y Ψ] (y ~ τ))
-   (proves [Φ Γ_y Ψ] (subst ψ ([x ↦ y])))
-   --------------------- "S-RefineSuper"
-   (subtype [Φ Γ Ψ] σ {x : τ ∣ ψ})]
-
-  [(subtype [Φ Γ Ψ] σ_2 σ_1) ...
-   (where (y ...) (fresh-vars [Φ Γ Ψ] (x_1 ...)))
-   (where Γ_σ (ext-Γ Γ (y : σ_2) ...))
-   (subtype [Φ Γ_σ Ψ]
-            (subst τ_1 ([x_1 ↦ y] ...))
-            (subst τ_2 ([x_2 ↦ y] ...)))
-   (proves [Φ Γ_σ ((subst ψ_1+ ([x_1 ↦ y] ...)) · Ψ)]
-           (subst ψ_2+ ([x_2 ↦ y] ...)))
-   (proves [Φ Γ_σ ((subst ψ_1- ([x_1 ↦ y] ...)) · Ψ)]
-           (subst ψ_2- ([x_2 ↦ y] ...)))
-   --------------------- "S-Fun"
-   (subtype [Φ Γ Ψ]
-            ([x_1 : σ_1] ..._n → τ_1 (ψ_1+ ∣ ψ_1-))
-            ([x_2 : σ_2] ..._n → τ_2 (ψ_2+ ∣ ψ_2-)))])
-
-
-;;-------------------------------------------------------------
-;; restrict
-;; computes τ ∩ σ more or less
-(define-metafunction DTR
-  restrict : Δ τ σ -> τ
-  [(restrict Δ τ σ) ⊥
-   (where #false (overlap τ σ))]
-  [(restrict Δ (U τ ...) σ) (Un (restrict Δ τ σ) ...)]
-  [(restrict Δ τ σ) τ
-   (judgment-holds (subtype Δ τ σ))]
-  [(restrict Δ τ σ) σ])
-
-;;-------------------------------------------------------------
-;; remove
-;; computes τ - σ more or less
-(define-metafunction DTR
-  remove : Δ τ σ -> τ
-  [(remove Δ τ σ) ⊥
-   (judgment-holds (subtype Δ τ σ))]
-  [(remove Δ (U τ ...) σ) (Un (remove Δ τ σ) ...)]
-  [(remove Δ τ σ) τ])
-
-;; **************************************************************
-;; restrict, remove, update tests
+;; white box logic tests
 (module+ test
-  (test*-equal (restrict mt-Δ Int ⊤) Int)
-  (test*-equal (restrict mt-Δ Int ⊥) ⊥)
-  (test*-equal (restrict mt-Δ ⊤ Int) Int)
-  (test*-equal (restrict mt-Δ Int Bool) ⊥)
-  (test*-equal (restrict mt-Δ Bool Int) ⊥)
-  (test*-equal (restrict mt-Δ Bool (U Int ⊥)) ⊥)
-  (test*-equal (restrict mt-Δ Bool (U Int ♯T)) ♯T)
-  (test*-equal (restrict mt-Δ (U Int ♯T) Bool) ♯T)
-  (test*-equal (restrict mt-Δ (U Int Bool) Int) Int)
-  (test*-equal (restrict mt-Δ Int (U Int Bool)) Int)
-
-  (test*-equal (remove mt-Δ Int ⊤) ⊥)
-  (test*-equal (remove mt-Δ ⊤ Int) ⊤)
-  (test*-equal (remove mt-Δ ⊥ Int) ⊥)
-  (test*-equal (remove mt-Δ Int Bool) Int)
-  (test*-equal (remove mt-Δ Bool Int) Bool)
-  (test*-equal (remove mt-Δ Bool (U Int ⊥)) Bool)
-  (test*-equal (remove mt-Δ Bool (U Int ♯T)) ♯F)
-  (test*-equal (remove mt-Δ (U Int ♯T) Bool) Int)
-  (test*-equal (remove mt-Δ (U Int Bool) Int) Bool)
-  (test*-equal (remove mt-Δ Int (U Int Bool)) ⊥))
-
-;; **************************************************************
-;; subtyping and logic tests
-(module+ test
-  ;; simple subtype tests
-  (test*-true (subtype mt-Δ ⊥ ⊤))
-  (test*-false (subtype mt-Δ ⊤ ⊥))
-  (test*-true (subtype mt-Δ ⊥ Int))
-  (test*-true (subtype mt-Δ Int Int))
-  (test*-false (subtype mt-Δ Int ⊥))
-  (test*-true (subtype mt-Δ Int ⊤))
-  (test*-true (subtype mt-Δ Int ⊤))
-  (test*-true (subtype mt-Δ Int (U Int Bool)))
-  (test*-false (subtype mt-Δ (U Int Bool) Int))
-  (test*-false (subtype mt-Δ (U Int Bool) ♯F))
-  (test*-true (subtype mt-Δ ♯F (U Int Bool)))
-
-  ;; simple logic tests
-  ;; ex falso, bot 
-  (test*-true (proves (Δ: ff) ff))
-  (test*-true (proves (Δ: (x ~ ⊥)) ff))
-  (test*-true (proves (Δ: (x ~ ⊥)) (y ~ Int)))
-  (test*-false (proves mt-Δ ff))
-  ;; trivial tautologies
-  (test*-true (proves mt-Δ tt))
-  (test*-true (proves mt-Δ (tt ∧ tt)))
-  (test*-true (proves mt-Δ (tt ∨ ff)))
-  (test*-true (proves mt-Δ (ff ∨ tt)))
-  ;; P -> P  (more or less)
-  (test*-true (proves (Δ: (x ~ Int)) (x ~ Int)))
-  (test*-true (proves (Δ: (x ¬ Int)) (x ¬ Int)))
-  (test*-true (proves (Δ: tt (x ~ Int) tt) (x ~ Int)))
-  (test*-true (proves (Δ: (y ~ Bool) (x ~ Int) (z ~ ⊤)) (x ~ Int)))
-  (test*-true (proves (Δ: (y ~ Bool) (x ~ Int) (z ¬ ⊤)) (x ~ Int)))
-  (test*-true (proves (Δ: (y ¬ Bool) (x ~ Int) (z ~ ⊤)) (x ~ Int)))
-  (test*-true (proves (Δ: tt (x ¬ Int) tt) (x ¬ Int)))
-  (test*-true (proves (Δ: (y ~ Bool) (x ¬ Int) (z ¬ ⊤)) (x ¬ Int)))
-  (test*-true (proves (Δ: (y ¬ Bool) (x ¬ Int) (z ~ ⊤)) (x ¬ Int)))
-  ;; no overlap
+  
+  ;; L-Subtype
+  ;; L-SubtypeNot
+  ;;L-NoOverlap
   (test*-true (proves (Δ: (x ~ Int)) (x ¬ Bool)))
-  ;; restrict
-  (test*-true (proves (Δ: (x ~ ⊤) (x ~ (U Int ♯T)) (x ~ (U Int ♯F))) (x ~ Int)))
-  (test*-false (proves (Δ: (x ~ (U Int ♯T)) (x ~ (U Int ♯F))) (x ~ ♯T)))
-  (test*-true (proves (Δ: (y ~ ⊤) (z ¬ ⊥) (x ~ ⊤) tt (x ~ (U Int ♯T)) (x ~ (U Int ♯F)) (z ~ ⊤))
-                      (x ~ Int)))
+  (test*-true (proves (Δ* (x ~ Int)) (x ¬ Bool)))
   
-  ;; remove
-  (test*-true (proves (Δ: (x ~ (U Int Bool)) (x ¬ Bool)) (x ~ Int)))
-  (test*-true (proves (Δ: (y ~ ⊤) (z ¬ ⊥) (x ~ (U Int Bool)) tt (x ¬ ♯T) tt (x ¬ ♯F))
-                      (x ~ Int)))
+  ;;L-True
+  (test*-true (proves (Δ:) tt))
+  (test*-true (proves (Δ*) tt))
+  ;;L-False
+  (test*-true (proves (Δ: ff) ff))
+  (test*-true (proves (Δ* ff) ff))
   
-  ;; andE
-  (test*-true (proves (Δ: ((x ~ (U Int ♯T)) ∧ (x ~ (U Int ♯F)))) (x ~ Int)))
-  (test*-true (proves (Δ: ((x ~ (U Int Bool)) ∧ (x ¬ Bool))) (x ~ Int)))
-  (test*-true (proves (Δ: (tt ∧ ((x ~ (U Int Bool)) ∧ (x ¬ Bool))) tt) (x ~ Int)))
-  (test*-true (proves (Δ: (((ff ∧ tt) ∧ (x ¬ Bool)) ∧ tt) tt) (x ~ ⊥)))
-  ;; orE
+  ;;L-Bot
+  (test*-true (proves (Δ: (x ~ ⊥)) ff))
+  (test*-true (proves (Δ* (x ~ ⊥)) ff))
+  
+  ;;L-Unsat
+
+  ;;;; TODO!!!
+  
+  ;;L-OrE
   (test*-true (proves (Δ: ((x ~ Int) ∨ (x ~ Bool))) (x ~ (U Int Bool))))
   (test*-true (proves (Δ: ((x ~ Int) ∨ ff)) (x ~ (U Int Bool))))
   (test*-true (proves (Δ: (x ¬ Int) ((x ~ Int) ∨ ff)) (x ~ (U Int Bool))))
@@ -413,24 +467,108 @@
   (test*-true (proves (Δ: (y ~ Int) (((x ~ ⊤) ∧ (y ¬ Int)) ∨ (x ~ ♯T)))
                       (x ~ (U Int Bool))))
   
-  ;; andI
-  (test*-true (proves (Δ: (x ~ Int)) ((x ~ Int) ∧ (x ¬ Bool))))
-  (test*-true (proves (Δ: (x ~ Int)) (((x ~ Int) ∧ (x ¬ Bool)) ∧ tt)))
-  (test*-false (proves (Δ: (x ~ Int)) (((x ~ Int) ∧ (x ¬ Bool)) ∧ ff)))
-  
-  ;; orI
+  ;;L-OrI-L && L-OrI-R
   (test*-true (proves (Δ: (x ~ Int)) ((x ~ Int) ∨ (x ¬ Bool))))
   (test*-true (proves (Δ: (x ~ Int)) ((x ~ Int) ∨ ff)))
   (test*-false (proves (Δ: (x ~ Int)) ((x ~ Bool) ∨ ff)))
   (test*-true (proves (Δ: (x ~ Int)) ((ff ∨ (x ¬ Bool)) ∨ ff)))
   (test*-true (proves (Δ: (x ~ Int)) (tt ∨ ((x ~ Bool) ∨ (x ~ ⊥)))))
+  ;;L-AndE
+  (test*-true (proves (Δ: ((x ~ (U Int ♯T)) ∧ (x ~ (U Int ♯F)))) (x ~ Int)))
+  (test*-true (proves (Δ: ((x ~ (U Int Bool)) ∧ (x ¬ Bool))) (x ~ Int)))
+  (test*-true (proves (Δ: (tt ∧ ((x ~ (U Int Bool)) ∧ (x ¬ Bool))) tt) (x ~ Int)))
+  (test*-true (proves (Δ: (((ff ∧ tt) ∧ (x ¬ Bool)) ∧ tt) tt) (x ~ ⊥)))
+  ;;L-AndI
+  (test*-true (proves (Δ: (x ~ Int)) ((x ~ Int) ∧ (x ¬ Bool))))
+  (test*-true (proves (Δ: (x ~ Int)) (((x ~ Int) ∧ (x ¬ Bool)) ∧ tt)))
+  (test*-false (proves (Δ: (x ~ Int)) (((x ~ Int) ∧ (x ¬ Bool)) ∧ ff)))
+  ;;L-IneqE
+
+  ;;;; TODO!!
+
+  ;;L-IneqI
+
+  ;;;; TODO!!
   
-  ;; aliases
+  ;;L-Alias
   (test*-true (proves (Δ: (x ~ Int) (x ⇒ y)) (x ~ Int)))
+  (test*-true (proves (Δ* (x ~ Int) (x ⇒ y)) (x ~ Int)))
   (test*-true (proves (Δ: (x ~ Int) (x ⇒ y)) (y ~ Int)))
+  (test*-true (proves (Δ* (x ~ Int) (x ⇒ y)) (y ~ Int)))
   (test*-true (proves (Δ: (x ~ (U Bool Int)) (x ⇒ y) (x ~ ♯T) (y ~ ♯F))
                       (y ~ Int)))
+  
+  ;;L-Identity
+  (test*-true (proves (Δ:) (x ⇒ x)))
+  (test*-true (proves (Δ*) (x ⇒ x)))
+  (test*-false (proves (Δ:) (x ⇒ y)))
+  (test*-false (proves (Δ*) (x ⇒ y)))
+  
+  ;;L-RefineIsE
+  (test*-true (proves (Δ: (x ¬ Int)
+                          (x ~ (U Int {y : Bool ∣ (q ~ Int)})))
+                      (q ~ Int)))
+  (test*-true (proves (Δ* (x ~ (U Int {y : Bool ∣ (q ~ Int)}))
+                          (x ¬ Int))
+                      (q ~ Int)))
+  
+  ;;L-RefineNotE
+  (test*-true (proves (Δ: (x ¬ {y : Int ∣ (q ~ Int)}))
+                      ((x ¬ Int) ∨ (q ¬ Int))))
+  (test*-true (proves (Δ* (x ¬ {y : Int ∣ (q ~ Int)}))
+                      ((x ¬ Int) ∨ (q ¬ Int))))
+  
+  ;;L-RefineIsI
+  (test*-true (proves (Δ: (x ~ Int) (q ~ Int))
+                      (x ~ {y : Int ∣ (q ~ Int)})))
+  (test*-true (proves (Δ* (x ~ Int) (q ~ Int))
+                      (x ~ {y : Int ∣ (q ~ Int)})))
+  ;;L-RefineNotI
+  (test*-true (proves (Δ: ((x ¬ Int) ∨ (q ¬ Int)))
+                      (x ¬ {y : Int ∣ (q ~ Int)})))
+  (test*-true (proves (Δ* ((x ¬ Int) ∨ (q ¬ Int)))
+                      (x ¬ {y : Int ∣ (q ~ Int)})))
 
+  
+  ;;L-Restrict
+  (test*-true (proves (Δ: (x ~ ⊤) (x ~ (U Int ♯T)) (x ~ (U Int ♯F))) (x ~ Int)))
+  (test*-false (proves (Δ: (x ~ (U Int ♯T)) (x ~ (U Int ♯F))) (x ~ ♯T)))
+  (test*-true (proves (Δ: (y ~ ⊤) (z ¬ ⊥) (x ~ ⊤) tt (x ~ (U Int ♯T)) (x ~ (U Int ♯F)) (z ~ ⊤))
+                      (x ~ Int)))
+  ;;L-Remove
+  (test*-true (proves (Δ: (x ~ (U Int Bool)) (x ¬ Bool)) (x ~ Int)))
+  (test*-true (proves (Δ: (y ~ ⊤) (z ¬ ⊥) (x ~ (U Int Bool)) tt (x ¬ ♯T) tt (x ¬ ♯F))
+                      (x ~ Int)))
+  
+  )
+
+;; Logic tests (black box)
+(module+ test
+  ;; sound
+  (test*-false (proves mt-Δ (x ~ ⊤)))
+  (test*-false (proves mt-Δ ff))
+  ;; simple logic tests
+  ;; ex falso, bot 
+  (test*-true (proves (Δ: ff) (x ~ Int)))
+  (test*-true (proves (Δ* ff) (x ~ Int)))
+  (test*-true (proves (Δ* ff) ff))
+  (test*-true (proves (Δ* (x ~ ⊥)) ff))
+  ;; trivial tautologies
+  (test*-true (proves mt-Δ tt))
+  (test*-true (proves (Δ*) tt))
+  (test*-true (proves (Δ*) (tt ∧ tt)))
+  (test*-true (proves (Δ*) (tt ∨ ff)))
+  (test*-true (proves (Δ*) (ff ∨ tt)))
+  ;; P -> P  (more or less)
+  (test*-true (proves (Δ* (x ~ Int)) (x ~ Int)))
+  (test*-true (proves (Δ* (x ¬ Int)) (x ¬ Int)))
+  
+  )
+
+
+
+;; complex subtyping (i.e. needs logic)
+(module+ test
 
   ;; refinement subtype
   (test*-true (subtype mt-Δ {a : Int ∣ tt} Int))
@@ -454,16 +592,8 @@
   (test*-false (subtype mt-Δ
                        {a : Int ∣ (x ~ Int)}
                        {a : Int ∣ ((y ~ Int) ∧ (x ~ Int))}))
-  
-  ;; function subtyping
 
-  
-  ;; SLI/FME tests
-
-
-  ;; subtyping w/ populated Δ
-  
-  ;; restrict/remove which exposes a refinement
+  ;; functions w/ complex props
   )
 
 (define (dot-list->list dl)
@@ -503,7 +633,7 @@
      (define props (dot-list->list Ψ))
      (cond
        ;; contains ⊥, quick bail
-       [(ormap ff? props) (list (term (ff · ())))]
+       [(ormap ff? props) (term (ff · ()))]
        ;; it's all already nots, don't touch it
        [(andmap not? props) #f]
        ;; okay, time to shuffle the list

@@ -111,7 +111,7 @@
    (U σ ...)
    (where (σ ...) ,(sort (term (τ ...))
                          (λ (a b)
-                           (<= (equal-hash-code a)
+                           (>= (equal-hash-code a)
                                (equal-hash-code b)))))])
 
 (define is? (redex-match? DTR (x ~ τ)))

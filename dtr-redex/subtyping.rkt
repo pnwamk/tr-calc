@@ -1,8 +1,8 @@
 #lang racket
 (require redex
          "lang.rkt"
-         "scope.rkt"
          "substitution.rkt"
+         "fme-bridge.rkt"
          "test-utils.rkt")
 
 (provide (all-defined-out))
@@ -290,7 +290,7 @@
 (define-judgment-form DTR
   #:mode (fme-unsat I)
   #:contract (fme-unsat Φ)
-  [(where #f #t)
+  [(where #f ,(redex-fme-sat? (dot-list->list (term Φ))))
    --------------
    (fme-unsat Φ)])
 
@@ -300,7 +300,8 @@
 (define-judgment-form DTR
   #:mode (fme-implies I I)
   #:contract (fme-implies Φ φ)
-  [(where #f #t)
+  [(where #t ,(redex-fme-imp? (dot-list->list (term Φ))
+                              (list (term φ))))
    --------------
    (fme-implies Φ φ)])
 
@@ -493,15 +494,16 @@
   (test*-false (proves (Δ: (x ~ Int)) (((x ~ Int) ∧ (x ¬ Bool)) ∧ ff)))
 
   ;;L-IneqE
-  ;(test*-true (proves (Δ: (x ≤ y) (y ≤ z)) (x ≤ z))) ;; todo
-  ;(test*-true (proves (Δ* (x ≤ y) (y ≤ z)) (x ≤ z))) ;; todo
+  (test*-true (proves (Δ: (x ≤ y) (y ≤ z)) (x ≤ z)))
+  (test*-true (proves (Δ* (x ≤ y) (y ≤ z)) (x ≤ z)))
+  (test*-false (proves (Δ* (x ≤ y) (y ≤ z)) (z ≤ x)))
   
   
   ;;L-IneqI
-  ;(test*-true (proves (Δ: (6 ≤ (2 ⊗ x)) (x ≤ y)) (2 ≤ y))) ;; todo
-  ;(test*-true (proves (Δ* (6 ≤ (2 ⊗ x)) (x ≤ y)) (3 ≤ y))) ;; todo
-  ;(test*-false (proves (Δ: (6 ≤ (2 ⊗ x)) (x ≤ y)) (4 ≤ y))) ;; todo
-  ;(test*-false (proves (Δ* (6 ≤ (2 ⊗ x)) (x ≤ y)) (4 ≤ y))) ;; todo
+  (test*-true (proves (Δ: (6 ≤ (2 ⊗ x)) (x ≤ y)) (2 ≤ y)))
+  (test*-true (proves (Δ* (6 ≤ (2 ⊗ x)) (x ≤ y)) (3 ≤ y)))
+  (test*-false (proves (Δ: (6 ≤ (2 ⊗ x)) (x ≤ y)) (4 ≤ y)))
+  (test*-false (proves (Δ* (6 ≤ (2 ⊗ x)) (x ≤ y)) (4 ≤ y)))
   
   ;;L-Alias
   (test*-true (proves (Δ: (x ~ Int) (x ⇒ y)) (x ~ Int)))

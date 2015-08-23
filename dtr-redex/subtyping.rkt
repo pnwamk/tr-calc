@@ -439,25 +439,32 @@
 (module+ test
   
   ;; L-Subtype
+  (test*-true (proves [() ((x : ♯T) · ()) ()] (x ~ Bool)))
+  (test*-true (proves (Δ* (x ~ ♯T)) (x ~ Bool)))
+
   ;; L-SubtypeNot
+  (test*-true (proves (Δ: (x ¬ Bool)) (x ¬ ♯T)))
+  (test*-true (proves (Δ* (x ¬ Bool)) (x ¬ ♯T)))
+  
   ;;L-NoOverlap
-  (test*-true (proves (Δ: (x ~ Int)) (x ¬ Bool)))
+  (test*-true (proves [() ((x : Int) · ()) ()] (x ¬ Bool)))
   (test*-true (proves (Δ* (x ~ Int)) (x ¬ Bool)))
   
   ;;L-True
   (test*-true (proves (Δ:) tt))
   (test*-true (proves (Δ*) tt))
+
   ;;L-False
   (test*-true (proves (Δ: ff) ff))
   (test*-true (proves (Δ* ff) ff))
   
   ;;L-Bot
-  (test*-true (proves (Δ: (x ~ ⊥)) ff))
+  (test*-true (proves [() ((x : ⊥) · ()) ()] ff))
   (test*-true (proves (Δ* (x ~ ⊥)) ff))
   
   ;;L-Unsat
-
-  ;;;; TODO!!!
+  ;(test*-true (proves (Δ: (x ≤ y) ((1 ⊕ y) ≤ x)) ff)) ;; todo
+  ;(test*-true (proves (Δ* (x ≤ y) ((1 ⊕ y) ≤ x)) ff))
   
   ;;L-OrE
   (test*-true (proves (Δ: ((x ~ Int) ∨ (x ~ Bool))) (x ~ (U Int Bool))))
@@ -473,22 +480,28 @@
   (test*-false (proves (Δ: (x ~ Int)) ((x ~ Bool) ∨ ff)))
   (test*-true (proves (Δ: (x ~ Int)) ((ff ∨ (x ¬ Bool)) ∨ ff)))
   (test*-true (proves (Δ: (x ~ Int)) (tt ∨ ((x ~ Bool) ∨ (x ~ ⊥)))))
+
   ;;L-AndE
   (test*-true (proves (Δ: ((x ~ (U Int ♯T)) ∧ (x ~ (U Int ♯F)))) (x ~ Int)))
   (test*-true (proves (Δ: ((x ~ (U Int Bool)) ∧ (x ¬ Bool))) (x ~ Int)))
   (test*-true (proves (Δ: (tt ∧ ((x ~ (U Int Bool)) ∧ (x ¬ Bool))) tt) (x ~ Int)))
   (test*-true (proves (Δ: (((ff ∧ tt) ∧ (x ¬ Bool)) ∧ tt) tt) (x ~ ⊥)))
+
   ;;L-AndI
   (test*-true (proves (Δ: (x ~ Int)) ((x ~ Int) ∧ (x ¬ Bool))))
   (test*-true (proves (Δ: (x ~ Int)) (((x ~ Int) ∧ (x ¬ Bool)) ∧ tt)))
   (test*-false (proves (Δ: (x ~ Int)) (((x ~ Int) ∧ (x ¬ Bool)) ∧ ff)))
+
   ;;L-IneqE
-
-  ;;;; TODO!!
-
+  ;(test*-true (proves (Δ: (x ≤ y) (y ≤ z)) (x ≤ z))) ;; todo
+  ;(test*-true (proves (Δ* (x ≤ y) (y ≤ z)) (x ≤ z))) ;; todo
+  
+  
   ;;L-IneqI
-
-  ;;;; TODO!!
+  ;(test*-true (proves (Δ: (6 ≤ (2 ⊗ x)) (x ≤ y)) (2 ≤ y))) ;; todo
+  ;(test*-true (proves (Δ* (6 ≤ (2 ⊗ x)) (x ≤ y)) (3 ≤ y))) ;; todo
+  ;(test*-false (proves (Δ: (6 ≤ (2 ⊗ x)) (x ≤ y)) (4 ≤ y))) ;; todo
+  ;(test*-false (proves (Δ* (6 ≤ (2 ⊗ x)) (x ≤ y)) (4 ≤ y))) ;; todo
   
   ;;L-Alias
   (test*-true (proves (Δ: (x ~ Int) (x ⇒ y)) (x ~ Int)))
@@ -594,7 +607,30 @@
                        {a : Int ∣ ((y ~ Int) ∧ (x ~ Int))}))
 
   ;; functions w/ complex props
-  )
+  (test*-false (subtype mt-Δ
+                        ([x : ⊤] → Bool (tt ∣ tt))
+                        ([x : ⊤] → Bool (tt ∣ ff))))
+  (test*-true (subtype mt-Δ
+                        ([x : ⊤] → Bool (tt ∣ ff))
+                        ([x : ⊤] → Bool (tt ∣ ff))))
+  (test*-false (subtype mt-Δ
+                        ([x : ⊤] → Bool (tt ∣ tt))
+                        ([x : ⊤] → Bool ((x ~ Int) ∣ tt))))
+  (test*-true (subtype mt-Δ
+                       ([x : ⊤] → Bool ((x ~ Int) ∣ tt))
+                       ([x : ⊤] → Bool ((x ~ Int) ∣ tt))))
+
+  ;; refinement w/ non-empty env
+  (test*-true (subtype (Δ: (x ~ Int)) Int {a : Int ∣ ((a ~ Int) ∧ (x ~ Int))}))
+  (test*-false (subtype (Δ: (x ~ ⊤)) Int {a : Int ∣ ((a ~ Int) ∧ (x ~ Int))}))
+  
+  ;; function w/ non-empty env
+  (test*-true (subtype (Δ: (y ~ Int))
+                       ([x : ⊤] → Bool ((x ~ Int) ∣ tt))
+                       ([x : ⊤] → Bool (((y ~ Int) ∧ (x ~ Int)) ∣ (y ~ Int)))))
+  (test*-false (subtype (Δ: (y ~ ⊤))
+                        ([x : ⊤] → Bool ((x ~ Int) ∣ tt))
+                        ([x : ⊤] → Bool (((y ~ Int) ∧ (x ~ Int)) ∣ (y ~ Int))))))
 
 (define (dot-list->list dl)
   (let loop ([dl dl]

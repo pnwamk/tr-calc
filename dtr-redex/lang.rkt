@@ -32,14 +32,6 @@
   ;; Environment
   [Δ ::= [Φ Γ Ψ]])
 
-;; short-hands
-(define-term Bool (U ♯T ♯F))
-(define-term ⊥ (U))
-(define-term mt-Δ [() () ()])
-(define-metafunction DTR
-  = : θ θ -> ψ
-  [(= θ_1 θ_2) ((θ_1 ≤ θ_2) ∧ (θ_2 ≤ θ_1))])
-
 
 ;; --------------------------------------------------------------
 ;; in  (basic membership predicate/metafunction)
@@ -111,7 +103,7 @@
    (U σ ...)
    (where (σ ...) ,(sort (term (τ ...))
                          (λ (a b)
-                           (>= (equal-hash-code a)
+                           (<= (equal-hash-code a)
                                (equal-hash-code b)))))])
 
 (define is? (redex-match? DTR (x ~ τ)))
@@ -123,4 +115,13 @@
 (define disj? (redex-match? DTR (ψ_l ∨ ψ_r)))
 (define ff? (redex-match? DTR ff))
 (define tt? (redex-match? DTR tt))
+
+
+;; short-hands
+(define-term Bool (Un ♯T ♯F))
+(define-term ⊥ (U))
+(define-term mt-Δ [() () ()])
+(define-metafunction DTR
+  = : θ θ -> ψ
+  [(= θ_1 θ_2) ((θ_1 ≤ θ_2) ∧ (θ_2 ≤ θ_1))])
 

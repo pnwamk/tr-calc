@@ -7,5 +7,5 @@
 *~
 *.dep
 *.zo
-compiled
-dtr-redex/compiled
+compiled/
+dtr-redex/compiled/

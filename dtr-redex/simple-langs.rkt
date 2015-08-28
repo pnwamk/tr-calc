@@ -5,11 +5,11 @@
 
 (define-language DTR
   ;; variables, as a convention
-  [x y z ::= variable-not-otherwise-mentioned]
+  [x ::= variable-not-otherwise-mentioned]
   [n ::= integer]
   [b ::= #t #f]
   ;; primitive operations
-  [p ::= int? bool? proc? + <= *2]
+  [p ::= int? bool? + <= *2]
   ;; Expressions
   [e ::= n b p x (λ ([x : τ] ...) e)
      (e e ...) (if e e e) (let (x e) e)]
@@ -106,11 +106,21 @@
                            (<= (equal-hash-code a)
                                (equal-hash-code b)))))])
 
+(define x? (redex-match? DTR x))
+(define p? (redex-match? DTR p))
+(define e? (redex-match? DTR e))
+(define o? (redex-match? DTR o))
+(define θ? (redex-match? DTR θ))
+(define τ? (redex-match? DTR θ))
+(define φ? (redex-match? DTR φ))
+(define ψ? (redex-match? DTR ψ))
+(define Φ? (redex-match? DTR Φ))
+(define Γ? (redex-match? DTR Γ))
+(define Ψ? (redex-match? DTR Ψ))
+(define Δ? (redex-match? DTR Δ))
 (define is? (redex-match? DTR (x ~ τ)))
 (define not? (redex-match? DTR (x ¬ τ)))
-(define ineq? (redex-match? DTR φ))
 (define alias? (redex-match? DTR (x ⇒ o)))
-(define sli? (redex-match? DTR Φ))
 (define conj? (redex-match? DTR (ψ_l ∧ ψ_r)))
 (define disj? (redex-match? DTR (ψ_l ∨ ψ_r)))
 (define ff? (redex-match? DTR ff))

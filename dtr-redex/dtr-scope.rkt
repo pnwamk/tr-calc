@@ -1,13 +1,13 @@
 #lang racket
 (require redex
-         "lang.rkt"
-         "test-utils.rkt")
+         "dtr-lang.rkt"
+         "utils.rkt")
 
 (provide
  ;; alpha equivalence functions
  α= test*-α=
  ;; free-variables
- s-db DTR+DB)
+ fv)
 
 (define-extended-language DTR+DB DTR
   [e ::= .... (K nat nat) (λ (τ ...) e)
@@ -31,7 +31,7 @@
    (K n_rib n_pos)
    (where n_rib ,(length (term ((x_1 ...) ...))))
    (where n_pos ,(length (term (x_0 ...))))
-   (where #false ,(member (term x) (term (x_1 ... ...))))]
+   (side-condition (not (member (term x) (term (x_1 ... ...)))))]
   ;; free variables
   [(s-db/a x (any ...)) x]
   ;; λ

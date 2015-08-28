@@ -1,9 +1,9 @@
 #lang racket
 (require redex
-         "lang.rkt"
-         "substitution.rkt"
-         "fme-bridge.rkt"
-         "test-utils.rkt")
+         "dtr-lang.rkt"
+         "dtr-subst.rkt"
+         "dtr-fme.rkt"
+         "utils.rkt")
 
 (provide (all-defined-out))
 
@@ -71,21 +71,13 @@
   (test*-true (overlap ([x : Bool] → Bool (ff ∣ tt))
                        ([y : Int] → Int (tt ∣ ff)))))
 
-;; conservative approximation of negate
-(define-metafunction DTR
-  negate : ψ -> ψ
-  [(negate tt) ff]
-  [(negate ff) tt]
-  [(negate (x ~ τ)) (x ¬ τ)]
-  [(negate (x ¬ τ)) (x ~ τ)]
-  [(negate (x ⇒ o)) tt]
-  [(negate (ψ_l ∧ ψ_r)) ((negate ψ_l) ∨ (negate ψ_r))]
-  [(negate (ψ_l ∨ ψ_r)) ((negate ψ_l) ∧ (negate ψ_r))]
-  [(negate (θ_l ≤ θ_r)) ((1 ⊕ θ_r) ≤ θ_l)])
-
 (define-metafunction DTR
   Δ: : ψ ... -> Δ
   [(Δ: ψ ...) (() () ,(list->dot-list (term (ψ ...))))])
+
+(define-metafunction DTR
+  Γ: : (x : τ) ... -> Δ
+  [(Γ: (x : τ) ...) (() ,(list->dot-list (term ((x : τ) ...))) ())])
 
 (define-metafunction DTR
   Δ* : ψ ... -> Δ
@@ -290,7 +282,7 @@
 (define-judgment-form DTR
   #:mode (fme-unsat I)
   #:contract (fme-unsat Φ)
-  [(where #f ,(redex-fme-sat? (dot-list->list (term Φ))))
+  [(where #f ,(satisfiable-Φ? (term Φ)))
    --------------
    (fme-unsat Φ)])
 
@@ -300,8 +292,7 @@
 (define-judgment-form DTR
   #:mode (fme-implies I I)
   #:contract (fme-implies Φ φ)
-  [(where #t ,(redex-fme-imp? (dot-list->list (term Φ))
-                              (list (term φ))))
+  [(where #t ,(Φ-implies-φ? (term Φ) (term φ)))
    --------------
    (fme-implies Φ φ)])
 
@@ -338,7 +329,7 @@
 
   [(where/hidden () Ψ)
    (where σ (lookup x Γ))
-   (where #f (overlap σ τ))
+   (where #false (overlap σ τ))
    --------------------- "L-NoOverlap"
    (proves  [Φ Γ Ψ] (x ¬ τ))]
 
@@ -403,7 +394,7 @@
   [(where/hidden #t ,(simple-Ψ? (term Ψ)))
    (where/hidden x (id-at-refine Γ))
    (where {y : τ ∣ ψ_y} (lookup x Γ))
-   (proves [Φ ((x : τ) · Γ) ((subst ψ_y ([x ↦ y])) · Ψ)] ψ) 
+   (proves [Φ ((x : τ) · Γ) ((subst ψ_y ([y ↦ x])) · Ψ)] ψ) 
    ---------------------------------- "L-RefineIsE"
    (proves  [Φ Γ Ψ] ψ)]
   
@@ -464,8 +455,9 @@
   (test*-true (proves (Δ* (x ~ ⊥)) ff))
   
   ;;L-Unsat
-  ;(test*-true (proves (Δ: (x ≤ y) ((1 ⊕ y) ≤ x)) ff)) ;; todo
-  ;(test*-true (proves (Δ* (x ≤ y) ((1 ⊕ y) ≤ x)) ff))
+  (test*-false (proves (Δ: (x ≤ y) (x ≤ z)) ff))
+  (test*-true (proves (Δ: (x ≤ y) ((1 ⊕ y) ≤ x)) ff))
+  (test*-true (proves (Δ* (x ≤ y) ((1 ⊕ y) ≤ x)) ff))
   
   ;;L-OrE
   (test*-true (proves (Δ: ((x ~ Int) ∨ (x ~ Bool))) (x ~ (U Int Bool))))
@@ -520,6 +512,8 @@
   (test*-false (proves (Δ*) (x ⇒ y)))
   
   ;;L-RefineIsE
+  (test*-true (proves (Δ: (z ~ (x : Int ∣ ((x ≤ 42) ∧ (42 ≤ x)))))
+                      (z ~ {i : Int ∣ (= i 42)})))
   (test*-true (proves (Δ: (x ¬ Int)
                           (x ~ (U Int {y : Bool ∣ (q ~ Int)})))
                       (q ~ Int)))
@@ -562,6 +556,9 @@
   ;; sound
   (test*-false (proves mt-Δ (x ~ ⊤)))
   (test*-false (proves mt-Δ ff))
+  (test*-false (proves (Δ:) (tt ∧ ff)))
+  (test*-false (proves (Δ:) (ff ∧ tt)))
+  (test*-false (proves (Δ:) (ff ∨ ff)))
   ;; simple logic tests
   ;; ex falso, bot 
   (test*-true (proves (Δ: ff) (x ~ Int)))
@@ -604,6 +601,9 @@
   (test*-true (subtype mt-Δ
                        {a : Int ∣ ((y ~ Int) ∧ (x ~ Int))}
                        {a : Int ∣ (x ~ Int)}))
+  (test*-true (subtype mt-Δ
+                       (x : Int ∣ ((x ≤ 42) ∧ (42 ≤ x)))
+                       {i : Int ∣ (= i 42)}))
   (test*-false (subtype mt-Δ
                        {a : Int ∣ (x ~ Int)}
                        {a : Int ∣ ((y ~ Int) ∧ (x ~ Int))}))
@@ -620,7 +620,7 @@
                         ([x : ⊤] → Bool ((x ~ Int) ∣ tt))))
   (test*-true (subtype mt-Δ
                        ([x : ⊤] → Bool ((x ~ Int) ∣ tt))
-                       ([x : ⊤] → Bool ((x ~ Int) ∣ tt))))
+                       ([y : ⊤] → Bool ((y ~ Int) ∣ tt))))
 
   ;; refinement w/ non-empty env
   (test*-true (subtype (Δ: (x ~ Int)) Int {a : Int ∣ ((a ~ Int) ∧ (x ~ Int))}))
@@ -629,23 +629,10 @@
   ;; function w/ non-empty env
   (test*-true (subtype (Δ: (y ~ Int))
                        ([x : ⊤] → Bool ((x ~ Int) ∣ tt))
-                       ([x : ⊤] → Bool (((y ~ Int) ∧ (x ~ Int)) ∣ (y ~ Int)))))
+                       ([z : ⊤] → Bool (((y ~ Int) ∧ (z ~ Int)) ∣ (y ~ Int)))))
   (test*-false (subtype (Δ: (y ~ ⊤))
                         ([x : ⊤] → Bool ((x ~ Int) ∣ tt))
                         ([x : ⊤] → Bool (((y ~ Int) ∧ (x ~ Int)) ∣ (y ~ Int))))))
-
-(define (dot-list->list dl)
-  (let loop ([dl dl]
-             [acc null])
-    (match dl
-      ['() acc]
-      [`(,x · ,xs)
-       (loop xs (cons x acc))])))
-
-(define (list->dot-list xs)
-  (for/fold ([dl '()])
-            ([x (in-list (reverse xs))])
-    `(,x · ,dl)))
 
 ;; Ψ -> (Ψ ...)
 (define (permute Ψ)
@@ -658,7 +645,7 @@
     ;; proposition that can be worked with at the head,
     ;; just leave it alone, return #f
     [`(,(or (? ff?)
-            (? ineq?)
+            (? φ?)
             (? is?)
             (? alias?)
             (? conj?)
@@ -681,6 +668,3 @@
           (partition not? actual-props))
         (list->dot-list (append not-nots nots))])]
     [_ (error 'permute "unaccounted for case! ~a" Ψ)]))
-
-(module+ test
-  (test-results))

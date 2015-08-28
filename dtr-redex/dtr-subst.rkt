@@ -1,8 +1,8 @@
 #lang racket
 (require redex
-         "lang.rkt"
-         "scope.rkt"
-         "test-utils.rkt")
+         "dtr-lang.rkt"
+         "dtr-scope.rkt"
+         "utils.rkt")
 
 (provide (all-defined-out))
 
